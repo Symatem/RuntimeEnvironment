@@ -142,14 +142,14 @@ PreDefModule(Push) {
     getSymbolByName(Execute)
     task.block = task.popCallStackTargetSymbol();
     Symbol parentFrame = task.frame;
-    task.frame = task.context->create({
+    task.unlink({task.task, PreDef_Holds, task.frame});
+    task.setFrame<false>(task.context->create({
         {PreDef_Holds, parentFrame},
         {PreDef_Parent, parentFrame},
         {PreDef_Holds, task.block},
         {PreDef_Block, task.block},
         {PreDef_Execute, ExecuteSymbol}
-    });
-    task.setSolitary({task.task, PreDef_Frame, task.frame});
+    }));
 }
 
 PreDefModule(Pop) {
@@ -178,27 +178,25 @@ PreDefModule(Exception) {
     } else
         ExceptionSymbol = task.frame;
 
-    Symbol execute, prevFrame = task.frame;
+    task.unlink({task.task, PreDef_Holds, task.frame});
+    Symbol execute, currentFrame = task.frame, prevFrame = currentFrame;
     while(true) {
-        if(task.frame != prevFrame && task.getUncertain(task.frame, PreDef_Catch, execute)) {
+        if(currentFrame != prevFrame && task.getUncertain(currentFrame, PreDef_Catch, execute)) {
             task.unlink(prevFrame, PreDef_Parent);
-            task.setSolitary({task.frame, PreDef_Execute, execute});
-            task.block = task.getGuaranteed(task.frame, PreDef_Block);
+            task.setFrame<true>(currentFrame);
             task.link({task.block, PreDef_Holds, ExceptionSymbol});
             task.link({task.block, PreDef_Exception, ExceptionSymbol});
-            task.setSolitary({task.task, PreDef_Execute, task.frame});
+            task.setSolitary({task.frame, PreDef_Execute, execute});
             return;
         }
-        prevFrame = task.frame;
-        if(!task.getUncertain(task.frame, PreDef_Parent, task.frame))
+        prevFrame = currentFrame;
+        if(!task.getUncertain(currentFrame, PreDef_Parent, currentFrame))
             break;
     }
 
-    task.frame = task.block = PreDef_Void;
-    task.status = PreDef_Exception;
-    task.unlink(task.task, PreDef_Frame);
-    task.setSolitary({task.task, PreDef_Exception, ExceptionSymbol});
+    task.setFrame<true>(ExceptionSymbol);
     task.setSolitary({task.task, PreDef_Status, PreDef_Exception});
+    task.status = PreDef_Exception;
 }
 
 PreDefModule(Serialize) {
@@ -700,16 +698,15 @@ bool Task::step() {
         return true;
     }
 
-    block = context->create();
-    frame = context->create({
-        {PreDef_Holds, parentFrame},
-        {PreDef_Parent, parentFrame},
-        {PreDef_Holds, block},
-        {PreDef_Block, block},
-    });
-
     try {
-        setSolitary({task, PreDef_Frame, frame});
+        unlink({task, PreDef_Holds, frame});
+        block = context->create();
+        setFrame<false>(context->create({
+            {PreDef_Holds, parentFrame},
+            {PreDef_Parent, parentFrame},
+            {PreDef_Holds, block},
+            {PreDef_Block, block},
+        }));
 
         query(12, {execute, PreDef_Void, PreDef_Void}, [&](Triple result, ArchitectureType) {
             Symbol value;

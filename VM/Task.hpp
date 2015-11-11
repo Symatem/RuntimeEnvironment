@@ -107,7 +107,7 @@ struct Task {
     }
 
     void unlink(Triple triple) {
-        unlink({triple});
+        unlink(std::set<Triple>{triple});
     }
 
     template<bool search = true>
@@ -142,19 +142,30 @@ struct Task {
         return context->symbolFor<PreDef_Text, search>(std::move(extend));
     }
 
+    template<bool setBlock>
+    void setFrame(Symbol _frame) {
+        frame = _frame;
+        link({task, PreDef_Holds, frame});
+        setSolitary({task, PreDef_Frame, frame});
+        if(setBlock)
+            block = getGuaranteed(frame, PreDef_Block);
+    }
+
     void throwException(const char* message, std::set<std::pair<Symbol, Symbol>> links = {}) {
         assert(task != PreDef_Void && frame != PreDef_Void);
         links.insert(std::make_pair(PreDef_Message, symbolFor<false>(message)));
 
         Symbol parentFrame = frame;
         block = context->create(links);
-        frame = context->create({
+        setFrame<false>(context->create({
             {PreDef_Holds, block},
             {PreDef_Block, block}
-        });
+        }));
+
         if(parentFrame != PreDef_Void) {
             link({frame, PreDef_Holds, parentFrame});
             link({frame, PreDef_Parent, parentFrame});
+            unlink({task, PreDef_Holds, parentFrame});
         }
         if(context->debug)
             link({frame, PreDef_Module, PreDef_Exception});
@@ -239,16 +250,14 @@ struct Task {
         destroy(frame);
         scrutinizeExistence(block);
         if(parentExists) {
-            frame = parentFrame;
-            block = getGuaranteed(frame, PreDef_Block);
-            setSolitary({task, PreDef_Frame, parentFrame});
+            setFrame<true>(parentFrame);
             return true;
         }
 
-        frame = block = PreDef_Void;
         unlink(task, PreDef_Frame);
-        status = PreDef_Done;
         setSolitary({task, PreDef_Status, PreDef_Done});
+        frame = block = PreDef_Void;
+        status = PreDef_Done;
         return false;
     }
 
@@ -265,8 +274,7 @@ struct Task {
         if(task == PreDef_Void) return;
         while(popCallStack());
         destroy(task);
-        task = PreDef_Void;
-        status = frame = block = PreDef_Void;
+        task = status = frame = block = PreDef_Void;
     }
 
     void remapExtend(Symbol entity, Symbol toType) {
@@ -450,15 +458,12 @@ struct Task {
             {PreDef_Target, block},
             {PreDef_Output, PreDef_Target}
         });
-        frame = context->create({
+        task = context->create({{PreDef_Status, PreDef_Run}});
+        setFrame<false>(context->create({
             {PreDef_Holds, block},
             {PreDef_Block, block},
             {PreDef_Execute, deserializeInst}
-        });
-        task = context->create({
-            {PreDef_Frame, frame},
-            {PreDef_Status, PreDef_Run}
-        });
+        }));
         status = PreDef_Run;
         link({block, PreDef_Holds, deserializeInst});
 
