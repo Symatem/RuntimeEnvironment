@@ -142,8 +142,10 @@ struct Task {
         return context->symbolFor<PreDef_Text, search>(std::move(extend));
     }
 
-    template<bool setBlock>
+    template<bool unlinkHolds, bool setBlock>
     void setFrame(Symbol _frame) {
+        if(unlinkHolds)
+            unlink({task, PreDef_Holds, frame});
         frame = _frame;
         link({task, PreDef_Holds, frame});
         setSolitary({task, PreDef_Frame, frame});
@@ -157,16 +159,12 @@ struct Task {
 
         Symbol parentFrame = frame;
         block = context->create(links);
-        setFrame<false>(context->create({
+        setFrame<true, false>(context->create({
+            {PreDef_Holds, parentFrame},
+            {PreDef_Parent, parentFrame},
             {PreDef_Holds, block},
             {PreDef_Block, block}
         }));
-
-        if(parentFrame != PreDef_Void) {
-            link({frame, PreDef_Holds, parentFrame});
-            link({frame, PreDef_Parent, parentFrame});
-            unlink({task, PreDef_Holds, parentFrame});
-        }
         if(context->debug)
             link({frame, PreDef_Module, PreDef_Exception});
 
@@ -250,7 +248,7 @@ struct Task {
         destroy(frame);
         scrutinizeExistence(block);
         if(parentExists) {
-            setFrame<true>(parentFrame);
+            setFrame<false, true>(parentFrame);
             return true;
         }
 
@@ -417,32 +415,6 @@ struct Task {
         while(step());
     }
 
-    void executeUntilNextPop() {
-        if(task == PreDef_Void) return;
-        while(running() && query(9, {frame, PreDef_Execute, PreDef_Void}) == 1 && step());
-    }
-
-    void executeUntilFrameIsReached(Symbol frameToReach) {
-        // TODO: What about exceptions
-        if(task == PreDef_Void) return;
-        while(step())
-            if(getGuaranteed(task, PreDef_Frame) == frameToReach)
-                break;
-    }
-
-    void executeFinishFrame() {
-        if(task == PreDef_Void) return;
-        Symbol frameToReach;
-        if(getUncertain(frame, PreDef_Parent, frameToReach))
-            executeUntilFrameIsReached(frameToReach);
-        else
-            executeInfinite();
-    }
-
-    void executeStepOver() {
-        executeUntilFrameIsReached(getGuaranteed(task, PreDef_Frame));
-    }
-
     void evaluateExtend(Symbol input, bool doExecute, Symbol package = PreDef_Void) {
         clear();
 
@@ -459,7 +431,7 @@ struct Task {
             {PreDef_Output, PreDef_Target}
         });
         task = context->create({{PreDef_Status, PreDef_Run}});
-        setFrame<false>(context->create({
+        setFrame<false, false>(context->create({
             {PreDef_Holds, block},
             {PreDef_Block, block},
             {PreDef_Execute, deserializeInst}
@@ -477,6 +449,7 @@ struct Task {
             link({block, PreDef_Holds, executeInst});
             ++execCount;
         }
-        executeFinite(execCount);
+        // executeFinite(execCount); // TODO
+        executeInfinite();
     }
 };

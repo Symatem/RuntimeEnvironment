@@ -142,8 +142,7 @@ PreDefModule(Push) {
     getSymbolByName(Execute)
     task.block = task.popCallStackTargetSymbol();
     Symbol parentFrame = task.frame;
-    task.unlink({task.task, PreDef_Holds, task.frame});
-    task.setFrame<false>(task.context->create({
+    task.setFrame<true, false>(task.context->create({
         {PreDef_Holds, parentFrame},
         {PreDef_Parent, parentFrame},
         {PreDef_Holds, task.block},
@@ -178,12 +177,11 @@ PreDefModule(Exception) {
     } else
         ExceptionSymbol = task.frame;
 
-    task.unlink({task.task, PreDef_Holds, task.frame});
     Symbol execute, currentFrame = task.frame, prevFrame = currentFrame;
     while(true) {
         if(currentFrame != prevFrame && task.getUncertain(currentFrame, PreDef_Catch, execute)) {
             task.unlink(prevFrame, PreDef_Parent);
-            task.setFrame<true>(currentFrame);
+            task.setFrame<true, true>(currentFrame);
             task.link({task.block, PreDef_Holds, ExceptionSymbol});
             task.link({task.block, PreDef_Exception, ExceptionSymbol});
             task.setSolitary({task.frame, PreDef_Execute, execute});
@@ -194,7 +192,7 @@ PreDefModule(Exception) {
             break;
     }
 
-    task.setFrame<true>(ExceptionSymbol);
+    task.setFrame<true, true>(ExceptionSymbol);
     task.setSolitary({task.task, PreDef_Status, PreDef_Exception});
     task.status = PreDef_Exception;
 }
@@ -699,9 +697,8 @@ bool Task::step() {
     }
 
     try {
-        unlink({task, PreDef_Holds, frame});
         block = context->create();
-        setFrame<false>(context->create({
+        setFrame<true, false>(context->create({
             {PreDef_Holds, parentFrame},
             {PreDef_Parent, parentFrame},
             {PreDef_Holds, block},

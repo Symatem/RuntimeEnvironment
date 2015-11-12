@@ -9,7 +9,7 @@ int main(int argc, const char** argv) {
                       infoMessage = CSI+"1;36m[Info]"+CSI+"m";*/
 
     bool execute = false;
-    for(ArchitectureType i = 1; mode != Mode_Exception && i < argc; ++i) {
+    for(ArchitectureType i = 1; interfaceBuffer.empty() && i < argc; ++i) {
         if(strcmp(argv[i], "-d") == 0) {
             execute = false;
             continue;
@@ -22,13 +22,12 @@ int main(int argc, const char** argv) {
         if(dp == NULL) {
             interfaceBuffer = "Could not open directory ";
             interfaceBuffer += argv[i];
-            mode = Mode_Exception;
             break;
         }
         std::string directoryPath = argv[i];
         if(directoryPath[directoryPath.size()-1] == '/') directoryPath.resize(directoryPath.size()-1);
         std::string directoryName = directoryPath;
-        auto slashIndex = directoryName.find('/');
+        auto slashIndex = directoryName.rfind('/');
         if(slashIndex != std::string::npos)
             directoryName = directoryName.substr(slashIndex+1);
         directoryPath += '/';
@@ -43,22 +42,19 @@ int main(int argc, const char** argv) {
             if(!file.good()) {
                 interfaceBuffer = "Could not open file ";
                 interfaceBuffer += filePath;
-                mode = Mode_Exception;
                 break;
             }
             task.evaluateExtend(task.symbolFor<false>(file), execute, package);
             if(execute) {
-                task.executeInfinite();
+                // task.executeInfinite(); // TODO
                 if(task.uncaughtException()) {
                     interfaceBuffer = "Could not execute file ";
                     interfaceBuffer += filePath;
-                    mode = Mode_Exception;
                 }
                 break;
             } else if(task.uncaughtException()) {
                 interfaceBuffer = "Could not parse file ";
                 interfaceBuffer += filePath;
-                mode = Mode_Exception;
                 break;
             }
         }
@@ -66,20 +62,13 @@ int main(int argc, const char** argv) {
     }
 
     while(true) {
-        ioctl(STDIN_FILENO, TIOCGWINSZ, &screenSize);
-        clearScreen();
+        render();
         switch(mode) {
-            case Mode_Exception:
-                ModeException();
-            break;
-            case Mode_Menu:
-                ModeMenu();
-            break;
             case Mode_Browse:
-                ModeBrowse();
+                pollKeyboard(ModeBrowse);
             break;
-            case Mode_Execute:
-                ModeEvaluate();
+            case Mode_Input:
+                pollKeyboard(ModeInput);
             break;
         }
     }

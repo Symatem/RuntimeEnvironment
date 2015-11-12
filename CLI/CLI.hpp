@@ -2,14 +2,22 @@
 #include <sys/ioctl.h>
 #include <termios.h>
 
-Context context;
-struct Task task = {&context, PreDef_Void};
+const std::string CSI = "\33["; // "\e["
+const ArchitectureType historyLimit = 8;
 struct termios termiosOld, termiosNew;
 struct winsize screenSize;
-const std::string CSI = "\33["; // "\e["
+enum {
+    Mode_Browse,
+    Mode_Input
+} mode = Mode_Browse;
 std::stringstream stream;
 std::string interfaceBuffer;
-std::vector<ArchitectureType> cursor;
+std::vector<ArchitectureType> history;
+ArchitectureType historyTop, historySub, linesForExtend;
+Context context;
+struct Task task = {&context, PreDef_Void};
+decltype(context.topIndex)::iterator topIter;
+Extend* extend;
 
 void pollKeyboard(std::function<uint64_t(bool, uint64_t, const char*)> callback) {
     fd_set readset;
@@ -108,8 +116,4 @@ ArchitectureType printStreamLimited(ArchitectureType mode = 0,
         ++col;
     }
     return row;
-}
-
-void printTitle(const std::string& title) {
-    std::cout << CSI+"1m[" << title << "]"+CSI+"m";
 }
