@@ -10,7 +10,7 @@ PreDefWrapper(Done),
 PreDefWrapper(Frame),
 PreDefWrapper(Block),
 PreDefWrapper(Parent),
-PreDefWrapper(Module),
+PreDefWrapper(Procedure),
 PreDefWrapper(Execute),
 PreDefWrapper(Next),
 

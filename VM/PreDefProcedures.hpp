@@ -1,31 +1,8 @@
 #include "Deserialize.hpp"
 
-#define PreDefModule(Name) void PreDefModule_##Name(Task& task)
+#define PreDefProcedure(Name) void PreDefProcedure_##Name(Task& task)
 
-/*void IterateArray(Task& exec, Symbol symbol, std::function<void(ArchitectureType, Symbol)> callback) {
-    task.query(21, {symbol, PreDef_Void, PreDef_Void}, [&](Triple result, ArchitectureType) {
-        if(task.query(0, {result.pos[0], PreDef_Extend, PreDef_Natural}) == 1) {
-            ArchitectureType index = task.get<ArchitectureType>(task.context->getExtend(result.pos[0]));
-            task.query(9, {symbol, result.pos[0], PreDef_Void}, [&](Triple result2, ArchitectureType) {
-                callback(index, result2.pos[0]);
-            });
-        }
-    });
-}
-
-void FillSymbolArray(Task& exec, Symbol* storrage, ArchitectureType maxCount = 3) {
-    ArchitectureType counter = maxCount;
-    IterateArray(exec, task.block, [&](ArchitectureType index, Symbol value) {
-        if(index >= maxCount)
-            task.throwException("Invalid Input");
-        storrage[index] = value;
-        --counter;
-    });
-    if(counter != 0)
-        task.throwException("Too few Inputs");
-}*/
-
-PreDefModule(Search) {
+PreDefProcedure(Search) {
     Triple triple;
     uint8_t modes[3] = {2, 2, 2};
     Symbol posNames[3] = {PreDef_Entity, PreDef_Attribute, PreDef_Value};
@@ -66,16 +43,16 @@ PreDefModule(Search) {
     task.popCallStack();
 }
 
-struct PreDefModule_Link {
+struct PreDefProcedure_Link {
     static bool e(Context* context, Triple triple) { return context->link(triple); };
 };
 
-struct PreDefModule_Unlink {
+struct PreDefProcedure_Unlink {
     static bool e(Context* context, Triple triple) { return context->unlink({triple}); };
 };
 
 template<class op>
-PreDefModule(Triple) {
+PreDefProcedure(Triple) {
     getSymbolByName(Entity)
     getSymbolByName(Attribute)
     getSymbolByName(Value)
@@ -88,7 +65,7 @@ PreDefModule(Triple) {
     task.popCallStack();
 }
 
-PreDefModule(Create) {
+PreDefProcedure(Create) {
     Symbol InputSymbol, ValueSymbol;
     bool input = task.getUncertain(task.block, PreDef_Input, InputSymbol);
     if(input)
@@ -109,7 +86,7 @@ PreDefModule(Create) {
     }
 }
 
-PreDefModule(Destroy) {
+PreDefProcedure(Destroy) {
     std::set<Symbol> toDestroy;
     if(task.query(9, {task.block, PreDef_Input, PreDef_Void}, [&](Triple result, ArchitectureType) {
         toDestroy.insert(result.pos[0]);
@@ -120,7 +97,7 @@ PreDefModule(Destroy) {
     task.popCallStack();
 }
 
-PreDefModule(GetEnv) {
+PreDefProcedure(GetEnv) {
     getSymbolByName(Input)
     getSymbolByName(Output)
     Symbol TargetSymbol = task.popCallStackTargetSymbol();
@@ -138,7 +115,7 @@ PreDefModule(GetEnv) {
     task.setSolitary({TargetSymbol, OutputSymbol, InputSymbol});
 }
 
-PreDefModule(Push) {
+PreDefProcedure(Push) {
     getSymbolByName(Execute)
     task.block = task.popCallStackTargetSymbol();
     Symbol parentFrame = task.frame;
@@ -151,7 +128,7 @@ PreDefModule(Push) {
     }));
 }
 
-PreDefModule(Pop) {
+PreDefProcedure(Pop) {
     getSymbolAndExtendByName(Count)
     checkExtendType(Count, PreDef_Natural)
     auto CountValue = task.get<uint64_t>(CountExtend);
@@ -160,7 +137,7 @@ PreDefModule(Pop) {
     for(; CountValue > 0 && task.popCallStack(); --CountValue);
 }
 
-PreDefModule(Branch) {
+PreDefProcedure(Branch) {
     getUncertainSymbolAndExtendByName(Input, 1)
     getSymbolByName(Branch)
     task.popCallStack();
@@ -168,7 +145,7 @@ PreDefModule(Branch) {
         task.setSolitary({task.frame, PreDef_Execute, BranchSymbol});
 }
 
-PreDefModule(Exception) {
+PreDefProcedure(Exception) {
     Symbol ExceptionSymbol;
     if(task.getUncertain(task.block, PreDef_Input, ExceptionSymbol)) {
         Symbol currentFrame = ExceptionSymbol;
@@ -193,11 +170,10 @@ PreDefModule(Exception) {
     }
 
     task.setFrame<true, true>(ExceptionSymbol);
-    task.setSolitary({task.task, PreDef_Status, PreDef_Exception});
-    task.status = PreDef_Exception;
+    task.setStatus(PreDef_Exception);
 }
 
-PreDefModule(Serialize) {
+PreDefProcedure(Serialize) {
     getSymbolByName(Input)
     getSymbolAndExtendByName(Output)
 
@@ -207,11 +183,11 @@ PreDefModule(Serialize) {
     task.popCallStack();
 }
 
-PreDefModule(Deserialize) {
+PreDefProcedure(Deserialize) {
     Deserialize{task};
 }
 
-PreDefModule(CloneExtend) {
+PreDefProcedure(CloneExtend) {
     getSymbolAndExtendByName(Input)
     getSymbolAndExtendByName(Output)
     Symbol type;
@@ -223,7 +199,7 @@ PreDefModule(CloneExtend) {
     task.popCallStack();
 }
 
-PreDefModule(SliceExtend) {
+PreDefProcedure(SliceExtend) {
     getSymbolAndExtendByName(Input)
     getSymbolAndExtendByName(Target)
     getUncertainSymbolAndExtendByName(Count, InputExtend->size)
@@ -234,7 +210,7 @@ PreDefModule(SliceExtend) {
     task.popCallStack();
 }
 
-PreDefModule(AllocateExtend) {
+PreDefProcedure(AllocateExtend) {
     getSymbolAndExtendByName(Input)
     getSymbolAndExtendByName(Target)
     checkExtendType(Input, PreDef_Natural)
@@ -242,7 +218,7 @@ PreDefModule(AllocateExtend) {
     task.popCallStack();
 }
 
-PreDefModule(ReallocateExtend) {
+PreDefProcedure(ReallocateExtend) {
     getSymbolAndExtendByName(Input)
     getSymbolAndExtendByName(Target)
     checkExtendType(Input, PreDef_Natural)
@@ -250,7 +226,7 @@ PreDefModule(ReallocateExtend) {
     task.popCallStack();
 }
 
-PreDefModule(EraseFromExtend) {
+PreDefProcedure(EraseFromExtend) {
     getSymbolAndExtendByName(Target)
     getUncertainSymbolAndExtendByName(Begin, 0)
 
@@ -274,7 +250,7 @@ PreDefModule(EraseFromExtend) {
     task.popCallStack();
 }
 
-PreDefModule(InsertIntoExtend) {
+PreDefProcedure(InsertIntoExtend) {
     getSymbolAndExtendByName(Input)
     getSymbolAndExtendByName(Target)
     getUncertainSymbolAndExtendByName(Begin, TargetExtend->size)
@@ -283,7 +259,7 @@ PreDefModule(InsertIntoExtend) {
     task.popCallStack();
 }
 
-PreDefModule(GetExtendLength) {
+PreDefProcedure(GetExtendLength) {
     getSymbolAndExtendByName(Input)
     getSymbolAndExtendByName(Output)
     task.setSolitary({OutputSymbol, PreDef_Extend, PreDef_Natural});
@@ -292,7 +268,7 @@ PreDefModule(GetExtendLength) {
 }
 
 template<typename T>
-void PreDefModule_NumericCastTo(Task& task, Symbol type, Extend* OutputExtend, Extend* InputExtend) {
+void PreDefProcedure_NumericCastTo(Task& task, Symbol type, Extend* OutputExtend, Extend* InputExtend) {
     switch(type) {
         case PreDef_Natural:
             OutputExtend->overwrite(static_cast<T>(task.get<uint64_t>(InputExtend)));
@@ -308,7 +284,7 @@ void PreDefModule_NumericCastTo(Task& task, Symbol type, Extend* OutputExtend, E
     }
 }
 
-PreDefModule(NumericCast) {
+PreDefProcedure(NumericCast) {
     getSymbolAndExtendByName(Input)
     getSymbolAndExtendByName(To)
     getSymbolAndExtendByName(Output)
@@ -319,13 +295,13 @@ PreDefModule(NumericCast) {
     task.setSolitary({OutputSymbol, PreDef_Extend, ToSymbol});
     switch(ToSymbol) {
         case PreDef_Natural:
-            PreDefModule_NumericCastTo<uint64_t>(task, type, OutputExtend, InputExtend);
+            PreDefProcedure_NumericCastTo<uint64_t>(task, type, OutputExtend, InputExtend);
         break;
         case PreDef_Integer:
-            PreDefModule_NumericCastTo<int64_t>(task, type, OutputExtend, InputExtend);
+            PreDefProcedure_NumericCastTo<int64_t>(task, type, OutputExtend, InputExtend);
         break;
         case PreDef_Float:
-            PreDefModule_NumericCastTo<double>(task, type, OutputExtend, InputExtend);
+            PreDefProcedure_NumericCastTo<double>(task, type, OutputExtend, InputExtend);
         break;
         default:
             task.throwException("Invalid To Value");
@@ -333,7 +309,7 @@ PreDefModule(NumericCast) {
     task.popCallStack();
 }
 
-PreDefModule(Equal) {
+PreDefProcedure(Equal) {
     Symbol type;
     Extend* FirstExtend;
     uint64_t OutputValue = 1;
@@ -365,14 +341,14 @@ PreDefModule(Equal) {
     task.popCallStack();
 }
 
-struct PreDefModule_LessThan {
+struct PreDefProcedure_LessThan {
     static bool n(uint64_t i, uint64_t c) { return i < c; };
     static bool i(int64_t i, int64_t c) { return i < c; };
     static bool f(double i, double c) { return i < c; };
     static bool s(const Extend& i, const Extend& c) { return i.compare(c) < 0; };
 };
 
-struct PreDefModule_LessEqual {
+struct PreDefProcedure_LessEqual {
     static bool n(uint64_t i, uint64_t c) { return i <= c; };
     static bool i(int64_t i, int64_t c) { return i <= c; };
     static bool f(double i, double c) { return i <= c; };
@@ -380,7 +356,7 @@ struct PreDefModule_LessEqual {
 };
 
 template<class op>
-PreDefModule(CompareLogic) {
+PreDefProcedure(CompareLogic) {
     getSymbolAndExtendByName(Input)
     getSymbolAndExtendByName(Comparandum)
     getSymbolAndExtendByName(Output)
@@ -411,7 +387,7 @@ PreDefModule(CompareLogic) {
     task.popCallStack();
 }
 
-PreDefModule(Complement) {
+PreDefProcedure(Complement) {
     getSymbolAndExtendByName(Input)
     getSymbolAndExtendByName(Output)
 
@@ -420,12 +396,12 @@ PreDefModule(Complement) {
     task.popCallStack();
 }
 
-struct PreDefModule_ClearShift {
+struct PreDefProcedure_ClearShift {
     static void n(ArchitectureType& dst, uint64_t count) { dst >>= count; };
     static void p(ArchitectureType& dst, uint64_t count) { dst <<= count; };
 };
 
-struct PreDefModule_CloneShift {
+struct PreDefProcedure_CloneShift {
     static void n(ArchitectureType& dst, uint64_t count) {
         *reinterpret_cast<int64_t*>(&dst) >>= count;
     };
@@ -436,7 +412,7 @@ struct PreDefModule_CloneShift {
     };
 };
 
-struct PreDefModule_BarrelShift {
+struct PreDefProcedure_BarrelShift {
     static void n(ArchitectureType& dst, uint64_t count) {
         ArchitectureType aux = dst&BitMask<uint64_t>::fillLSBs(count);
         dst >>= count;
@@ -450,7 +426,7 @@ struct PreDefModule_BarrelShift {
 };
 
 template<class op>
-PreDefModule(Shift) {
+PreDefProcedure(Shift) {
     getSymbolAndExtendByName(Input)
     getSymbolAndExtendByName(Count)
     getSymbolAndExtendByName(Output)
@@ -468,20 +444,20 @@ PreDefModule(Shift) {
     task.popCallStack();
 }
 
-struct PreDefModule_And {
+struct PreDefProcedure_And {
     static void n(uint64_t& dst, uint64_t src) { dst &= src; };
 };
 
-struct PreDefModule_Or {
+struct PreDefProcedure_Or {
     static void n(uint64_t& dst, uint64_t src) { dst |= src; };
 };
 
-struct PreDefModule_Xor {
+struct PreDefProcedure_Xor {
     static void n(uint64_t& dst, uint64_t src) { dst ^= src; };
 };
 
 template<class op>
-PreDefModule(AssociativeCommutativeBitWise) {
+PreDefProcedure(AssociativeCommutativeBitWise) {
     uint64_t OutputValue;
     bool first = true;
 
@@ -501,20 +477,20 @@ PreDefModule(AssociativeCommutativeBitWise) {
     task.popCallStack();
 }
 
-struct PreDefModule_Add {
+struct PreDefProcedure_Add {
     static void n(uint64_t& dst, uint64_t src) { dst += src; };
     static void i(int64_t& dst, int64_t src) { dst += src; };
     static void f(double& dst, double src) { dst += src; };
 };
 
-struct PreDefModule_Multiply {
+struct PreDefProcedure_Multiply {
     static void n(uint64_t& dst, uint64_t src) { dst *= src; };
     static void i(int64_t& dst, int64_t src) { dst *= src; };
     static void f(double& dst, double src) { dst *= src; };
 };
 
 template<class op>
-PreDefModule(AssociativeCommutativeArithmetic) {
+PreDefProcedure(AssociativeCommutativeArithmetic) {
     Symbol type;
     union {
         uint64_t n;
@@ -565,7 +541,7 @@ PreDefModule(AssociativeCommutativeArithmetic) {
     task.popCallStack();
 }
 
-PreDefModule(Subtract) {
+PreDefProcedure(Subtract) {
     getSymbolAndExtendByName(Minuend)
     getSymbolAndExtendByName(Subtrahend)
     getSymbolAndExtendByName(Output)
@@ -592,7 +568,7 @@ PreDefModule(Subtract) {
     task.popCallStack();
 }
 
-PreDefModule(Divide) {
+PreDefProcedure(Divide) {
     getSymbolAndExtendByName(Dividend)
     getSymbolAndExtendByName(Divisor)
 
@@ -647,41 +623,41 @@ PreDefModule(Divide) {
     task.popCallStack();
 }
 
-std::map<Symbol, void(*)(Task&)> PreDefModules = {
-    {PreDef_Search, PreDefModule_Search},
-    {PreDef_Link, PreDefModule_Triple<PreDefModule_Link>},
-    {PreDef_Unlink, PreDefModule_Triple<PreDefModule_Unlink>},
-    {PreDef_Create, PreDefModule_Create},
-    {PreDef_Destroy, PreDefModule_Destroy},
-    {PreDef_GetEnv, PreDefModule_GetEnv},
-    {PreDef_Push, PreDefModule_Push},
-    {PreDef_Pop, PreDefModule_Pop},
-    {PreDef_Branch, PreDefModule_Branch},
-    {PreDef_Exception, PreDefModule_Exception},
-    {PreDef_Serialize, PreDefModule_Serialize},
-    {PreDef_Deserialize, PreDefModule_Deserialize},
-    {PreDef_CloneExtend, PreDefModule_CloneExtend},
-    {PreDef_SliceExtend, PreDefModule_SliceExtend},
-    {PreDef_AllocateExtend, PreDefModule_AllocateExtend},
-    {PreDef_ReallocateExtend, PreDefModule_ReallocateExtend},
-    {PreDef_EraseFromExtend, PreDefModule_EraseFromExtend},
-    {PreDef_InsertIntoExtend, PreDefModule_InsertIntoExtend},
-    {PreDef_GetExtendLength, PreDefModule_GetExtendLength},
-    {PreDef_NumericCast, PreDefModule_NumericCast},
-    {PreDef_Equal, PreDefModule_Equal},
-    {PreDef_LessThan, PreDefModule_CompareLogic<PreDefModule_LessThan>},
-    {PreDef_LessEqual, PreDefModule_CompareLogic<PreDefModule_LessEqual>},
-    {PreDef_Complement, PreDefModule_Complement},
-    {PreDef_ClearShift, PreDefModule_Shift<PreDefModule_ClearShift>},
-    {PreDef_CloneShift, PreDefModule_Shift<PreDefModule_CloneShift>},
-    {PreDef_BarrelShift, PreDefModule_Shift<PreDefModule_BarrelShift>},
-    {PreDef_And, PreDefModule_AssociativeCommutativeBitWise<PreDefModule_And>},
-    {PreDef_Or, PreDefModule_AssociativeCommutativeBitWise<PreDefModule_Or>},
-    {PreDef_Xor, PreDefModule_AssociativeCommutativeBitWise<PreDefModule_Xor>},
-    {PreDef_Add, PreDefModule_AssociativeCommutativeArithmetic<PreDefModule_Add>},
-    {PreDef_Multiply, PreDefModule_AssociativeCommutativeArithmetic<PreDefModule_Multiply>},
-    {PreDef_Subtract, PreDefModule_Subtract},
-    {PreDef_Divide, PreDefModule_Divide}
+std::map<Symbol, void(*)(Task&)> PreDefProcedures = {
+    {PreDef_Search, PreDefProcedure_Search},
+    {PreDef_Link, PreDefProcedure_Triple<PreDefProcedure_Link>},
+    {PreDef_Unlink, PreDefProcedure_Triple<PreDefProcedure_Unlink>},
+    {PreDef_Create, PreDefProcedure_Create},
+    {PreDef_Destroy, PreDefProcedure_Destroy},
+    {PreDef_GetEnv, PreDefProcedure_GetEnv},
+    {PreDef_Push, PreDefProcedure_Push},
+    {PreDef_Pop, PreDefProcedure_Pop},
+    {PreDef_Branch, PreDefProcedure_Branch},
+    {PreDef_Exception, PreDefProcedure_Exception},
+    {PreDef_Serialize, PreDefProcedure_Serialize},
+    {PreDef_Deserialize, PreDefProcedure_Deserialize},
+    {PreDef_CloneExtend, PreDefProcedure_CloneExtend},
+    {PreDef_SliceExtend, PreDefProcedure_SliceExtend},
+    {PreDef_AllocateExtend, PreDefProcedure_AllocateExtend},
+    {PreDef_ReallocateExtend, PreDefProcedure_ReallocateExtend},
+    {PreDef_EraseFromExtend, PreDefProcedure_EraseFromExtend},
+    {PreDef_InsertIntoExtend, PreDefProcedure_InsertIntoExtend},
+    {PreDef_GetExtendLength, PreDefProcedure_GetExtendLength},
+    {PreDef_NumericCast, PreDefProcedure_NumericCast},
+    {PreDef_Equal, PreDefProcedure_Equal},
+    {PreDef_LessThan, PreDefProcedure_CompareLogic<PreDefProcedure_LessThan>},
+    {PreDef_LessEqual, PreDefProcedure_CompareLogic<PreDefProcedure_LessEqual>},
+    {PreDef_Complement, PreDefProcedure_Complement},
+    {PreDef_ClearShift, PreDefProcedure_Shift<PreDefProcedure_ClearShift>},
+    {PreDef_CloneShift, PreDefProcedure_Shift<PreDefProcedure_CloneShift>},
+    {PreDef_BarrelShift, PreDefProcedure_Shift<PreDefProcedure_BarrelShift>},
+    {PreDef_And, PreDefProcedure_AssociativeCommutativeBitWise<PreDefProcedure_And>},
+    {PreDef_Or, PreDefProcedure_AssociativeCommutativeBitWise<PreDefProcedure_Or>},
+    {PreDef_Xor, PreDefProcedure_AssociativeCommutativeBitWise<PreDefProcedure_Xor>},
+    {PreDef_Add, PreDefProcedure_AssociativeCommutativeArithmetic<PreDefProcedure_Add>},
+    {PreDef_Multiply, PreDefProcedure_AssociativeCommutativeArithmetic<PreDefProcedure_Multiply>},
+    {PreDef_Subtract, PreDefProcedure_Subtract},
+    {PreDef_Divide, PreDefProcedure_Divide}
 };
 
 bool Task::step() {
@@ -689,7 +665,7 @@ bool Task::step() {
         return false;
 
     Symbol parentBlock = block, parentFrame = frame,
-           module = PreDef_Void, next = PreDef_Void,
+           procedure = PreDef_Void, next = PreDef_Void,
            execute;
     if(!getUncertain(parentFrame, PreDef_Execute, execute)) {
         popCallStack();
@@ -713,8 +689,8 @@ bool Task::step() {
                 case PreDef_Extend:
                 case PreDef_Holds:
                 return;
-                case PreDef_Module:
-                    module = value;
+                case PreDef_Procedure:
+                    procedure = value;
                 break;
                 case PreDef_Next:
                     next = value;
@@ -728,24 +704,24 @@ bool Task::step() {
             }
         });
         if(context->debug)
-            link({frame, PreDef_Module, module});
+            link({frame, PreDef_Procedure, procedure});
 
-        if(module == PreDef_Void)
-            throwException("Expected Module");
+        if(procedure == PreDef_Void)
+            throwException("Expected Procedure");
 
         if(next == PreDef_Void)
             unlink(parentFrame, PreDef_Execute);
         else
             setSolitary({parentFrame, PreDef_Execute, next});
 
-        auto iter = PreDefModules.find(module);
-        if(iter == PreDefModules.end()) {
-            execute = getGuaranteed(module, PreDef_Execute);
+        auto iter = PreDefProcedures.find(procedure);
+        if(iter == PreDefProcedures.end()) {
+            execute = getGuaranteed(procedure, PreDef_Execute);
             link({frame, PreDef_Execute, execute});
         } else
             iter->second(*this);
     } catch(Exception) {
-        PreDefModule_Exception(*this);
+        PreDefProcedure_Exception(*this);
     }
 
     return true;

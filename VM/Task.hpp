@@ -142,6 +142,11 @@ struct Task {
         return context->symbolFor<PreDef_Text, search>(std::move(extend));
     }
 
+    void setStatus(Symbol _status) {
+        status = _status;
+        setSolitary({task, PreDef_Status, status});
+    }
+
     template<bool unlinkHolds, bool setBlock>
     void setFrame(Symbol _frame) {
         if(unlinkHolds)
@@ -166,7 +171,7 @@ struct Task {
             {PreDef_Block, block}
         }));
         if(context->debug)
-            link({frame, PreDef_Module, PreDef_Exception});
+            link({frame, PreDef_Procedure, PreDef_Exception});
 
         setSolitary({task, PreDef_Frame, frame});
         throw Exception{};
@@ -191,7 +196,6 @@ struct Task {
     }
 
     void scrutinizeExistence(Symbol symbol) {
-        // TODO Prototype and Destructor
         std::queue<Symbol> symbols;
         symbols.push(symbol);
         while(!symbols.empty()) {
@@ -253,9 +257,8 @@ struct Task {
         }
 
         unlink(task, PreDef_Frame);
-        setSolitary({task, PreDef_Status, PreDef_Done});
         frame = block = PreDef_Void;
-        status = PreDef_Done;
+        setStatus(PreDef_Done);
         return false;
     }
 
@@ -407,11 +410,13 @@ struct Task {
 
     void executeFinite(ArchitectureType n) {
         if(task == PreDef_Void) return;
+        setStatus(PreDef_Run);
         for(ArchitectureType i = 0; i < n && step(); ++i);
     }
 
     void executeInfinite() {
         if(task == PreDef_Void) return;
+        setStatus(PreDef_Run);
         while(step());
     }
 
@@ -424,32 +429,29 @@ struct Task {
         if(package == PreDef_Void)
             package = block;
         Symbol deserializeInst = context->create({
-            {PreDef_Module, PreDef_Deserialize},
+            {PreDef_Procedure, PreDef_Deserialize},
             {PreDef_Package, package},
             {PreDef_Input, input},
             {PreDef_Target, block},
             {PreDef_Output, PreDef_Target}
         });
-        task = context->create({{PreDef_Status, PreDef_Run}});
+        task = context->create();
         setFrame<false, false>(context->create({
             {PreDef_Holds, block},
             {PreDef_Block, block},
             {PreDef_Execute, deserializeInst}
         }));
-        status = PreDef_Run;
         link({block, PreDef_Holds, deserializeInst});
 
-        ArchitectureType execCount = 2;
         if(doExecute) {
             Symbol executeInst = context->create({
-                {PreDef_Module, PreDef_Branch},
+                {PreDef_Procedure, PreDef_Branch},
                 {PreDef_Branch, PreDef_Target}
             });
             link({deserializeInst, PreDef_Next, executeInst});
             link({block, PreDef_Holds, executeInst});
-            ++execCount;
         }
-        // executeFinite(execCount); // TODO
+
         executeInfinite();
     }
 };

@@ -6,7 +6,7 @@
     pos = std::distance(iter##Begin, container.find(item)); \
     if(size > maxSize) size = maxSize; \
     linesLeft -= size; \
-    pos = (pos > size/2) ? pos-size/2 : 0; \
+    pos = (pos >= (size-1)/2) ? pos-(size-1)/2 : 0; \
     if(pos > container.size()-size) pos = container.size()-size; \
     std::advance(iter##Begin, pos); \
     std::advance(iter##End, pos+size); \
@@ -94,7 +94,7 @@ void render() {
         maxSize = linesLeft;
         if(historySub == 3) {
             size = subIndex.find(history[historyTop+2])->second.size();
-            maxSize = (maxSize > size) ? maxSize-size : 3;
+            maxSize = (size <= maxSize-3) ? maxSize-size : 3;
         }
         clippedForEachInContainer(j, subIndex, history[historyTop+2]) {
             task.serializeExtend(stream, j->first);
@@ -147,11 +147,6 @@ uint64_t ModeBrowse(bool special, uint64_t size, const char* buffer) {
         }
     } else {
         switch(*buffer) {
-            case ' ':
-                mode = Mode_Input;
-                interfaceBuffer.clear();
-                setCursorHidden(false);
-            return 1;
             case 'a':
                 task.clear();
             return 1;
@@ -165,9 +160,6 @@ uint64_t ModeBrowse(bool special, uint64_t size, const char* buffer) {
                 if(!task.uncaughtException())
                     return 1;
             break;
-            case 27:
-                terminate();
-            return 1;
             case 'h':
                 com = Left;
             break;
@@ -180,24 +172,18 @@ uint64_t ModeBrowse(bool special, uint64_t size, const char* buffer) {
             case 'l':
                 com = Right;
             break;
-            case 127:
-                if(historySub == 0)
-                    com = Left;
-                else {
-                    if(historyTop > 0)
-                        history.erase(history.begin()+historyTop, history.end());
-                    return 1;
-                }
-            break;
-            case 10:
+            case ' ':
+                mode = Mode_Input;
+                interfaceBuffer.clear();
+                setCursorHidden(false);
+            return 1;
+            case 27:
+                terminate();
+            return 1;
+            case 9:
                 switch(historySub) {
                     case 0:
-                        /* TODO: Set focus
-                        task.clear();
-                        task.task = history[historyTop];
-                        mode = Mode_Menu;*/
                     case 1:
-                    case 3:
                     return 1;
                     case 2: {
                         if(history[historyTop+1] == 0) return 1;
@@ -209,6 +195,9 @@ uint64_t ModeBrowse(bool special, uint64_t size, const char* buffer) {
                             history.erase(history.begin(), history.begin()+4);
                         history.push_back(history[historyTop+2]);
                     } return 1;
+                    case 3:
+                        com = Right;
+                    break;
                 }
             break;
             default:
@@ -332,7 +321,7 @@ uint64_t ModeInput(bool special, uint64_t size, const char* buffer) {
                 setCursorHidden(true);
                 task.evaluateExtend(task.Task::symbolFor<false>(interfaceBuffer), true);
                 if(task.uncaughtException())
-                    interfaceBuffer = "Could not evaluate input";
+                    interfaceBuffer = "Exception occurred while evaluating input";
                 else
                     interfaceBuffer.clear();
                 mode = Mode_Browse;

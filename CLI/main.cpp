@@ -45,15 +45,8 @@ int main(int argc, const char** argv) {
                 break;
             }
             task.evaluateExtend(task.symbolFor<false>(file), execute, package);
-            if(execute) {
-                // task.executeInfinite(); // TODO
-                if(task.uncaughtException()) {
-                    interfaceBuffer = "Could not execute file ";
-                    interfaceBuffer += filePath;
-                }
-                break;
-            } else if(task.uncaughtException()) {
-                interfaceBuffer = "Could not parse file ";
+            if(task.uncaughtException()) {
+                interfaceBuffer = "Exception occurred while evaluating file ";
                 interfaceBuffer += filePath;
                 break;
             }
