@@ -54,7 +54,7 @@ enum PreDefSymbols {
 #undef PreDefWrapper
 
 #define PreDefWrapper(token) #token
-const char* PreDefStrings[] = {
+const char* PreDefSymbols[] = {
 #include "PreDefSymbols.hpp"
 };
 #undef PreDefWrapper

@@ -190,12 +190,12 @@ PreDefProcedure(Deserialize) {
 PreDefProcedure(CloneExtend) {
     getSymbolAndExtendByName(Input)
     getSymbolAndExtendByName(Output)
+    OutputExtend->overwrite(*InputExtend);
     Symbol type;
     if(task.getUncertain(InputSymbol, PreDef_Extend, type))
         task.setSolitary({OutputSymbol, PreDef_Extend, type});
     else
         task.unlink(OutputSymbol, PreDef_Extend);
-    OutputExtend->overwrite(*InputExtend);
     task.popCallStack();
 }
 
@@ -207,6 +207,7 @@ PreDefProcedure(SliceExtend) {
     getUncertainSymbolAndExtendByName(Source, 0)
     if(!TargetExtend->replacePartial(*InputExtend, CountValue, DestinationValue, SourceValue))
         task.throwException("Invalid Count, Destination or SrcOffset Value");
+    task.updateExtendIndexFor(TargetSymbol, TargetExtend);
     task.popCallStack();
 }
 
@@ -215,6 +216,7 @@ PreDefProcedure(AllocateExtend) {
     getSymbolAndExtendByName(Target)
     checkExtendType(Input, PreDef_Natural)
     TargetExtend->allocate(task.get<ArchitectureType>(InputExtend));
+    task.updateExtendIndexFor(TargetSymbol, TargetExtend);
     task.popCallStack();
 }
 
@@ -223,6 +225,7 @@ PreDefProcedure(ReallocateExtend) {
     getSymbolAndExtendByName(Target)
     checkExtendType(Input, PreDef_Natural)
     TargetExtend->reallocate(task.get<ArchitectureType>(InputExtend));
+    task.updateExtendIndexFor(TargetSymbol, TargetExtend);
     task.popCallStack();
 }
 
@@ -247,6 +250,7 @@ PreDefProcedure(EraseFromExtend) {
 
     if(!TargetExtend->erase(BeginValue, EndValue))
         task.throwException("Invalid Begin or End Value");
+    task.updateExtendIndexFor(TargetSymbol, TargetExtend);
     task.popCallStack();
 }
 
@@ -256,6 +260,7 @@ PreDefProcedure(InsertIntoExtend) {
     getUncertainSymbolAndExtendByName(Begin, TargetExtend->size)
     if(!TargetExtend->insert(*InputExtend, BeginValue))
         task.throwException("Invalid Begin Value");
+    task.updateExtendIndexFor(TargetSymbol, TargetExtend);
     task.popCallStack();
 }
 

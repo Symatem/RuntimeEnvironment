@@ -76,7 +76,7 @@ class Deserialize {
                 if(i % 2 == 1) ptr[(i-4)/2] = byte;
                 byte <<= 4;
             }
-            symbol = task.context->symbolFor<PreDef_Void, true>(std::move(extend));
+            symbol = task.context->symbolFor<PreDef_Void>(std::move(extend));
         } else {
             uint64_t uintValue;
             int64_t intValue;

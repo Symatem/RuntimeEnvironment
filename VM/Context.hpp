@@ -65,7 +65,7 @@ class Context {
     Symbol nextSymbol;
     typedef std::map<Symbol, std::unique_ptr<SearchIndexEntry>>::iterator TopIter;
     std::map<Symbol, std::unique_ptr<SearchIndexEntry>> topIndex;
-    std::map<Extend*, Symbol, ExtendIndexCompare> rawIndex, textIndex, naturalIndex, integerIndex, floatIndex;
+    std::map<Extend*, Symbol, ExtendIndexCompare> textIndex;
     bool debug;
 
     TopIter SymbolFactory(Symbol symbol) {
@@ -81,6 +81,11 @@ class Context {
                 topIter = SymbolFactory(triple.pos[i]);
             if(!topIter->second->link(reverseIndex, i, triple.pos[(i+1)%3], triple.pos[(i+2)%3]))
                 return false;
+        }
+        if(triple.pos[1] == PreDef_Extend && triple.pos[2] == PreDef_Text) {
+            Extend* extend = getExtend(triple.pos[0]);
+            if(extend->size > 0)
+                textIndex.insert(std::make_pair(extend, triple.pos[0]));
         }
         return true;
     }
@@ -98,6 +103,11 @@ class Context {
                 if(topIter == topIndex.end() ||
                    !topIter->second->unlink(reverseIndex, i, triple.pos[(i+1)%3], triple.pos[(i+2)%3]))
                     return false;
+                if(triple.pos[1] == PreDef_Extend && triple.pos[2] == PreDef_Text) {
+                    Extend* extend = getExtend(triple.pos[0]);
+                    if(extend->size > 0)
+                        textIndex.erase(extend);
+                }
             }
         for(auto alpha : dirty) {
             auto topIter = topIndex.find(alpha);
@@ -125,56 +135,34 @@ class Context {
         return &topIndex.find(symbol)->second->extend;
     }
 
-    std::map<Extend*, Symbol, ExtendIndexCompare>* extendIndexOfType(Symbol type) {
-        switch(type) {
-            case PreDef_Void:
-                return &rawIndex;
-            case PreDef_Text:
-                return &textIndex;
-            case PreDef_Natural:
-                return &naturalIndex;
-            case PreDef_Integer:
-                return &integerIndex;
-            case PreDef_Float:
-                return &floatIndex;
-            default:
-                assert(false);
-                return nullptr;
-        }
-    }
-
-    template<Symbol type, bool index>
+    template<Symbol type>
     Symbol symbolFor(Extend&& extend) {
         assert(extend.size > 0);
 
-        auto extendIndex = extendIndexOfType(type);
-        if(index) {
-            auto iter = extendIndex->find(&extend);
-            if(iter != extendIndex->end())
+        if(type == PreDef_Text) {
+            auto iter = textIndex.find(&extend);
+            if(iter != textIndex.end())
                 return iter->second;
         }
 
         Symbol symbol = nextSymbol++;
         auto pair = std::make_pair(&SymbolFactory(symbol)->second->extend, symbol);
         *pair.first = std::move(extend);
-        if(index)
-            extendIndex->insert(pair);
-        if(type != PreDef_Void)
-            link({pair.second, PreDef_Extend, type});
+        link({pair.second, PreDef_Extend, type});
 
         return symbol;
     }
 
-    template<Symbol type, bool search, typename T>
+    template<Symbol type, typename T>
     Symbol symbolFor(T value) {
         Extend extend;
         extend.overwrite(value);
-        return symbolFor<type, search>(std::move(extend));
+        return symbolFor<type>(std::move(extend));
     }
 
     Context() :nextSymbol(0), indexMode(HexaIndex), debug(true) {
-        while(nextSymbol < sizeof(PreDefStrings)/sizeof(void*))
-            link({PreDef_Foundation, PreDef_Holds, symbolFor<PreDef_Text, true>(PreDefStrings[nextSymbol])});
+        while(nextSymbol < sizeof(PreDefSymbols)/sizeof(void*))
+            link({PreDef_Foundation, PreDef_Holds, symbolFor<PreDef_Text>(PreDefSymbols[nextSymbol])});
     }
 
     ArchitectureType searchGGG(ArchitectureType index, Triple& triple, std::function<void()> callback) {

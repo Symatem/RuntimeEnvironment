@@ -110,73 +110,6 @@ struct Task {
         unlink(std::set<Triple>{triple});
     }
 
-    template<bool search = true>
-    Symbol symbolFor(uint64_t value) {
-        return context->symbolFor<PreDef_Natural, search>(value);
-    }
-
-    template<bool search = true>
-    Symbol symbolFor(int64_t value) {
-        return context->symbolFor<PreDef_Integer, search>(value);
-    }
-
-    template<bool search = true>
-    Symbol symbolFor(double value) {
-        return context->symbolFor<PreDef_Float, search>(value);
-    }
-
-    template<bool search = true>
-    Symbol symbolFor(const char* value) {
-        return context->symbolFor<PreDef_Text, search>(value);
-    }
-
-    template<bool search = true>
-    Symbol symbolFor(const std::string& value) {
-        return context->symbolFor<PreDef_Text, search>(value.c_str());
-    }
-
-    template<bool search = true>
-    Symbol symbolFor(std::istream& stream) {
-        Extend extend;
-        extend.overwrite(stream);
-        return context->symbolFor<PreDef_Text, search>(std::move(extend));
-    }
-
-    void setStatus(Symbol _status) {
-        status = _status;
-        setSolitary({task, PreDef_Status, status});
-    }
-
-    template<bool unlinkHolds, bool setBlock>
-    void setFrame(Symbol _frame) {
-        if(unlinkHolds)
-            unlink({task, PreDef_Holds, frame});
-        frame = _frame;
-        link({task, PreDef_Holds, frame});
-        setSolitary({task, PreDef_Frame, frame});
-        if(setBlock)
-            block = getGuaranteed(frame, PreDef_Block);
-    }
-
-    void throwException(const char* message, std::set<std::pair<Symbol, Symbol>> links = {}) {
-        assert(task != PreDef_Void && frame != PreDef_Void);
-        links.insert(std::make_pair(PreDef_Message, symbolFor<false>(message)));
-
-        Symbol parentFrame = frame;
-        block = context->create(links);
-        setFrame<true, false>(context->create({
-            {PreDef_Holds, parentFrame},
-            {PreDef_Parent, parentFrame},
-            {PreDef_Holds, block},
-            {PreDef_Block, block}
-        }));
-        if(context->debug)
-            link({frame, PreDef_Procedure, PreDef_Exception});
-
-        setSolitary({task, PreDef_Frame, frame});
-        throw Exception{};
-    }
-
     void destroy(Symbol alpha) {
         std::set<Triple> triples;
         auto topIter = context->topIndex.find(alpha);
@@ -185,7 +118,6 @@ struct Task {
         if(topIter->second->extend.size > 0) {
             Symbol type = PreDef_Void;
             getUncertain(alpha, PreDef_Extend, type);
-            context->extendIndexOfType(type)->erase(&topIter->second->extend);
         }
         for(ArchitectureType i = EAV; i <= VEA; ++i)
             for(auto& beta : topIter->second->subIndices[i])
@@ -242,50 +174,39 @@ struct Task {
         return value;
     }
 
-    bool popCallStack() {
-        assert(task != PreDef_Void);
-        if(frame == PreDef_Void) return false;
-        assert(context->topIndex.find(frame) != context->topIndex.end());
-
-        Symbol parentFrame;
-        bool parentExists = getUncertain(frame, PreDef_Parent, parentFrame);
-        destroy(frame);
-        scrutinizeExistence(block);
-        if(parentExists) {
-            setFrame<false, true>(parentFrame);
-            return true;
-        }
-
-        unlink(task, PreDef_Frame);
-        frame = block = PreDef_Void;
-        setStatus(PreDef_Done);
-        return false;
+    Symbol symbolFor(uint64_t value) {
+        return context->symbolFor<PreDef_Natural>(value);
     }
 
-    Symbol popCallStackTargetSymbol() {
-        Symbol TargetSymbol;
-        bool target = getUncertain(block, PreDef_Target, TargetSymbol);
-        assert(popCallStack());
-        if(target)
-            return TargetSymbol;
-        return block;
+    Symbol symbolFor(int64_t value) {
+        return context->symbolFor<PreDef_Integer>(value);
     }
 
-    void clear() {
-        if(task == PreDef_Void) return;
-        while(popCallStack());
-        destroy(task);
-        task = status = frame = block = PreDef_Void;
+    Symbol symbolFor(double value) {
+        return context->symbolFor<PreDef_Float>(value);
     }
 
-    void remapExtend(Symbol entity, Symbol toType) {
-        // TODO use this method when setSolitary of PreDef_Extend is called
-        Extend* extend = context->getExtend(entity);
+    Symbol symbolFor(const char* value) {
+        return context->symbolFor<PreDef_Text>(value);
+    }
+
+    Symbol symbolFor(const std::string& value) {
+        return context->symbolFor<PreDef_Text>(value.c_str());
+    }
+
+    Symbol symbolFor(std::istream& stream) {
+        Extend extend;
+        extend.overwrite(stream);
+        return context->symbolFor<PreDef_Text>(std::move(extend));
+    }
+
+    void updateExtendIndexFor(Symbol entity, Extend* extend) {
         if(extend->size == 0) return;
-        Symbol fromType = PreDef_Void;
-        getUncertain(entity, PreDef_Extend, fromType);
-        context->extendIndexOfType(fromType)->erase(extend);
-        context->extendIndexOfType(toType)->insert(std::make_pair(extend, entity));
+        Symbol type = PreDef_Void;
+        if(getUncertain(entity, PreDef_Extend, type) && type == PreDef_Text) {
+            context->textIndex.erase(extend);
+            context->textIndex.insert(std::make_pair(extend, entity));
+        }
     }
 
     void serializeExtend(std::ostream& stream, Symbol entity) {
@@ -368,7 +289,7 @@ struct Task {
     }
 
     void writeToStream(std::ostream& stream) {
-        auto preDefCount = sizeof(PreDefStrings)/sizeof(void*);
+        auto preDefCount = sizeof(PreDefSymbols)/sizeof(void*);
         for(auto& entity : context->topIndex) {
             auto& subIndex = entity.second->subIndices[EAV];
             if((entity.first < preDefCount) &&
@@ -396,6 +317,77 @@ struct Task {
                     }
                 }
         }
+    }
+
+    void setStatus(Symbol _status) {
+        status = _status;
+        setSolitary({task, PreDef_Status, status});
+    }
+
+    template<bool unlinkHolds, bool setBlock>
+    void setFrame(Symbol _frame) {
+        if(unlinkHolds)
+            unlink({task, PreDef_Holds, frame});
+        frame = _frame;
+        link({task, PreDef_Holds, frame});
+        setSolitary({task, PreDef_Frame, frame});
+        if(setBlock)
+            block = getGuaranteed(frame, PreDef_Block);
+    }
+
+    void throwException(const char* message, std::set<std::pair<Symbol, Symbol>> links = {}) {
+        assert(task != PreDef_Void && frame != PreDef_Void);
+        links.insert(std::make_pair(PreDef_Message, symbolFor(message)));
+
+        Symbol parentFrame = frame;
+        block = context->create(links);
+        setFrame<true, false>(context->create({
+            {PreDef_Holds, parentFrame},
+            {PreDef_Parent, parentFrame},
+            {PreDef_Holds, block},
+            {PreDef_Block, block}
+        }));
+        if(context->debug)
+            link({frame, PreDef_Procedure, PreDef_Exception});
+
+        setSolitary({task, PreDef_Frame, frame});
+        throw Exception{};
+    }
+
+    bool popCallStack() {
+        assert(task != PreDef_Void);
+        if(frame == PreDef_Void) return false;
+        assert(context->topIndex.find(frame) != context->topIndex.end());
+
+        Symbol parentFrame;
+        bool parentExists = getUncertain(frame, PreDef_Parent, parentFrame);
+        destroy(frame);
+        scrutinizeExistence(block);
+        if(parentExists) {
+            setFrame<false, true>(parentFrame);
+            return true;
+        }
+
+        unlink(task, PreDef_Frame);
+        frame = block = PreDef_Void;
+        setStatus(PreDef_Done);
+        return false;
+    }
+
+    Symbol popCallStackTargetSymbol() {
+        Symbol TargetSymbol;
+        bool target = getUncertain(block, PreDef_Target, TargetSymbol);
+        assert(popCallStack());
+        if(target)
+            return TargetSymbol;
+        return block;
+    }
+
+    void clear() {
+        if(task == PreDef_Void) return;
+        while(popCallStack());
+        destroy(task);
+        task = status = frame = block = PreDef_Void;
     }
 
     bool step();

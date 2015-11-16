@@ -178,6 +178,7 @@ uint64_t ModeBrowse(bool special, uint64_t size, const char* buffer) {
                 setCursorHidden(false);
             return 1;
             case 27:
+                clearScreen();
                 terminate();
             return 1;
             case 9:
@@ -319,7 +320,7 @@ uint64_t ModeInput(bool special, uint64_t size, const char* buffer) {
             break;
             case 10:
                 setCursorHidden(true);
-                task.evaluateExtend(task.Task::symbolFor<false>(interfaceBuffer), true);
+                task.evaluateExtend(task.Task::symbolFor(interfaceBuffer), true);
                 if(task.uncaughtException())
                     interfaceBuffer = "Exception occurred while evaluating input";
                 else

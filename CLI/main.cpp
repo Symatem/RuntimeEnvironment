@@ -10,7 +10,11 @@ int main(int argc, const char** argv) {
 
     bool execute = false;
     for(ArchitectureType i = 1; interfaceBuffer.empty() && i < argc; ++i) {
-        if(strcmp(argv[i], "-d") == 0) {
+        if(strcmp(argv[i], "-h") == 0) {
+            std::cout << "This is not the help page you are looking for." << std::endl;
+            std::cout << "No, seriously, RTFM." << std::endl;
+            terminate();
+        } else if(strcmp(argv[i], "-d") == 0) {
             execute = false;
             continue;
         } else if(strcmp(argv[i], "-e") == 0) {
@@ -31,12 +35,12 @@ int main(int argc, const char** argv) {
         if(slashIndex != std::string::npos)
             directoryName = directoryName.substr(slashIndex+1);
         directoryPath += '/';
-        Symbol package = task.symbolFor<false>(directoryName);
+        Symbol package = task.symbolFor(directoryName);
         task.link({package, PreDef_Holds, package});
         struct dirent* entry;
         while((entry = readdir(dp))) {
             auto len = strlen(entry->d_name);
-            if(len < 4 || strncmp(entry->d_name+len-3, ".os", 3) != 0) continue;
+            if(len <= 4 || strncmp(entry->d_name+len-4, ".sym", 4) != 0) continue;
             std::string filePath = directoryPath+entry->d_name;
             std::ifstream file(filePath);
             if(!file.good()) {
@@ -44,7 +48,7 @@ int main(int argc, const char** argv) {
                 interfaceBuffer += filePath;
                 break;
             }
-            task.evaluateExtend(task.symbolFor<false>(file), execute, package);
+            task.evaluateExtend(task.symbolFor(file), execute, package);
             if(task.uncaughtException()) {
                 interfaceBuffer = "Exception occurred while evaluating file ";
                 interfaceBuffer += filePath;

@@ -58,9 +58,8 @@ void setCursorHidden(bool hidden) {
 }
 
 void terminate() {
-    clearScreen();
-    setCursorHidden(false);
     tcsetattr(0, TCSANOW, &termiosOld);
+    setCursorHidden(false);
     exit(0);
 }
 

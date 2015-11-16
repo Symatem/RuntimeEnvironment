@@ -8,11 +8,6 @@ STDPATH := ../StandardLibrary
 # CPPOPTIONS := -O3 -flto
 # -fprofile-sample-use=code.prof
 
-rebuild: clear $(TARGET)
-
-clear:
-	rm -r $(BUILDDIR)
-
 $(TARGET):
 	mkdir -p $(BUILDDIR)
 	clang++ ${CPPOPTIONS} -o $(TARGET) CLI/main.cpp
@@ -22,3 +17,8 @@ run: $(TARGET)
 
 test: $(TARGET)
 	$(TARGET) $(STDPATH)/stdlib/ -e $(STDPATH)/tests/
+
+clear:
+	rm -fr $(BUILDDIR)
+
+rebuild: clear $(TARGET)
