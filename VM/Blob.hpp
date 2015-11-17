@@ -85,7 +85,7 @@ void bitWiseCopy(ArchitectureType* dst, const ArchitectureType* src,
         bitWiseCopyReverse(dst, src, length, dstOffset, srcOffset);
 }
 
-class Extend {
+class Blob {
     static std::unique_ptr<ArchitectureType> getMemory(ArchitectureType size) {
         if(size == 0) return nullptr;
         auto data = new ArchitectureType[(size+ArchitectureSize-1)/ArchitectureSize];
@@ -98,20 +98,20 @@ class Extend {
     ArchitectureType size;
     std::unique_ptr<ArchitectureType> data;
 
-    Extend() :size(0) { }
+    Blob() :size(0) { }
 
-    Extend(Extend&& other) :size(other.size), data(std::move(other.data)) {
+    Blob(Blob&& other) :size(other.size), data(std::move(other.data)) {
         other.size = 0;
     }
 
-    Extend& operator=(Extend&& other) {
+    Blob& operator=(Blob&& other) {
         size = other.size;
         other.size = 0;
         data = std::move(other.data);
         return *this;
     }
 
-    int compare(const Extend& other) const {
+    int compare(const Blob& other) const {
         if(size < other.size) return -1;
         if(size > other.size) return 1;
         return memcmp(data.get(), other.data.get(), (size+7)/8);
@@ -161,7 +161,7 @@ class Extend {
         overwrite(strlen(str)*8, reinterpret_cast<const ArchitectureType*>(str));
     }
 
-    void overwrite(const Extend& other) {
+    void overwrite(const Blob& other) {
         overwrite(other.size, other.data.get());
     }
 
@@ -173,7 +173,7 @@ class Extend {
         stream.read(reinterpret_cast<char*>(data.get()), len);
     }
 
-    bool replacePartial(const Extend& other, ArchitectureType length, ArchitectureType dstOffset, ArchitectureType srcOffset) {
+    bool replacePartial(const Blob& other, ArchitectureType length, ArchitectureType dstOffset, ArchitectureType srcOffset) {
         auto end = dstOffset+length;
         if(end <= dstOffset || end > size) return false;
         end = srcOffset+length;
@@ -209,7 +209,7 @@ class Extend {
         return true;
     }
 
-    bool insert(const Extend& other, ArchitectureType begin) {
+    bool insert(const Blob& other, ArchitectureType begin) {
         return insert(other.data.get(), other.size, begin);
     }
 
@@ -217,7 +217,7 @@ class Extend {
         return insert(ptr, length, size);
     }
 
-    bool append(const Extend& other) {
+    bool append(const Blob& other) {
         return insert(other, size);
     }
 };

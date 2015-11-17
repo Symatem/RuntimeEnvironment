@@ -20,24 +20,24 @@ PreDefProcedure(Search) {
                 task.throwException("Invalid Input");
                 modes[index] = 0;
             }
-    getSymbolAndExtendByName(Output)
+    getSymbolAndBlobByName(Output)
 
-    ArchitectureType extendSize = 0, index = 0;
-    OutputExtend->reallocate(ArchitectureSize);
+    ArchitectureType blobSize = 0, index = 0;
+    OutputBlob->reallocate(ArchitectureSize);
     auto count = task.query(modes[0] + modes[1]*3 + modes[2]*9, triple,
     [&](Triple result, ArchitectureType size) {
-        extendSize = ArchitectureSize*size*(index+1);
-        if(extendSize > OutputExtend->size)
-            OutputExtend->reallocate(OutputExtend->size*2);
-        bitWiseCopyForward(OutputExtend->data.get(), result.pos, ArchitectureSize*size, ArchitectureSize*size*index, 0);
+        blobSize = ArchitectureSize*size*(index+1);
+        if(blobSize > OutputBlob->size)
+            OutputBlob->reallocate(OutputBlob->size*2);
+        bitWiseCopyForward(OutputBlob->data.get(), result.pos, ArchitectureSize*size, ArchitectureSize*size*index, 0);
         ++index;
     });
-    OutputExtend->reallocate(extendSize);
+    OutputBlob->reallocate(blobSize);
 
     Symbol CountSymbol;
     if(task.getUncertain(task.block, PreDef_Count, CountSymbol)) {
-        task.setSolitary({CountSymbol, PreDef_Extend, PreDef_Natural});
-        task.context->getExtend(CountSymbol)->overwrite(count);
+        task.setSolitary({CountSymbol, PreDef_BlobType, PreDef_Natural});
+        task.context->getBlob(CountSymbol)->overwrite(count);
     }
 
     task.popCallStack();
@@ -59,8 +59,8 @@ PreDefProcedure(Triple) {
     ArchitectureType result = op::e(task.context, {EntitySymbol, AttributeSymbol, ValueSymbol});
     Symbol OutputSymbol;
     if(task.getUncertain(task.block, PreDef_Output, OutputSymbol)) {
-        task.setSolitary({OutputSymbol, PreDef_Extend, PreDef_Natural});
-        task.context->getExtend(OutputSymbol)->overwrite(result);
+        task.setSolitary({OutputSymbol, PreDef_BlobType, PreDef_Natural});
+        task.context->getBlob(OutputSymbol)->overwrite(result);
     }
     task.popCallStack();
 }
@@ -69,7 +69,7 @@ PreDefProcedure(Create) {
     Symbol InputSymbol, ValueSymbol;
     bool input = task.getUncertain(task.block, PreDef_Input, InputSymbol);
     if(input)
-        ValueSymbol = task.get<ArchitectureType>(task.context->getExtend(InputSymbol));
+        ValueSymbol = task.get<ArchitectureType>(task.context->getBlob(InputSymbol));
 
     std::set<Symbol> OutputSymbols;
     auto count = task.query(9, {task.block, PreDef_Output, PreDef_Void}, [&](Triple result, ArchitectureType) {
@@ -129,16 +129,16 @@ PreDefProcedure(Push) {
 }
 
 PreDefProcedure(Pop) {
-    getSymbolAndExtendByName(Count)
-    checkExtendType(Count, PreDef_Natural)
-    auto CountValue = task.get<uint64_t>(CountExtend);
+    getSymbolAndBlobByName(Count)
+    checkBlobType(Count, PreDef_Natural)
+    auto CountValue = task.get<uint64_t>(CountBlob);
     if(CountValue < 2)
         task.throwException("Invalid Count Value");
     for(; CountValue > 0 && task.popCallStack(); --CountValue);
 }
 
 PreDefProcedure(Branch) {
-    getUncertainSymbolAndExtendByName(Input, 1)
+    getUncertainSymbolAndBlobByName(Input, 1)
     getSymbolByName(Branch)
     task.popCallStack();
     if(InputValue != 0)
@@ -175,11 +175,11 @@ PreDefProcedure(Exception) {
 
 PreDefProcedure(Serialize) {
     getSymbolByName(Input)
-    getSymbolAndExtendByName(Output)
+    getSymbolAndBlobByName(Output)
 
     std::stringstream stream;
-    task.serializeExtend(stream, InputSymbol);
-    OutputExtend->overwrite(stream);
+    task.serializeBlob(stream, InputSymbol);
+    OutputBlob->overwrite(stream);
     task.popCallStack();
 }
 
@@ -187,51 +187,51 @@ PreDefProcedure(Deserialize) {
     Deserialize{task};
 }
 
-PreDefProcedure(CloneExtend) {
-    getSymbolAndExtendByName(Input)
-    getSymbolAndExtendByName(Output)
-    OutputExtend->overwrite(*InputExtend);
+PreDefProcedure(CloneBlob) {
+    getSymbolAndBlobByName(Input)
+    getSymbolAndBlobByName(Output)
+    OutputBlob->overwrite(*InputBlob);
     Symbol type;
-    if(task.getUncertain(InputSymbol, PreDef_Extend, type))
-        task.setSolitary({OutputSymbol, PreDef_Extend, type});
+    if(task.getUncertain(InputSymbol, PreDef_BlobType, type))
+        task.setSolitary({OutputSymbol, PreDef_BlobType, type});
     else
-        task.unlink(OutputSymbol, PreDef_Extend);
+        task.unlink(OutputSymbol, PreDef_BlobType);
     task.popCallStack();
 }
 
-PreDefProcedure(SliceExtend) {
-    getSymbolAndExtendByName(Input)
-    getSymbolAndExtendByName(Target)
-    getUncertainSymbolAndExtendByName(Count, InputExtend->size)
-    getUncertainSymbolAndExtendByName(Destination, 0)
-    getUncertainSymbolAndExtendByName(Source, 0)
-    if(!TargetExtend->replacePartial(*InputExtend, CountValue, DestinationValue, SourceValue))
+PreDefProcedure(SliceBlob) {
+    getSymbolAndBlobByName(Input)
+    getSymbolAndBlobByName(Target)
+    getUncertainSymbolAndBlobByName(Count, InputBlob->size)
+    getUncertainSymbolAndBlobByName(Destination, 0)
+    getUncertainSymbolAndBlobByName(Source, 0)
+    if(!TargetBlob->replacePartial(*InputBlob, CountValue, DestinationValue, SourceValue))
         task.throwException("Invalid Count, Destination or SrcOffset Value");
-    task.updateExtendIndexFor(TargetSymbol, TargetExtend);
+    task.updateBlobIndexFor(TargetSymbol, TargetBlob);
     task.popCallStack();
 }
 
-PreDefProcedure(AllocateExtend) {
-    getSymbolAndExtendByName(Input)
-    getSymbolAndExtendByName(Target)
-    checkExtendType(Input, PreDef_Natural)
-    TargetExtend->allocate(task.get<ArchitectureType>(InputExtend));
-    task.updateExtendIndexFor(TargetSymbol, TargetExtend);
+PreDefProcedure(AllocateBlob) {
+    getSymbolAndBlobByName(Input)
+    getSymbolAndBlobByName(Target)
+    checkBlobType(Input, PreDef_Natural)
+    TargetBlob->allocate(task.get<ArchitectureType>(InputBlob));
+    task.updateBlobIndexFor(TargetSymbol, TargetBlob);
     task.popCallStack();
 }
 
-PreDefProcedure(ReallocateExtend) {
-    getSymbolAndExtendByName(Input)
-    getSymbolAndExtendByName(Target)
-    checkExtendType(Input, PreDef_Natural)
-    TargetExtend->reallocate(task.get<ArchitectureType>(InputExtend));
-    task.updateExtendIndexFor(TargetSymbol, TargetExtend);
+PreDefProcedure(ReallocateBlob) {
+    getSymbolAndBlobByName(Input)
+    getSymbolAndBlobByName(Target)
+    checkBlobType(Input, PreDef_Natural)
+    TargetBlob->reallocate(task.get<ArchitectureType>(InputBlob));
+    task.updateBlobIndexFor(TargetSymbol, TargetBlob);
     task.popCallStack();
 }
 
-PreDefProcedure(EraseFromExtend) {
-    getSymbolAndExtendByName(Target)
-    getUncertainSymbolAndExtendByName(Begin, 0)
+PreDefProcedure(EraseFromBlob) {
+    getSymbolAndBlobByName(Target)
+    getUncertainSymbolAndBlobByName(Begin, 0)
 
     ArchitectureType EndValue;
     Symbol EndSymbol, CountSymbol;
@@ -240,73 +240,73 @@ PreDefProcedure(EraseFromExtend) {
     if(end) {
         if(count)
             task.throwException("Count and End given");
-        checkExtendType(End, PreDef_Natural)
-        EndValue = task.get<ArchitectureType>(task.context->getExtend(EndSymbol));
+        checkBlobType(End, PreDef_Natural)
+        EndValue = task.get<ArchitectureType>(task.context->getBlob(EndSymbol));
     } else if(count) {
-        checkExtendType(Count, PreDef_Natural)
-        EndValue = BeginValue+task.get<ArchitectureType>(task.context->getExtend(CountSymbol));
+        checkBlobType(Count, PreDef_Natural)
+        EndValue = BeginValue+task.get<ArchitectureType>(task.context->getBlob(CountSymbol));
     } else
-        EndValue = TargetExtend->size;
+        EndValue = TargetBlob->size;
 
-    if(!TargetExtend->erase(BeginValue, EndValue))
+    if(!TargetBlob->erase(BeginValue, EndValue))
         task.throwException("Invalid Begin or End Value");
-    task.updateExtendIndexFor(TargetSymbol, TargetExtend);
+    task.updateBlobIndexFor(TargetSymbol, TargetBlob);
     task.popCallStack();
 }
 
-PreDefProcedure(InsertIntoExtend) {
-    getSymbolAndExtendByName(Input)
-    getSymbolAndExtendByName(Target)
-    getUncertainSymbolAndExtendByName(Begin, TargetExtend->size)
-    if(!TargetExtend->insert(*InputExtend, BeginValue))
+PreDefProcedure(InsertIntoBlob) {
+    getSymbolAndBlobByName(Input)
+    getSymbolAndBlobByName(Target)
+    getUncertainSymbolAndBlobByName(Begin, TargetBlob->size)
+    if(!TargetBlob->insert(*InputBlob, BeginValue))
         task.throwException("Invalid Begin Value");
-    task.updateExtendIndexFor(TargetSymbol, TargetExtend);
+    task.updateBlobIndexFor(TargetSymbol, TargetBlob);
     task.popCallStack();
 }
 
-PreDefProcedure(GetExtendLength) {
-    getSymbolAndExtendByName(Input)
-    getSymbolAndExtendByName(Output)
-    task.setSolitary({OutputSymbol, PreDef_Extend, PreDef_Natural});
-    OutputExtend->overwrite(InputExtend->size);
+PreDefProcedure(GetBlobLength) {
+    getSymbolAndBlobByName(Input)
+    getSymbolAndBlobByName(Output)
+    task.setSolitary({OutputSymbol, PreDef_BlobType, PreDef_Natural});
+    OutputBlob->overwrite(InputBlob->size);
     task.popCallStack();
 }
 
 template<typename T>
-void PreDefProcedure_NumericCastTo(Task& task, Symbol type, Extend* OutputExtend, Extend* InputExtend) {
+void PreDefProcedure_NumericCastTo(Task& task, Symbol type, Blob* OutputBlob, Blob* InputBlob) {
     switch(type) {
         case PreDef_Natural:
-            OutputExtend->overwrite(static_cast<T>(task.get<uint64_t>(InputExtend)));
+            OutputBlob->overwrite(static_cast<T>(task.get<uint64_t>(InputBlob)));
         break;
         case PreDef_Integer:
-            OutputExtend->overwrite(static_cast<T>(task.get<int64_t>(InputExtend)));
+            OutputBlob->overwrite(static_cast<T>(task.get<int64_t>(InputBlob)));
         break;
         case PreDef_Float:
-            OutputExtend->overwrite(static_cast<T>(task.get<double>(InputExtend)));
+            OutputBlob->overwrite(static_cast<T>(task.get<double>(InputBlob)));
         break;
         default:
-            task.throwException("Invalid Input Extend");
+            task.throwException("Invalid Input Blob");
     }
 }
 
 PreDefProcedure(NumericCast) {
-    getSymbolAndExtendByName(Input)
-    getSymbolAndExtendByName(To)
-    getSymbolAndExtendByName(Output)
+    getSymbolAndBlobByName(Input)
+    getSymbolAndBlobByName(To)
+    getSymbolAndBlobByName(Output)
 
     Symbol type;
-    if(!task.getUncertain(InputSymbol, PreDef_Extend, type))
-        task.throwException("Invalid Input Extend");
-    task.setSolitary({OutputSymbol, PreDef_Extend, ToSymbol});
+    if(!task.getUncertain(InputSymbol, PreDef_BlobType, type))
+        task.throwException("Invalid Input Blob");
+    task.setSolitary({OutputSymbol, PreDef_BlobType, ToSymbol});
     switch(ToSymbol) {
         case PreDef_Natural:
-            PreDefProcedure_NumericCastTo<uint64_t>(task, type, OutputExtend, InputExtend);
+            PreDefProcedure_NumericCastTo<uint64_t>(task, type, OutputBlob, InputBlob);
         break;
         case PreDef_Integer:
-            PreDefProcedure_NumericCastTo<int64_t>(task, type, OutputExtend, InputExtend);
+            PreDefProcedure_NumericCastTo<int64_t>(task, type, OutputBlob, InputBlob);
         break;
         case PreDef_Float:
-            PreDefProcedure_NumericCastTo<double>(task, type, OutputExtend, InputExtend);
+            PreDefProcedure_NumericCastTo<double>(task, type, OutputBlob, InputBlob);
         break;
         default:
             task.throwException("Invalid To Value");
@@ -316,33 +316,33 @@ PreDefProcedure(NumericCast) {
 
 PreDefProcedure(Equal) {
     Symbol type;
-    Extend* FirstExtend;
+    Blob* FirstBlob;
     uint64_t OutputValue = 1;
     bool first = true;
 
     if(task.query(9, {task.block, PreDef_Input, PreDef_Void}, [&](Triple result, ArchitectureType) {
         if(OutputValue == 0) return;
         Symbol _type = PreDef_Void;
-        task.getUncertain(result.pos[0], PreDef_Extend, _type);
+        task.getUncertain(result.pos[0], PreDef_BlobType, _type);
         if(first) {
             first = false;
             type = _type;
-            FirstExtend = task.context->getExtend(result.pos[0]);
+            FirstBlob = task.context->getBlob(result.pos[0]);
         } else if(type == _type) {
-            Extend* InputExtend = task.context->getExtend(result.pos[0]);
+            Blob* InputBlob = task.context->getBlob(result.pos[0]);
             if(type == PreDef_Float) {
-                if(task.get<double>(InputExtend) != task.get<double>(FirstExtend))
+                if(task.get<double>(InputBlob) != task.get<double>(FirstBlob))
                     OutputValue = 0;
-            } else if(InputExtend->compare(*FirstExtend) != 0)
+            } else if(InputBlob->compare(*FirstBlob) != 0)
                 OutputValue = 0;
         } else
             task.throwException("Inputs have different types");
     }) < 2)
         task.throwException("Expected more Input");
 
-    getSymbolAndExtendByName(Output)
-    task.setSolitary({OutputSymbol, PreDef_Extend, PreDef_Natural});
-    OutputExtend->overwrite(OutputValue);
+    getSymbolAndBlobByName(Output)
+    task.setSolitary({OutputSymbol, PreDef_BlobType, PreDef_Natural});
+    OutputBlob->overwrite(OutputValue);
     task.popCallStack();
 }
 
@@ -350,54 +350,54 @@ struct PreDefProcedure_LessThan {
     static bool n(uint64_t i, uint64_t c) { return i < c; };
     static bool i(int64_t i, int64_t c) { return i < c; };
     static bool f(double i, double c) { return i < c; };
-    static bool s(const Extend& i, const Extend& c) { return i.compare(c) < 0; };
+    static bool s(const Blob& i, const Blob& c) { return i.compare(c) < 0; };
 };
 
 struct PreDefProcedure_LessEqual {
     static bool n(uint64_t i, uint64_t c) { return i <= c; };
     static bool i(int64_t i, int64_t c) { return i <= c; };
     static bool f(double i, double c) { return i <= c; };
-    static bool s(const Extend& i, const Extend& c) { return i.compare(c) <= 0; };
+    static bool s(const Blob& i, const Blob& c) { return i.compare(c) <= 0; };
 };
 
 template<class op>
 PreDefProcedure(CompareLogic) {
-    getSymbolAndExtendByName(Input)
-    getSymbolAndExtendByName(Comparandum)
-    getSymbolAndExtendByName(Output)
+    getSymbolAndBlobByName(Input)
+    getSymbolAndBlobByName(Comparandum)
+    getSymbolAndBlobByName(Output)
 
     Symbol type, _type;
-    task.getUncertain(InputSymbol, PreDef_Extend, type);
-    task.getUncertain(ComparandumSymbol, PreDef_Extend, _type);
+    task.getUncertain(InputSymbol, PreDef_BlobType, type);
+    task.getUncertain(ComparandumSymbol, PreDef_BlobType, _type);
     if(type != _type)
         task.throwException("Input and Comparandum have different types");
 
     uint64_t result;
     switch(type) {
         case PreDef_Natural:
-            result = op::n(task.get<uint64_t>(InputExtend), task.get<uint64_t>(ComparandumExtend));
+            result = op::n(task.get<uint64_t>(InputBlob), task.get<uint64_t>(ComparandumBlob));
         break;
         case PreDef_Integer:
-            result = op::i(task.get<int64_t>(InputExtend), task.get<int64_t>(ComparandumExtend));
+            result = op::i(task.get<int64_t>(InputBlob), task.get<int64_t>(ComparandumBlob));
         break;
         case PreDef_Float:
-            result = op::f(task.get<double>(InputExtend), task.get<double>(ComparandumExtend));
+            result = op::f(task.get<double>(InputBlob), task.get<double>(ComparandumBlob));
         break;
         default:
-            result = op::s(*InputExtend, *ComparandumExtend);
+            result = op::s(*InputBlob, *ComparandumBlob);
         break;
     }
-    task.setSolitary({OutputSymbol, PreDef_Extend, PreDef_Natural});
-    OutputExtend->overwrite(result);
+    task.setSolitary({OutputSymbol, PreDef_BlobType, PreDef_Natural});
+    OutputBlob->overwrite(result);
     task.popCallStack();
 }
 
 PreDefProcedure(Complement) {
-    getSymbolAndExtendByName(Input)
-    getSymbolAndExtendByName(Output)
+    getSymbolAndBlobByName(Input)
+    getSymbolAndBlobByName(Output)
 
-    task.setSolitary({OutputSymbol, PreDef_Extend, PreDef_Natural});
-    OutputExtend->overwrite(~task.get<uint64_t>(InputExtend));
+    task.setSolitary({OutputSymbol, PreDef_BlobType, PreDef_Natural});
+    OutputBlob->overwrite(~task.get<uint64_t>(InputBlob));
     task.popCallStack();
 }
 
@@ -432,20 +432,20 @@ struct PreDefProcedure_BarrelShift {
 
 template<class op>
 PreDefProcedure(Shift) {
-    getSymbolAndExtendByName(Input)
-    getSymbolAndExtendByName(Count)
-    getSymbolAndExtendByName(Output)
-    checkExtendType(Count, PreDef_Integer)
+    getSymbolAndBlobByName(Input)
+    getSymbolAndBlobByName(Count)
+    getSymbolAndBlobByName(Output)
+    checkBlobType(Count, PreDef_Integer)
 
-    auto result = task.get<uint64_t>(InputExtend);
-    auto CountValue = task.get<int64_t>(CountExtend);
+    auto result = task.get<uint64_t>(InputBlob);
+    auto CountValue = task.get<int64_t>(CountBlob);
     if(CountValue < 0)
         op::n(result, -CountValue);
     else
         op::p(result, CountValue);
 
-    task.setSolitary({OutputSymbol, PreDef_Extend, PreDef_Natural});
-    OutputExtend->overwrite(result);
+    task.setSolitary({OutputSymbol, PreDef_BlobType, PreDef_Natural});
+    OutputBlob->overwrite(result);
     task.popCallStack();
 }
 
@@ -467,18 +467,18 @@ PreDefProcedure(AssociativeCommutativeBitWise) {
     bool first = true;
 
     if(task.query(9, {task.block, PreDef_Input, PreDef_Void}, [&](Triple result, ArchitectureType) {
-        Extend* InputExtend = task.context->getExtend(result.pos[0]);
+        Blob* InputBlob = task.context->getBlob(result.pos[0]);
         if(first) {
             first = false;
-            OutputValue = task.get<uint64_t>(InputExtend);
+            OutputValue = task.get<uint64_t>(InputBlob);
         } else
-            op::n(OutputValue, task.get<uint64_t>(InputExtend));
+            op::n(OutputValue, task.get<uint64_t>(InputBlob));
     }) < 2)
         task.throwException("Expected more Input");
 
-    getSymbolAndExtendByName(Output)
-    task.setSolitary({OutputSymbol, PreDef_Extend, PreDef_Natural});
-    OutputExtend->overwrite(OutputValue);
+    getSymbolAndBlobByName(Output)
+    task.setSolitary({OutputSymbol, PreDef_BlobType, PreDef_Natural});
+    OutputBlob->overwrite(OutputValue);
     task.popCallStack();
 }
 
@@ -505,34 +505,34 @@ PreDefProcedure(AssociativeCommutativeArithmetic) {
     bool first = true;
 
     if(task.query(9, {task.block, PreDef_Input, PreDef_Void}, [&](Triple result, ArchitectureType) {
-        Symbol _type = task.getGuaranteed(result.pos[0], PreDef_Extend);
-        Extend* InputExtend = task.context->getExtend(result.pos[0]);
+        Symbol _type = task.getGuaranteed(result.pos[0], PreDef_BlobType);
+        Blob* InputBlob = task.context->getBlob(result.pos[0]);
         if(first) {
             first = false;
             type = _type;
             switch(type) {
                 case PreDef_Natural:
-                    aux.n = task.get<uint64_t>(InputExtend);
+                    aux.n = task.get<uint64_t>(InputBlob);
                 break;
                 case PreDef_Integer:
-                    aux.i = task.get<int64_t>(InputExtend);
+                    aux.i = task.get<int64_t>(InputBlob);
                 break;
                 case PreDef_Float:
-                    aux.f = task.get<double>(InputExtend);
+                    aux.f = task.get<double>(InputBlob);
                 break;
                 default:
-                    task.throwException("Invalid Input Extend");
+                    task.throwException("Invalid Input Blob");
             }
         } else if(type == _type) {
             switch(type) {
                 case PreDef_Natural:
-                    op::n(aux.n, task.get<uint64_t>(InputExtend));
+                    op::n(aux.n, task.get<uint64_t>(InputBlob));
                 break;
                 case PreDef_Integer:
-                    op::i(aux.i, task.get<int64_t>(InputExtend));
+                    op::i(aux.i, task.get<int64_t>(InputBlob));
                 break;
                 case PreDef_Float:
-                    op::f(aux.f, task.get<double>(InputExtend));
+                    op::f(aux.f, task.get<double>(InputBlob));
                 break;
             }
         } else
@@ -540,63 +540,63 @@ PreDefProcedure(AssociativeCommutativeArithmetic) {
     }) < 2)
         task.throwException("Expected more Input");
 
-    getSymbolAndExtendByName(Output)
-    task.setSolitary({OutputSymbol, PreDef_Extend, type});
-    OutputExtend->overwrite(aux.n);
+    getSymbolAndBlobByName(Output)
+    task.setSolitary({OutputSymbol, PreDef_BlobType, type});
+    OutputBlob->overwrite(aux.n);
     task.popCallStack();
 }
 
 PreDefProcedure(Subtract) {
-    getSymbolAndExtendByName(Minuend)
-    getSymbolAndExtendByName(Subtrahend)
-    getSymbolAndExtendByName(Output)
+    getSymbolAndBlobByName(Minuend)
+    getSymbolAndBlobByName(Subtrahend)
+    getSymbolAndBlobByName(Output)
 
-    Symbol type = task.getGuaranteed(MinuendSymbol, PreDef_Extend);
-    Symbol _type = task.getGuaranteed(SubtrahendSymbol, PreDef_Extend);
+    Symbol type = task.getGuaranteed(MinuendSymbol, PreDef_BlobType);
+    Symbol _type = task.getGuaranteed(SubtrahendSymbol, PreDef_BlobType);
     if(type != _type)
         task.throwException("Minuend and Subtrahend have different types");
 
-    task.setSolitary({OutputSymbol, PreDef_Extend, type});
+    task.setSolitary({OutputSymbol, PreDef_BlobType, type});
     switch(type) {
         case PreDef_Natural:
-            OutputExtend->overwrite(task.get<uint64_t>(MinuendExtend)-task.get<uint64_t>(SubtrahendExtend));
+            OutputBlob->overwrite(task.get<uint64_t>(MinuendBlob)-task.get<uint64_t>(SubtrahendBlob));
         break;
         case PreDef_Integer:
-            OutputExtend->overwrite(task.get<int64_t>(MinuendExtend)-task.get<int64_t>(SubtrahendExtend));
+            OutputBlob->overwrite(task.get<int64_t>(MinuendBlob)-task.get<int64_t>(SubtrahendBlob));
         break;
         case PreDef_Float:
-            OutputExtend->overwrite(task.get<double>(MinuendExtend)-task.get<double>(SubtrahendExtend));
+            OutputBlob->overwrite(task.get<double>(MinuendBlob)-task.get<double>(SubtrahendBlob));
         break;
         default:
-            task.throwException("Invalid Minuend or Subtrahend Extend");
+            task.throwException("Invalid Minuend or Subtrahend Blob");
     }
     task.popCallStack();
 }
 
 PreDefProcedure(Divide) {
-    getSymbolAndExtendByName(Dividend)
-    getSymbolAndExtendByName(Divisor)
+    getSymbolAndBlobByName(Dividend)
+    getSymbolAndBlobByName(Divisor)
 
-    Symbol type = task.getGuaranteed(DividendSymbol, PreDef_Extend);
-    Symbol _type = task.getGuaranteed(DivisorSymbol, PreDef_Extend);
+    Symbol type = task.getGuaranteed(DividendSymbol, PreDef_BlobType);
+    Symbol _type = task.getGuaranteed(DivisorSymbol, PreDef_BlobType);
     if(type != _type)
         task.throwException("Dividend and Divisor have different types");
 
     Symbol RestSymbol, QuotientSymbol;
-    Extend *RestExtend, *QuotientExtend;
+    Blob *RestBlob, *QuotientBlob;
     bool rest = task.getUncertain(task.block, PreDef_Rest, RestSymbol),
          quotient = task.getUncertain(task.block, PreDef_Quotient, QuotientSymbol);
     if(rest) {
-        task.setSolitary({RestSymbol, PreDef_Extend, type});
-        RestExtend = task.context->getExtend(RestSymbol);
-        if(RestExtend->size != ArchitectureSize)
-            task.throwException("Invalid Rest Extend");
+        task.setSolitary({RestSymbol, PreDef_BlobType, type});
+        RestBlob = task.context->getBlob(RestSymbol);
+        if(RestBlob->size != ArchitectureSize)
+            task.throwException("Invalid Rest Blob");
     }
     if(quotient) {
-        task.setSolitary({QuotientSymbol, PreDef_Extend, type});
-        QuotientExtend = task.context->getExtend(QuotientSymbol);
-        if(QuotientExtend->size != ArchitectureSize)
-            task.throwException("Invalid Quotient Extend");
+        task.setSolitary({QuotientSymbol, PreDef_BlobType, type});
+        QuotientBlob = task.context->getBlob(QuotientSymbol);
+        if(QuotientBlob->size != ArchitectureSize)
+            task.throwException("Invalid Quotient Blob");
     }
 
     if(!rest && !quotient)
@@ -604,26 +604,26 @@ PreDefProcedure(Divide) {
 
     switch(type) {
         case PreDef_Natural: {
-            auto DividendValue = task.get<uint64_t>(DividendExtend),
-                 DivisorValue = task.get<uint64_t>(DivisorExtend);
-            if(rest) RestExtend->overwrite(DividendValue%DivisorValue);
-            if(quotient) QuotientExtend->overwrite(DividendValue/DivisorValue);
+            auto DividendValue = task.get<uint64_t>(DividendBlob),
+                 DivisorValue = task.get<uint64_t>(DivisorBlob);
+            if(rest) RestBlob->overwrite(DividendValue%DivisorValue);
+            if(quotient) QuotientBlob->overwrite(DividendValue/DivisorValue);
         } break;
         case PreDef_Integer: {
-            auto DividendValue = task.get<int64_t>(DividendExtend),
-                 DivisorValue = task.get<int64_t>(DivisorExtend);
-            if(rest) RestExtend->overwrite(DividendValue%DivisorValue);
-            if(quotient) QuotientExtend->overwrite(DividendValue/DivisorValue);
+            auto DividendValue = task.get<int64_t>(DividendBlob),
+                 DivisorValue = task.get<int64_t>(DivisorBlob);
+            if(rest) RestBlob->overwrite(DividendValue%DivisorValue);
+            if(quotient) QuotientBlob->overwrite(DividendValue/DivisorValue);
         } break;
         case PreDef_Float: {
-            auto DividendValue = task.get<double>(DividendExtend),
-                 DivisorValue = task.get<double>(DivisorExtend),
+            auto DividendValue = task.get<double>(DividendBlob),
+                 DivisorValue = task.get<double>(DivisorBlob),
                  QuotientValue = DividendValue/DivisorValue;
-            if(rest) RestExtend->overwrite(modf(QuotientValue, &QuotientValue));
-            if(quotient) QuotientExtend->overwrite(QuotientValue);
+            if(rest) RestBlob->overwrite(modf(QuotientValue, &QuotientValue));
+            if(quotient) QuotientBlob->overwrite(QuotientValue);
         } break;
         default:
-            task.throwException("Invalid Dividend or Divisor Extend");
+            task.throwException("Invalid Dividend or Divisor Blob");
     }
     task.popCallStack();
 }
@@ -641,13 +641,13 @@ std::map<Symbol, void(*)(Task&)> PreDefProcedures = {
     {PreDef_Exception, PreDefProcedure_Exception},
     {PreDef_Serialize, PreDefProcedure_Serialize},
     {PreDef_Deserialize, PreDefProcedure_Deserialize},
-    {PreDef_CloneExtend, PreDefProcedure_CloneExtend},
-    {PreDef_SliceExtend, PreDefProcedure_SliceExtend},
-    {PreDef_AllocateExtend, PreDefProcedure_AllocateExtend},
-    {PreDef_ReallocateExtend, PreDefProcedure_ReallocateExtend},
-    {PreDef_EraseFromExtend, PreDefProcedure_EraseFromExtend},
-    {PreDef_InsertIntoExtend, PreDefProcedure_InsertIntoExtend},
-    {PreDef_GetExtendLength, PreDefProcedure_GetExtendLength},
+    {PreDef_CloneBlob, PreDefProcedure_CloneBlob},
+    {PreDef_SliceBlob, PreDefProcedure_SliceBlob},
+    {PreDef_AllocateBlob, PreDefProcedure_AllocateBlob},
+    {PreDef_ReallocateBlob, PreDefProcedure_ReallocateBlob},
+    {PreDef_EraseFromBlob, PreDefProcedure_EraseFromBlob},
+    {PreDef_InsertIntoBlob, PreDefProcedure_InsertIntoBlob},
+    {PreDef_GetBlobLength, PreDefProcedure_GetBlobLength},
     {PreDef_NumericCast, PreDefProcedure_NumericCast},
     {PreDef_Equal, PreDefProcedure_Equal},
     {PreDef_LessThan, PreDefProcedure_CompareLogic<PreDefProcedure_LessThan>},
@@ -691,7 +691,7 @@ bool Task::step() {
             if(!getUncertain(parentBlock, result.pos[1], value))
                 value = result.pos[1];
             switch(result.pos[0]) {
-                case PreDef_Extend:
+                case PreDef_BlobType:
                 case PreDef_Holds:
                 return;
                 case PreDef_Procedure:

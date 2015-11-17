@@ -13,11 +13,11 @@ enum {
 std::stringstream stream;
 std::string interfaceBuffer;
 std::vector<ArchitectureType> history;
-ArchitectureType historyTop, historySub, linesForExtend;
+ArchitectureType historyTop, historySub, linesForBlob;
 Context context;
 struct Task task = {&context, PreDef_Void};
 decltype(context.topIndex)::iterator topIter;
-Extend* extend;
+Blob* blob;
 
 void pollKeyboard(std::function<uint64_t(bool, uint64_t, const char*)> callback) {
     fd_set readset;

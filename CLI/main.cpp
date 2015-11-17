@@ -48,7 +48,7 @@ int main(int argc, const char** argv) {
                 interfaceBuffer += filePath;
                 break;
             }
-            task.evaluateExtend(task.symbolFor(file), execute, package);
+            task.evaluateBlob(task.symbolFor(file), execute, package);
             if(task.uncaughtException()) {
                 interfaceBuffer = "Exception occurred while evaluating file ";
                 interfaceBuffer += filePath;

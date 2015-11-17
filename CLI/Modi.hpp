@@ -49,14 +49,14 @@ void render() {
         history.push_back(task.task);
     ArchitectureType linesLeft = screenSize.ws_row-context.indexMode-5,
                      pos, size, maxSize;
-    linesForExtend = linesLeft;
+    linesForBlob = linesLeft;
     historyTop0()
     if(topIter == context.topIndex.end()) {
         history.clear();
         history.push_back(task.task);
         return;
     }
-    extend = &topIter->second->extend;
+    blob = &topIter->second->blob;
 
     std::cout << "Stats: ";
     std::cout << context.topIndex.size();
@@ -66,7 +66,7 @@ void render() {
     stream << "History: ";
     if(history.size() > 4)
         for(ArchitectureType i = historyTop-4; true; i -= 4) {
-            task.serializeExtend(stream, history[i]);
+            task.serializeBlob(stream, history[i]);
             if(i > 0)
                 stream << " / ";
             else
@@ -75,13 +75,13 @@ void render() {
     printStreamLimited();
 
     stream << history[historyTop] << ": ";
-    task.serializeExtend(stream, history[historyTop]);
+    task.serializeBlob(stream, history[historyTop]);
     printStreamLimited(historySub == 0);
 
-    stream << "Extend " << extend->size;
+    stream << "Blob " << blob->size;
     printStreamLimited(historySub == 1 && history[historyTop+1] == 0, 2);
     if(historySub == 2 && history[historyTop+1] == 0) {
-        task.serializeExtend(stream, history[historyTop]);
+        task.serializeBlob(stream, history[historyTop]);
         linesLeft -= printStreamLimited(1, 4, linesLeft, history[historyTop+2]);
     }
 
@@ -97,28 +97,30 @@ void render() {
             maxSize = (size <= maxSize-3) ? maxSize-size : 3;
         }
         clippedForEachInContainer(j, subIndex, history[historyTop+2]) {
-            task.serializeExtend(stream, j->first);
+            task.serializeBlob(stream, j->first);
             stream << " " << j->second.size();
             printStreamLimited(historySub == 2 && j->first == history[historyTop+2], 4);
             if(historySub < 3 || j->first != history[historyTop+2]) continue;
             maxSize = linesLeft;
             auto& set = subIndex.find(j->first)->second;
             clippedForEachInContainer(k, set, history[historyTop+3]) {
-                task.serializeExtend(stream, *k);
+                task.serializeBlob(stream, *k);
                 printStreamLimited(historySub == 3 && *k == history[historyTop+3], 6);
             }
         }
     }
 
-    setCursorPosition(0, screenSize.ws_row-1);
+    setCursorPosition(0, screenSize.ws_row-2);
+    // TODO: Improve interfaceBuffer limits
     switch(mode) {
         case Mode_Browse:
-            std::cout << interfaceBuffer;
+            stream << interfaceBuffer;
         break;
         case Mode_Input:
-            std::cout << "> " << interfaceBuffer;
+            stream << "> " << interfaceBuffer;
         break;
     }
+    printStreamLimited();
 
     std::cout.flush();
 }
@@ -245,9 +247,9 @@ uint64_t ModeBrowse(bool special, uint64_t size, const char* buffer) {
                 break;
                 case 2: {
                     if(history[historyTop+1] == 0) {
-                        task.serializeExtend(stream, history[historyTop]);
+                        task.serializeBlob(stream, history[historyTop]);
                         auto lines = printStreamLimited(2, 0, 0, 0);
-                        if(lines > linesForExtend && *history.rbegin() < lines-linesForExtend)
+                        if(lines > linesForBlob && *history.rbegin() < lines-linesForBlob)
                             *history.rbegin() += 1;
                     } else {
                         historyTop2()
@@ -269,7 +271,7 @@ uint64_t ModeBrowse(bool special, uint64_t size, const char* buffer) {
                 break;
                 case 1: {
                     if(history[historyTop+1] == 0) {
-                        if(extend->size > 0)
+                        if(blob->size > 0)
                             history.push_back(0);
                     } else {
                         auto& subIndex = topIter->second->subIndices[history[historyTop+1]-1];
@@ -320,7 +322,7 @@ uint64_t ModeInput(bool special, uint64_t size, const char* buffer) {
             break;
             case 10:
                 if(interfaceBuffer.size() > 0) {
-                    task.evaluateExtend(task.Task::symbolFor(interfaceBuffer), true);
+                    task.evaluateBlob(task.Task::symbolFor(interfaceBuffer), true);
                     // TODO: Change focus when no Execute is present
                     if(task.uncaughtException())
                         interfaceBuffer = "Exception occurred while evaluating input";

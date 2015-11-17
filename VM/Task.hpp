@@ -5,10 +5,10 @@ struct Task {
     Symbol task, status, frame, block;
 
     template <typename T>
-    T& get(Extend* extend) {
-        if(extend->size != sizeof(T)*8)
-            throwException("Invalid Extend Size");
-        return *reinterpret_cast<T*>(extend->data.get());
+    T& get(Blob* blob) {
+        if(blob->size != sizeof(T)*8)
+            throwException("Invalid Blob Size");
+        return *reinterpret_cast<T*>(blob->data.get());
     }
 
     ArchitectureType query(ArchitectureType mode, Triple triple, std::function<void(Triple, ArchitectureType)> callback = nullptr) {
@@ -115,9 +115,9 @@ struct Task {
         auto topIter = context->topIndex.find(alpha);
         if(topIter == context->topIndex.end())
             throwException("Already destroyed");
-        if(topIter->second->extend.size > 0) {
+        if(topIter->second->blob.size > 0) {
             Symbol type = PreDef_Void;
-            getUncertain(alpha, PreDef_Extend, type);
+            getUncertain(alpha, PreDef_BlobType, type);
         }
         for(ArchitectureType i = EAV; i <= VEA; ++i)
             for(auto& beta : topIter->second->subIndices[i])
@@ -195,47 +195,47 @@ struct Task {
     }
 
     Symbol symbolFor(std::istream& stream) {
-        Extend extend;
-        extend.overwrite(stream);
-        return context->symbolFor<PreDef_Text>(std::move(extend));
+        Blob blob;
+        blob.overwrite(stream);
+        return context->symbolFor<PreDef_Text>(std::move(blob));
     }
 
-    void updateExtendIndexFor(Symbol entity, Extend* extend) {
-        if(extend->size == 0) return;
+    void updateBlobIndexFor(Symbol entity, Blob* blob) {
+        if(blob->size == 0) return;
         Symbol type = PreDef_Void;
-        if(getUncertain(entity, PreDef_Extend, type) && type == PreDef_Text) {
-            context->textIndex.erase(extend);
-            context->textIndex.insert(std::make_pair(extend, entity));
+        if(getUncertain(entity, PreDef_BlobType, type) && type == PreDef_Text) {
+            context->textIndex.erase(blob);
+            context->textIndex.insert(std::make_pair(blob, entity));
         }
     }
 
-    void serializeExtend(std::ostream& stream, Symbol entity) {
+    void serializeBlob(std::ostream& stream, Symbol entity) {
         auto topIter = context->topIndex.find(entity);
         assert(topIter != context->topIndex.end());
-        if(topIter->second->extend.size) {
+        if(topIter->second->blob.size) {
             Symbol type = PreDef_Void;
-            getUncertain(entity, PreDef_Extend, type);
+            getUncertain(entity, PreDef_BlobType, type);
             switch(type) {
                 case PreDef_Text: {
-                    std::string str((const char*)topIter->second->extend.data.get(), (topIter->second->extend.size+7)/8);
+                    std::string str((const char*)topIter->second->blob.data.get(), (topIter->second->blob.size+7)/8);
                     if(std::find_if(str.begin(), str.end(), ::isspace) == str.end())
                         stream << str;
                     else
                         stream << '"' << str << '"';
                 } break;
                 case PreDef_Natural:
-                    stream << get<uint64_t>(&topIter->second->extend);
+                    stream << get<uint64_t>(&topIter->second->blob);
                 break;
                 case PreDef_Integer:
-                    stream << get<int64_t>(&topIter->second->extend);
+                    stream << get<int64_t>(&topIter->second->blob);
                 break;
                 case PreDef_Float:
-                    stream << get<double>(&topIter->second->extend);
+                    stream << get<double>(&topIter->second->blob);
                 break;
                 default:
                     stream << "raw:" << std::setfill('0') << std::hex << std::uppercase;
-                    auto ptr = reinterpret_cast<uint8_t*>(topIter->second->extend.data.get());
-                    for(size_t i = 0; i < (topIter->second->extend.size+7)/8; ++i)
+                    auto ptr = reinterpret_cast<uint8_t*>(topIter->second->blob.data.get());
+                    for(size_t i = 0; i < (topIter->second->blob.size+7)/8; ++i)
                         stream << std::setw(2) << static_cast<uint16_t>(ptr[i]);
                     stream << std::dec;
                 break;
@@ -254,7 +254,7 @@ struct Task {
                 followAttribute = followCallback(entity);
 
             stream << "(\n    ";
-            serializeExtend(stream, entity);
+            serializeBlob(stream, entity);
             stream << ";\n";
 
             std::set<Symbol>* lastAttribute = nullptr;
@@ -264,10 +264,10 @@ struct Task {
                     continue;
                 }
                 stream << "    ";
-                serializeExtend(stream, j.first);
+                serializeBlob(stream, j.first);
                 for(auto& k : j.second) {
                     stream << " ";
-                    serializeExtend(stream, k);
+                    serializeBlob(stream, k);
                 }
                 stream << ";" << std::endl;
             }
@@ -277,10 +277,10 @@ struct Task {
             }
 
             stream << "    ";
-            serializeExtend(stream, followAttribute);
+            serializeBlob(stream, followAttribute);
             for(auto iter = lastAttribute->begin(); iter != --lastAttribute->end(); ++iter) {
                 stream << " ";
-                serializeExtend(stream, *iter);
+                serializeBlob(stream, *iter);
             }
             entity = *lastAttribute->rbegin();
             stream << std::endl;
@@ -294,13 +294,13 @@ struct Task {
             auto& subIndex = entity.second->subIndices[EAV];
             if((entity.first < preDefCount) &&
                ((entity.first == PreDef_Foundation && subIndex.size() == 2 &&
-                   subIndex.find(PreDef_Extend) != subIndex.end() &&
+                   subIndex.find(PreDef_BlobType) != subIndex.end() &&
                    subIndex.find(PreDef_Holds) != subIndex.end()) ||
-                   (subIndex.size() == 1 && subIndex.begin()->first == PreDef_Extend)))
+                   (subIndex.size() == 1 && subIndex.begin()->first == PreDef_BlobType)))
                 continue;
             if(subIndex.empty()) {
                 stream << "(";
-                serializeExtend(stream, entity.first);
+                serializeBlob(stream, entity.first);
                 stream << ";)" << std::endl;
             } else
                 for(auto& j : subIndex) {
@@ -308,11 +308,11 @@ struct Task {
                     for(auto& k : j.second) {
                         auto value = context->topIndex.find(k);
                         stream << "(";
-                        serializeExtend(stream, entity.first);
+                        serializeBlob(stream, entity.first);
                         stream << "; ";
-                        serializeExtend(stream, j.first);
+                        serializeBlob(stream, j.first);
                         stream << " ";
-                        serializeExtend(stream, k);
+                        serializeBlob(stream, k);
                         stream << ")" << std::endl;
                     }
                 }
@@ -412,7 +412,7 @@ struct Task {
         while(step());
     }
 
-    void evaluateExtend(Symbol input, bool doExecute, Symbol package = PreDef_Void) {
+    void evaluateBlob(Symbol input, bool doExecute, Symbol package = PreDef_Void) {
         clear();
 
         block = context->create({

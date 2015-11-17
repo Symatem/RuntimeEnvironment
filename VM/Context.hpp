@@ -1,8 +1,8 @@
-#include "Extend.hpp"
+#include "Blob.hpp"
 
 class Context {
     struct SearchIndexEntry {
-        Extend extend;
+        Blob blob;
         std::map<Symbol, std::set<Symbol>> subIndices[6];
 
         bool link(bool reverseIndex, ArchitectureType index, Symbol beta, Symbol gamma) {
@@ -50,8 +50,8 @@ class Context {
         };
     };
 
-    struct ExtendIndexCompare {
-        bool operator()(const Extend* a, const Extend* b) const {
+    struct BlobIndexCompare {
+        bool operator()(const Blob* a, const Blob* b) const {
             return a->compare(*b) < 0;
         }
     };
@@ -65,7 +65,7 @@ class Context {
     Symbol nextSymbol;
     typedef std::map<Symbol, std::unique_ptr<SearchIndexEntry>>::iterator TopIter;
     std::map<Symbol, std::unique_ptr<SearchIndexEntry>> topIndex;
-    std::map<Extend*, Symbol, ExtendIndexCompare> textIndex;
+    std::map<Blob*, Symbol, BlobIndexCompare> textIndex;
     bool debug;
 
     TopIter SymbolFactory(Symbol symbol) {
@@ -82,10 +82,10 @@ class Context {
             if(!topIter->second->link(reverseIndex, i, triple.pos[(i+1)%3], triple.pos[(i+2)%3]))
                 return false;
         }
-        if(triple.pos[1] == PreDef_Extend && triple.pos[2] == PreDef_Text) {
-            Extend* extend = getExtend(triple.pos[0]);
-            if(extend->size > 0)
-                textIndex.insert(std::make_pair(extend, triple.pos[0]));
+        if(triple.pos[1] == PreDef_BlobType && triple.pos[2] == PreDef_Text) {
+            Blob* blob = getBlob(triple.pos[0]);
+            if(blob->size > 0)
+                textIndex.insert(std::make_pair(blob, triple.pos[0]));
         }
         return true;
     }
@@ -103,10 +103,10 @@ class Context {
                 if(topIter == topIndex.end() ||
                    !topIter->second->unlink(reverseIndex, i, triple.pos[(i+1)%3], triple.pos[(i+2)%3]))
                     return false;
-                if(triple.pos[1] == PreDef_Extend && triple.pos[2] == PreDef_Text) {
-                    Extend* extend = getExtend(triple.pos[0]);
-                    if(extend->size > 0)
-                        textIndex.erase(extend);
+                if(triple.pos[1] == PreDef_BlobType && triple.pos[2] == PreDef_Text) {
+                    Blob* blob = getBlob(triple.pos[0]);
+                    if(blob->size > 0)
+                        textIndex.erase(blob);
                 }
             }
         for(auto alpha : dirty) {
@@ -131,33 +131,33 @@ class Context {
         return symbol;
     }
 
-    Extend* getExtend(Symbol symbol) {
-        return &topIndex.find(symbol)->second->extend;
+    Blob* getBlob(Symbol symbol) {
+        return &topIndex.find(symbol)->second->blob;
     }
 
     template<Symbol type>
-    Symbol symbolFor(Extend&& extend) {
-        assert(extend.size > 0);
+    Symbol symbolFor(Blob&& blob) {
+        assert(blob.size > 0);
 
         if(type == PreDef_Text) {
-            auto iter = textIndex.find(&extend);
+            auto iter = textIndex.find(&blob);
             if(iter != textIndex.end())
                 return iter->second;
         }
 
         Symbol symbol = nextSymbol++;
-        auto pair = std::make_pair(&SymbolFactory(symbol)->second->extend, symbol);
-        *pair.first = std::move(extend);
-        link({pair.second, PreDef_Extend, type});
+        auto pair = std::make_pair(&SymbolFactory(symbol)->second->blob, symbol);
+        *pair.first = std::move(blob);
+        link({pair.second, PreDef_BlobType, type});
 
         return symbol;
     }
 
     template<Symbol type, typename T>
     Symbol symbolFor(T value) {
-        Extend extend;
-        extend.overwrite(value);
-        return symbolFor<type>(std::move(extend));
+        Blob blob;
+        blob.overwrite(value);
+        return symbolFor<type>(std::move(blob));
     }
 
     Context() :nextSymbol(0), indexMode(HexaIndex), debug(true) {

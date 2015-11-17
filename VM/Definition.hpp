@@ -62,18 +62,18 @@ const char* PreDefSymbols[] = {
 #define getSymbolByName(Name) \
     Symbol Name##Symbol = task.getGuaranteed(task.block, PreDef_##Name);
 
-#define getSymbolAndExtendByName(Name) \
+#define getSymbolAndBlobByName(Name) \
     getSymbolByName(Name) \
-    Extend* Name##Extend = task.context->getExtend(Name##Symbol);
+    Blob* Name##Blob = task.context->getBlob(Name##Symbol);
 
-#define checkExtendType(Name, expectedType) \
-if(task.getGuaranteed(Name##Symbol, PreDef_Extend) != expectedType) \
-    task.throwException("Invalid Extend Type");
+#define checkBlobType(Name, expectedType) \
+if(task.getGuaranteed(Name##Symbol, PreDef_BlobType) != expectedType) \
+    task.throwException("Invalid Blob Type");
 
-#define getUncertainSymbolAndExtendByName(Name, DefaultValue) \
+#define getUncertainSymbolAndBlobByName(Name, DefaultValue) \
     Symbol Name##Symbol; ArchitectureType Name##Value; \
     if(task.getUncertain(task.block, PreDef_##Name, Name##Symbol)) { \
-        checkExtendType(Name, PreDef_Natural) \
-        Name##Value = task.get<ArchitectureType>(task.context->getExtend(Name##Symbol)); \
+        checkBlobType(Name, PreDef_Natural) \
+        Name##Value = task.get<ArchitectureType>(task.context->getBlob(Name##Symbol)); \
     } else \
         Name##Value = DefaultValue;

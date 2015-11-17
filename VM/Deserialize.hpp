@@ -58,9 +58,9 @@ class Deserialize {
         } else if(token.compare(0, 4, "raw:") == 0) {
             if(token.size() % 2 == 1)
                 throwException("Odd count of characters in raw data");
-            Extend extend;
-            extend.allocate((token.size()-4)*4);
-            uint8_t *ptr = reinterpret_cast<uint8_t*>(extend.data.get()), byte = 0;
+            Blob blob;
+            blob.allocate((token.size()-4)*4);
+            uint8_t *ptr = reinterpret_cast<uint8_t*>(blob.data.get()), byte = 0;
             for(size_t i = 4; i < token.size(); ++i) {
                 char current = token[i];
                 if(current >= '0' && current <= '9')
@@ -72,7 +72,7 @@ class Deserialize {
                 if(i % 2 == 1) ptr[(i-4)/2] = byte;
                 byte <<= 4;
             }
-            symbol = task.context->symbolFor<PreDef_Void>(std::move(extend));
+            symbol = task.context->symbolFor<PreDef_Void>(std::move(blob));
         } else {
             uint64_t uintValue;
             int64_t intValue;
@@ -148,9 +148,9 @@ class Deserialize {
         stack.push_back(std::unique_ptr<StackEntry>(currentEntry));
 
         package = task.getGuaranteed(task.block, PreDef_Package);
-        getSymbolAndExtendByName(Input)
-        checkExtendType(Input, PreDef_Text)
-        const char *pos = reinterpret_cast<const char*>(InputExtend->data.get()), *end = pos+InputExtend->size/8;
+        getSymbolAndBlobByName(Input)
+        checkBlobType(Input, PreDef_Text)
+        const char *pos = reinterpret_cast<const char*>(InputBlob->data.get()), *end = pos+InputBlob->size/8;
         while(pos < end) {
             if(std::isspace(*pos)) {
                 parseToken(currentEntry);
