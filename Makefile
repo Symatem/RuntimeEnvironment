@@ -13,10 +13,10 @@ $(TARGET):
 	clang++ ${CPPOPTIONS} -o $(TARGET) CLI/main.cpp
 
 run: $(TARGET)
-	$(TARGET) $(STDPATH)/stdlib/
+	$(TARGET) $(STDPATH)/StdLibrary/
 
 test: $(TARGET)
-	$(TARGET) $(STDPATH)/stdlib/ -e $(STDPATH)/tests/
+	$(TARGET) $(STDPATH)/StdLibrary/ -e $(STDPATH)/StdTests/
 
 clear:
 	rm -fr $(BUILDDIR)

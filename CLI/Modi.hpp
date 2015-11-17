@@ -314,17 +314,21 @@ uint64_t ModeInput(bool special, uint64_t size, const char* buffer) {
     if(!special) {
         switch(*buffer) {
             case 27:
-                setCursorHidden(true);
                 interfaceBuffer.clear();
+                setCursorHidden(true);
                 mode = Mode_Browse;
             break;
             case 10:
+                if(interfaceBuffer.size() > 0) {
+                    task.evaluateExtend(task.Task::symbolFor(interfaceBuffer), true);
+                    // TODO: Change focus when no Execute is present
+                    if(task.uncaughtException())
+                        interfaceBuffer = "Exception occurred while evaluating input";
+                    else
+                        interfaceBuffer.clear();
+                }
+                history[historyTop] = task.task;
                 setCursorHidden(true);
-                task.evaluateExtend(task.Task::symbolFor(interfaceBuffer), true);
-                if(task.uncaughtException())
-                    interfaceBuffer = "Exception occurred while evaluating input";
-                else
-                    interfaceBuffer.clear();
                 mode = Mode_Browse;
             break;
             case 127:

@@ -53,10 +53,6 @@ class Deserialize {
             if(iter == locals.end()) {
                 symbol = task.context->create();
                 locals.insert(std::make_pair(token, symbol));
-                if(task.context->debug) {
-                    task.context->getExtend(symbol)->overwrite(token.c_str());
-                    task.link({symbol, PreDef_Extend, PreDef_Text});
-                }
             } else
                 symbol = (*iter).second;
         } else if(token.compare(0, 4, "raw:") == 0) {
