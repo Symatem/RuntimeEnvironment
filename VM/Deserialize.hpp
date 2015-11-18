@@ -231,7 +231,7 @@ class Deserialize {
         if(currentEntry->unnestEntity != PreDef_Void)
             throwException("Unnesting failed");
         if(currentEntry->queue.size() == 0)
-            throwException("Empty file");
+            throwException("Empty Input");
 
         Symbol OutputSymbol;
         if(task.getUncertain(task.block, PreDef_Output, OutputSymbol)) {

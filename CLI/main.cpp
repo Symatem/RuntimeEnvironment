@@ -48,9 +48,24 @@ int main(int argc, const char** argv) {
                 interfaceBuffer += filePath;
                 break;
             }
-            task.evaluateBlob(task.symbolFor(file), execute, package);
+            task.deserializationTask(task.symbolFor(file), package);
             if(task.uncaughtException()) {
-                interfaceBuffer = "Exception occurred while evaluating file ";
+                interfaceBuffer = "Exception occurred while deserializing file ";
+                interfaceBuffer += filePath;
+                break;
+            }
+            if(!execute) continue;
+            Symbol TargetSymbol;
+            if(task.getUncertain(task.block, PreDef_Target, TargetSymbol)) {
+                task.link({task.frame, PreDef_Execute, TargetSymbol});
+                task.executeInfinite();
+                if(task.uncaughtException()) {
+                    interfaceBuffer = "Exception occurred while executing file ";
+                    interfaceBuffer += filePath;
+                    break;
+                }
+            }else{
+                interfaceBuffer = "Not sure what to execute in file ";
                 interfaceBuffer += filePath;
                 break;
             }

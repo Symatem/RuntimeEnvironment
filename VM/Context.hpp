@@ -137,8 +137,6 @@ class Context {
 
     template<Symbol type>
     Symbol symbolFor(Blob&& blob) {
-        assert(blob.size > 0);
-
         if(type == PreDef_Text) {
             auto iter = textIndex.find(&blob);
             if(iter != textIndex.end())

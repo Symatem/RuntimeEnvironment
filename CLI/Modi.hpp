@@ -320,19 +320,31 @@ uint64_t ModeInput(bool special, uint64_t size, const char* buffer) {
                 setCursorHidden(true);
                 mode = Mode_Browse;
             break;
-            case 10:
-                if(interfaceBuffer.size() > 0) {
-                    task.evaluateBlob(task.Task::symbolFor(interfaceBuffer), true);
-                    // TODO: Change focus when no Execute is present
-                    if(task.uncaughtException())
-                        interfaceBuffer = "Exception occurred while evaluating input";
-                    else
-                        interfaceBuffer.clear();
-                }
-                history[historyTop] = task.task;
+            case 10: {
                 setCursorHidden(true);
                 mode = Mode_Browse;
-            break;
+                if(interfaceBuffer.empty()) {
+                    history[historyTop] = task.task;
+                    break;
+                }
+                task.deserializationTask(task.Task::symbolFor(interfaceBuffer));
+                history[historyTop] = task.task;
+                if(task.uncaughtException()) {
+                    interfaceBuffer = "Exception occurred while deserializing input";
+                    break;
+                }
+                interfaceBuffer.clear();
+                Symbol TargetSymbol, ProcedureSymbol;
+                if(task.getUncertain(task.block, PreDef_Target, TargetSymbol)) {
+                    if(task.getUncertain(TargetSymbol, PreDef_Procedure, ProcedureSymbol)) {
+                        task.link({task.frame, PreDef_Execute, TargetSymbol});
+                        task.executeInfinite();
+                        if(task.uncaughtException())
+                            interfaceBuffer = "Exception occurred while executing input";
+                    }else
+                        history[historyTop] = TargetSymbol;
+                }
+            } break;
             case 127:
                 if(interfaceBuffer.size())
                     interfaceBuffer.erase(interfaceBuffer.size()-1);

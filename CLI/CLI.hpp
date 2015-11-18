@@ -92,10 +92,10 @@ ArchitectureType printStreamLimited(ArchitectureType mode = 0,
     stream.str(std::string());
 
     replaceAllInString(str, "\t", "    ");
+    bool end = false;
     ArchitectureType prevPos = 0, pos = 0, col = 0, row = 0, maxWidth = screenSize.ws_col-leadingSpace;
-    while(pos < str.size()) {
-        bool newLine = (str[pos] == '\n'), end = (pos+1 == str.size());
-        if(newLine || end || col >= maxWidth) {
+    while(true) {
+        if(end || col >= maxWidth || str[pos] == '\n') {
             if(++row > lineOffset) {
                 if(mode != 2) {
                     std::cout << std::endl;
@@ -111,8 +111,10 @@ ArchitectureType printStreamLimited(ArchitectureType mode = 0,
             prevPos = pos+1;
             col = -1;
         }
+        if(end) break;
         while(++pos < str.size() && (str[pos] & 0xC0) == 0x80);
         ++col;
+        end = (pos >= str.size());
     }
     return row;
 }

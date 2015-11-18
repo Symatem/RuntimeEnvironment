@@ -412,7 +412,7 @@ struct Task {
         while(step());
     }
 
-    void evaluateBlob(Symbol input, bool doExecute, Symbol package = PreDef_Void) {
+    void deserializationTask(Symbol input, Symbol package = PreDef_Void) {
         clear();
 
         block = context->create({
@@ -434,16 +434,6 @@ struct Task {
             {PreDef_Execute, deserializeInst}
         }));
         link({block, PreDef_Holds, deserializeInst});
-
-        if(doExecute) {
-            Symbol executeInst = context->create({
-                {PreDef_Procedure, PreDef_Branch},
-                {PreDef_Branch, PreDef_Target}
-            });
-            link({deserializeInst, PreDef_Next, executeInst});
-            link({block, PreDef_Holds, executeInst});
-        }
-
-        executeInfinite();
+        executeFinite(1);
     }
 };
