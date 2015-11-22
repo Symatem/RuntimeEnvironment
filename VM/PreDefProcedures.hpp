@@ -23,7 +23,7 @@ PreDefProcedure(Search) {
     getSymbolAndBlobByName(Output)
 
     ArchitectureType blobSize = 0, index = 0;
-    OutputBlob->reallocate(ArchitectureSize);
+    OutputBlob->allocate(ArchitectureSize);
     auto count = task.query(modes[0] + modes[1]*3 + modes[2]*9, triple,
     [&](Triple result, ArchitectureType size) {
         blobSize = ArchitectureSize*size*(index+1);
@@ -147,7 +147,7 @@ PreDefProcedure(Branch) {
 
 PreDefProcedure(Exception) {
     Symbol ExceptionSymbol;
-    if(task.getUncertain(task.block, PreDef_Input, ExceptionSymbol)) {
+    if(task.getUncertain(task.block, PreDef_Exception, ExceptionSymbol)) {
         Symbol currentFrame = ExceptionSymbol;
         while(task.getUncertain(currentFrame, PreDef_Parent, currentFrame));
         task.link({currentFrame, PreDef_Parent, task.frame});
@@ -187,18 +187,6 @@ PreDefProcedure(Deserialize) {
     Deserialize{task};
 }
 
-PreDefProcedure(CloneBlob) {
-    getSymbolAndBlobByName(Input)
-    getSymbolAndBlobByName(Output)
-    OutputBlob->overwrite(*InputBlob);
-    Symbol type;
-    if(task.getUncertain(InputSymbol, PreDef_BlobType, type))
-        task.setSolitary({OutputSymbol, PreDef_BlobType, type});
-    else
-        task.unlink(OutputSymbol, PreDef_BlobType);
-    task.popCallStack();
-}
-
 PreDefProcedure(SliceBlob) {
     getSymbolAndBlobByName(Input)
     getSymbolAndBlobByName(Target)
@@ -213,23 +201,19 @@ PreDefProcedure(SliceBlob) {
 
 PreDefProcedure(AllocateBlob) {
     getSymbolAndBlobByName(Input)
+    getUncertainSymbolAndBlobByName(Preserve, 0)
     getSymbolAndBlobByName(Target)
     checkBlobType(Input, PreDef_Natural)
+
+    // TODO: PreserveValue
+
     TargetBlob->allocate(task.get<ArchitectureType>(InputBlob));
+    // reallocate
     task.updateBlobIndexFor(TargetSymbol, TargetBlob);
     task.popCallStack();
 }
 
-PreDefProcedure(ReallocateBlob) {
-    getSymbolAndBlobByName(Input)
-    getSymbolAndBlobByName(Target)
-    checkBlobType(Input, PreDef_Natural)
-    TargetBlob->reallocate(task.get<ArchitectureType>(InputBlob));
-    task.updateBlobIndexFor(TargetSymbol, TargetBlob);
-    task.popCallStack();
-}
-
-PreDefProcedure(EraseFromBlob) {
+/*PreDefProcedure(EraseFromBlob) {
     getSymbolAndBlobByName(Target)
     getUncertainSymbolAndBlobByName(Begin, 0)
 
@@ -261,6 +245,18 @@ PreDefProcedure(InsertIntoBlob) {
     if(!TargetBlob->insert(*InputBlob, BeginValue))
         task.throwException("Invalid Begin Value");
     task.updateBlobIndexFor(TargetSymbol, TargetBlob);
+    task.popCallStack();
+}*/
+
+PreDefProcedure(CloneBlob) {
+    getSymbolAndBlobByName(Input)
+    getSymbolAndBlobByName(Output)
+    OutputBlob->overwrite(*InputBlob);
+    Symbol type;
+    if(task.getUncertain(InputSymbol, PreDef_BlobType, type))
+        task.setSolitary({OutputSymbol, PreDef_BlobType, type});
+    else
+        task.unlink(OutputSymbol, PreDef_BlobType);
     task.popCallStack();
 }
 
@@ -641,12 +637,11 @@ std::map<Symbol, void(*)(Task&)> PreDefProcedures = {
     {PreDef_Exception, PreDefProcedure_Exception},
     {PreDef_Serialize, PreDefProcedure_Serialize},
     {PreDef_Deserialize, PreDefProcedure_Deserialize},
-    {PreDef_CloneBlob, PreDefProcedure_CloneBlob},
     {PreDef_SliceBlob, PreDefProcedure_SliceBlob},
     {PreDef_AllocateBlob, PreDefProcedure_AllocateBlob},
-    {PreDef_ReallocateBlob, PreDefProcedure_ReallocateBlob},
-    {PreDef_EraseFromBlob, PreDefProcedure_EraseFromBlob},
-    {PreDef_InsertIntoBlob, PreDefProcedure_InsertIntoBlob},
+    //{PreDef_EraseFromBlob, PreDefProcedure_EraseFromBlob},
+    //{PreDef_InsertIntoBlob, PreDefProcedure_InsertIntoBlob},
+    {PreDef_CloneBlob, PreDefProcedure_CloneBlob},
     {PreDef_GetBlobLength, PreDefProcedure_GetBlobLength},
     {PreDef_NumericCast, PreDefProcedure_NumericCast},
     {PreDef_Equal, PreDefProcedure_Equal},

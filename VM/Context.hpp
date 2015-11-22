@@ -160,7 +160,7 @@ class Context {
 
     Context() :nextSymbol(0), indexMode(HexaIndex), debug(true) {
         while(nextSymbol < sizeof(PreDefSymbols)/sizeof(void*))
-            link({PreDef_Foundation, PreDef_Holds, symbolFor<PreDef_Text>(PreDefSymbols[nextSymbol])});
+            link({PreDef_RunTimeEnvironment, PreDef_Holds, symbolFor<PreDef_Text>(PreDefSymbols[nextSymbol])});
     }
 
     ArchitectureType searchGGG(ArchitectureType index, Triple& triple, std::function<void()> callback) {

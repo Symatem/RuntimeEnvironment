@@ -123,20 +123,18 @@ class Blob {
         data.reset();
     }
 
-    void allocate(ArchitectureType _size) {
-        if(size == _size) return;
-        size = _size;
-        data = std::move(getMemory(_size));
-    }
-
-    void reallocate(ArchitectureType _size) {
+    void allocate(ArchitectureType _size, ArchitectureType preserve = 0) {
         if(size == _size) return;
         auto _data = getMemory(_size);
-        ArchitectureType length = std::min(size, _size);
+        ArchitectureType length = std::min(std::min(size, _size), preserve);
         if(length > 0)
             bitWiseCopyForward(_data.get(), data.get(), length, 0, 0);
         size = _size;
         data = std::move(_data);
+    }
+
+    void reallocate(ArchitectureType _size) {
+        allocate(_size, _size);
     }
 
     void overwrite(ArchitectureType _size, const ArchitectureType* ptr) {
@@ -182,7 +180,7 @@ class Blob {
         return true;
     }
 
-    bool erase(ArchitectureType begin, ArchitectureType end) {
+    /*bool erase(ArchitectureType begin, ArchitectureType end) {
         if(end <= begin || end > size) return false;
         auto _size = size-end+begin;
         auto _data = getMemory(_size);
@@ -203,7 +201,7 @@ class Blob {
         auto _data = getMemory(_size);
         bitWiseCopyForward(_data.get(), data.get(), begin, 0, 0);
         bitWiseCopyForward(_data.get(), ptr, length, begin, 0);
-        bitWiseCopyForward(_data.get(), data.get(), size-begin, begin+length, 0);
+        bitWiseCopyForward(_data.get(), data.get(), size-begin, begin+length, begin);
         size = _size;
         data = std::move(_data);
         return true;
@@ -219,5 +217,5 @@ class Blob {
 
     bool append(const Blob& other) {
         return insert(other, size);
-    }
+    }*/
 };

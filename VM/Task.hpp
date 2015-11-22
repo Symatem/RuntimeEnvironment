@@ -288,37 +288,6 @@ struct Task {
         }
     }
 
-    void writeToStream(std::ostream& stream) {
-        auto preDefCount = sizeof(PreDefSymbols)/sizeof(void*);
-        for(auto& entity : context->topIndex) {
-            auto& subIndex = entity.second->subIndices[EAV];
-            if((entity.first < preDefCount) &&
-               ((entity.first == PreDef_Foundation && subIndex.size() == 2 &&
-                   subIndex.find(PreDef_BlobType) != subIndex.end() &&
-                   subIndex.find(PreDef_Holds) != subIndex.end()) ||
-                   (subIndex.size() == 1 && subIndex.begin()->first == PreDef_BlobType)))
-                continue;
-            if(subIndex.empty()) {
-                stream << "(";
-                serializeBlob(stream, entity.first);
-                stream << ";)" << std::endl;
-            } else
-                for(auto& j : subIndex) {
-                    auto attribute = context->topIndex.find(j.first);
-                    for(auto& k : j.second) {
-                        auto value = context->topIndex.find(k);
-                        stream << "(";
-                        serializeBlob(stream, entity.first);
-                        stream << "; ";
-                        serializeBlob(stream, j.first);
-                        stream << " ";
-                        serializeBlob(stream, k);
-                        stream << ")" << std::endl;
-                    }
-                }
-        }
-    }
-
     void setStatus(Symbol _status) {
         status = _status;
         setSolitary({task, PreDef_Status, status});
