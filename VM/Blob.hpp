@@ -179,43 +179,4 @@ class Blob {
         bitWiseCopy(data.get(), other.data.get(), length, dstOffset, srcOffset);
         return true;
     }
-
-    /*bool erase(ArchitectureType begin, ArchitectureType end) {
-        if(end <= begin || end > size) return false;
-        auto _size = size-end+begin;
-        auto _data = getMemory(_size);
-        bitWiseCopyForward(_data.get(), data.get(), begin, 0, 0);
-        bitWiseCopyForward(_data.get(), data.get(), size-end, begin, end);
-        size = _size;
-        data = std::move(_data);
-        return true;
-    }
-
-    bool truncate(ArchitectureType length) {
-        return erase(length, size);
-    }
-
-    bool insert(const ArchitectureType* ptr, ArchitectureType length, ArchitectureType begin) {
-        auto _size = size+length;
-        if(_size <= size || begin > size) return false;
-        auto _data = getMemory(_size);
-        bitWiseCopyForward(_data.get(), data.get(), begin, 0, 0);
-        bitWiseCopyForward(_data.get(), ptr, length, begin, 0);
-        bitWiseCopyForward(_data.get(), data.get(), size-begin, begin+length, begin);
-        size = _size;
-        data = std::move(_data);
-        return true;
-    }
-
-    bool insert(const Blob& other, ArchitectureType begin) {
-        return insert(other.data.get(), other.size, begin);
-    }
-
-    bool append(const ArchitectureType* ptr, ArchitectureType length, ArchitectureType begin) {
-        return insert(ptr, length, size);
-    }
-
-    bool append(const Blob& other) {
-        return insert(other, size);
-    }*/
 };

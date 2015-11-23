@@ -64,7 +64,7 @@ int main(int argc, const char** argv) {
                     interfaceBuffer += filePath;
                     break;
                 }
-            }else{
+            } else {
                 interfaceBuffer = "Not sure what to execute in file ";
                 interfaceBuffer += filePath;
                 break;
@@ -72,6 +72,8 @@ int main(int argc, const char** argv) {
         }
         closedir(dp);
     }
+    if(interfaceBuffer.empty())
+        task.clear();
 
     while(true) {
         render();

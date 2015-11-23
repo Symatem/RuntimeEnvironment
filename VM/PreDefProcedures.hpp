@@ -205,48 +205,10 @@ PreDefProcedure(AllocateBlob) {
     getSymbolAndBlobByName(Target)
     checkBlobType(Input, PreDef_Natural)
 
-    // TODO: PreserveValue
-
-    TargetBlob->allocate(task.get<ArchitectureType>(InputBlob));
-    // reallocate
+    TargetBlob->allocate(task.get<ArchitectureType>(InputBlob), PreserveValue);
     task.updateBlobIndexFor(TargetSymbol, TargetBlob);
     task.popCallStack();
 }
-
-/*PreDefProcedure(EraseFromBlob) {
-    getSymbolAndBlobByName(Target)
-    getUncertainSymbolAndBlobByName(Begin, 0)
-
-    ArchitectureType EndValue;
-    Symbol EndSymbol, CountSymbol;
-    bool end = task.getUncertain(task.block, PreDef_End, EndSymbol),
-         count = task.getUncertain(task.block, PreDef_Count, CountSymbol);
-    if(end) {
-        if(count)
-            task.throwException("Count and End given");
-        checkBlobType(End, PreDef_Natural)
-        EndValue = task.get<ArchitectureType>(task.context->getBlob(EndSymbol));
-    } else if(count) {
-        checkBlobType(Count, PreDef_Natural)
-        EndValue = BeginValue+task.get<ArchitectureType>(task.context->getBlob(CountSymbol));
-    } else
-        EndValue = TargetBlob->size;
-
-    if(!TargetBlob->erase(BeginValue, EndValue))
-        task.throwException("Invalid Begin or End Value");
-    task.updateBlobIndexFor(TargetSymbol, TargetBlob);
-    task.popCallStack();
-}
-
-PreDefProcedure(InsertIntoBlob) {
-    getSymbolAndBlobByName(Input)
-    getSymbolAndBlobByName(Target)
-    getUncertainSymbolAndBlobByName(Begin, TargetBlob->size)
-    if(!TargetBlob->insert(*InputBlob, BeginValue))
-        task.throwException("Invalid Begin Value");
-    task.updateBlobIndexFor(TargetSymbol, TargetBlob);
-    task.popCallStack();
-}*/
 
 PreDefProcedure(CloneBlob) {
     getSymbolAndBlobByName(Input)
@@ -639,8 +601,6 @@ std::map<Symbol, void(*)(Task&)> PreDefProcedures = {
     {PreDef_Deserialize, PreDefProcedure_Deserialize},
     {PreDef_SliceBlob, PreDefProcedure_SliceBlob},
     {PreDef_AllocateBlob, PreDefProcedure_AllocateBlob},
-    //{PreDef_EraseFromBlob, PreDefProcedure_EraseFromBlob},
-    //{PreDef_InsertIntoBlob, PreDefProcedure_InsertIntoBlob},
     {PreDef_CloneBlob, PreDefProcedure_CloneBlob},
     {PreDef_GetBlobLength, PreDefProcedure_GetBlobLength},
     {PreDef_NumericCast, PreDefProcedure_NumericCast},
@@ -682,24 +642,24 @@ bool Task::step() {
         }));
 
         query(12, {execute, PreDef_Void, PreDef_Void}, [&](Triple result, ArchitectureType) {
-            Symbol value;
-            if(!getUncertain(parentBlock, result.pos[1], value))
-                value = result.pos[1];
             switch(result.pos[0]) {
                 case PreDef_BlobType:
                 case PreDef_Holds:
                 return;
                 case PreDef_Procedure:
-                    procedure = value;
+                    procedure = getUncertainWithFallback(parentBlock, result.pos[1]);
                 break;
                 case PreDef_Next:
-                    next = value;
+                    next = getUncertainWithFallback(parentBlock, result.pos[1]);
                 break;
                 case PreDef_Catch:
-                    link({frame, result.pos[0], value});
+                    link({frame, result.pos[0], getUncertainWithFallback(parentBlock, result.pos[1])});
                 break;
                 default:
-                    link({block, result.pos[0], value});
+                    if(query(9, {parentBlock, result.pos[1], PreDef_Void}, [&](Triple resultB, ArchitectureType) {
+                        link({block, result.pos[0], resultB.pos[0]});
+                    }) == 0)
+                        link({block, result.pos[0], result.pos[1]});
                 break;
             }
         });

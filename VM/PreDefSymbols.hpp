@@ -50,8 +50,6 @@ PreDefWrapper(Float),
 PreDefWrapper(SliceBlob),
 PreDefWrapper(AllocateBlob),
 PreDefWrapper(Preserve),
-//PreDefWrapper(EraseFromBlob),
-//PreDefWrapper(InsertIntoBlob),
 PreDefWrapper(CloneBlob),
 PreDefWrapper(GetBlobLength),
 

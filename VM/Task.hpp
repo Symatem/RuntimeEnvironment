@@ -164,6 +164,13 @@ struct Task {
         return true;
     }
 
+    Symbol getUncertainWithFallback(Symbol alpha, Symbol beta) {
+        Symbol gamma;
+        return (query(9, {alpha, beta, PreDef_Void}, [&](Triple result, ArchitectureType) {
+            gamma = result.pos[0];
+        }) == 1) ? gamma : beta;
+    }
+
     Symbol getGuaranteed(Symbol entity, Symbol attribute) {
         Symbol value;
         if(!getUncertain(entity, attribute, value))

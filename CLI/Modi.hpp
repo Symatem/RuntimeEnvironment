@@ -341,7 +341,7 @@ uint64_t ModeInput(bool special, uint64_t size, const char* buffer) {
                         task.executeInfinite();
                         if(task.uncaughtException())
                             interfaceBuffer = "Exception occurred while executing input";
-                    }else
+                    } else
                         history[historyTop] = TargetSymbol;
                 }
             } break;
