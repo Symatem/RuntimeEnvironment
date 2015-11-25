@@ -13,6 +13,8 @@ PreDefWrapper(Parent),
 PreDefWrapper(Procedure),
 PreDefWrapper(Execute),
 PreDefWrapper(Next),
+PreDefWrapper(Global),
+PreDefWrapper(Local),
 
 PreDefWrapper(Input),
 PreDefWrapper(Output),

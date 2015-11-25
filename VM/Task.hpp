@@ -89,7 +89,11 @@ struct Task {
 
     void link(Triple triple) {
         if(!context->link(triple))
-            throwException("Already linked");
+            throwException("Already linked", {
+                {PreDef_Entity, triple.pos[0]},
+                {PreDef_Attribute, triple.pos[1]},
+                {PreDef_Value, triple.pos[2]}
+            });
     }
 
     template<bool skip = false>

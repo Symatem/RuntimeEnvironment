@@ -642,6 +642,7 @@ bool Task::step() {
         }));
 
         query(12, {execute, PreDef_Void, PreDef_Void}, [&](Triple result, ArchitectureType) {
+            // TODO: Restructure, throw exeption if multiple procedure or next occur
             switch(result.pos[0]) {
                 case PreDef_BlobType:
                 case PreDef_Holds:
@@ -656,7 +657,8 @@ bool Task::step() {
                     link({frame, result.pos[0], getUncertainWithFallback(parentBlock, result.pos[1])});
                 break;
                 default:
-                    if(query(9, {parentBlock, result.pos[1], PreDef_Void}, [&](Triple resultB, ArchitectureType) {
+                    if(query(0, {execute, PreDef_Global, result.pos[1]}) == 0 &&
+                       query(9, {parentBlock, result.pos[1], PreDef_Void}, [&](Triple resultB, ArchitectureType) {
                         link({block, result.pos[0], resultB.pos[0]});
                     }) == 0)
                         link({block, result.pos[0], result.pos[1]});
