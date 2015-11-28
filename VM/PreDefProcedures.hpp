@@ -180,6 +180,7 @@ PreDefProcedure(Serialize) {
     std::stringstream stream;
     task.serializeBlob(stream, InputSymbol);
     OutputBlob->overwrite(stream);
+    task.updateBlobIndexFor(OutputSymbol, OutputBlob);
     task.popCallStack();
 }
 
@@ -626,7 +627,7 @@ bool Task::step() {
 
     Symbol parentBlock = block, parentFrame = frame,
            procedure = PreDef_Void, next = PreDef_Void,
-           execute;
+           catcher = PreDef_Void, execute;
     if(!getUncertain(parentFrame, PreDef_Execute, execute)) {
         popCallStack();
         return true;
@@ -642,22 +643,22 @@ bool Task::step() {
         }));
 
         query(12, {execute, PreDef_Void, PreDef_Void}, [&](Triple result, ArchitectureType) {
-            // TODO: Restructure, throw exeption if multiple procedure or next occur
             switch(result.pos[0]) {
                 case PreDef_BlobType:
                 case PreDef_Holds:
+                case PreDef_Global:
                 return;
                 case PreDef_Procedure:
-                    procedure = getUncertainWithFallback(parentBlock, result.pos[1]);
+                    procedureCallHelper(parentBlock, result.pos[1], procedure);
                 break;
                 case PreDef_Next:
-                    next = getUncertainWithFallback(parentBlock, result.pos[1]);
+                    procedureCallHelper(parentBlock, result.pos[1], next);
                 break;
                 case PreDef_Catch:
-                    link({frame, result.pos[0], getUncertainWithFallback(parentBlock, result.pos[1])});
+                    procedureCallHelper(parentBlock, result.pos[1], catcher);
                 break;
                 default:
-                    if(query(0, {execute, PreDef_Global, result.pos[1]}) == 0 &&
+                    if(query(0, {execute, PreDef_Global, result.pos[1]}) == 1 ||
                        query(9, {parentBlock, result.pos[1], PreDef_Void}, [&](Triple resultB, ArchitectureType) {
                         link({block, result.pos[0], resultB.pos[0]});
                     }) == 0)
@@ -665,16 +666,19 @@ bool Task::step() {
                 break;
             }
         });
-        if(context->debug)
-            link({frame, PreDef_Procedure, procedure});
 
         if(procedure == PreDef_Void)
             throwException("Expected Procedure");
+        if(context->debug)
+            link({frame, PreDef_Procedure, procedure});
 
         if(next == PreDef_Void)
             unlink(parentFrame, PreDef_Execute);
         else
             setSolitary({parentFrame, PreDef_Execute, next});
+
+        if(catcher != PreDef_Void)
+            link({frame, PreDef_Catch, catcher});
 
         auto iter = PreDefProcedures.find(procedure);
         if(iter == PreDefProcedures.end()) {

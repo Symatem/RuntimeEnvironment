@@ -168,11 +168,14 @@ struct Task {
         return true;
     }
 
-    Symbol getUncertainWithFallback(Symbol alpha, Symbol beta) {
-        Symbol gamma;
-        return (query(9, {alpha, beta, PreDef_Void}, [&](Triple result, ArchitectureType) {
-            gamma = result.pos[0];
-        }) == 1) ? gamma : beta;
+    void procedureCallHelper(Symbol alpha, Symbol beta, Symbol& gamma) {
+        if(gamma != PreDef_Void)
+            throwException("Ambiguous", {
+                {PreDef_Entity, alpha},
+                {PreDef_Attribute, beta}
+            });
+        if(!getUncertain(alpha, beta, gamma))
+            gamma = beta;
     }
 
     Symbol getGuaranteed(Symbol entity, Symbol attribute) {
