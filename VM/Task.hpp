@@ -168,16 +168,6 @@ struct Task {
         return true;
     }
 
-    void procedureCallHelper(Symbol alpha, Symbol beta, Symbol& gamma) {
-        if(gamma != PreDef_Void)
-            throwException("Ambiguous", {
-                {PreDef_Entity, alpha},
-                {PreDef_Attribute, beta}
-            });
-        if(!getUncertain(alpha, beta, gamma))
-            gamma = beta;
-    }
-
     Symbol getGuaranteed(Symbol entity, Symbol attribute) {
         Symbol value;
         if(!getUncertain(entity, attribute, value))
@@ -330,8 +320,7 @@ struct Task {
             {PreDef_Holds, block},
             {PreDef_Block, block}
         }));
-        if(context->debug)
-            link({frame, PreDef_Procedure, PreDef_Exception});
+        link({frame, PreDef_Procedure, PreDef_Exception}); // TODO: debugging
 
         setSolitary({task, PreDef_Frame, frame});
         throw Exception{};
@@ -403,20 +392,22 @@ struct Task {
         });
         if(package == PreDef_Void)
             package = block;
-        Symbol deserializeInst = context->create({
-            {PreDef_Procedure, PreDef_Deserialize},
+        Symbol staticParams = context->create({
             {PreDef_Package, package},
             {PreDef_Input, input},
             {PreDef_Target, block},
             {PreDef_Output, PreDef_Target}
+        }), execute = context->create({
+            {PreDef_Procedure, PreDef_Deserialize},
+            {PreDef_Static, staticParams}
         });
         task = context->create();
         setFrame<false, false>(context->create({
             {PreDef_Holds, block},
             {PreDef_Block, block},
-            {PreDef_Execute, deserializeInst}
+            {PreDef_Execute, execute}
         }));
-        link({block, PreDef_Holds, deserializeInst});
+        link({block, PreDef_Holds, execute});
         executeFinite(1);
     }
 };

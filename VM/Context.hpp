@@ -66,7 +66,6 @@ class Context {
     typedef std::map<Symbol, std::unique_ptr<SearchIndexEntry>>::iterator TopIter;
     std::map<Symbol, std::unique_ptr<SearchIndexEntry>> topIndex;
     std::map<Blob*, Symbol, BlobIndexCompare> textIndex;
-    bool debug;
 
     TopIter SymbolFactory(Symbol symbol) {
         return topIndex.insert(std::make_pair(symbol, std::unique_ptr<SearchIndexEntry>(new SearchIndexEntry()))).first;
@@ -158,9 +157,10 @@ class Context {
         return symbolFor<type>(std::move(blob));
     }
 
-    Context() :nextSymbol(0), indexMode(HexaIndex), debug(true) {
+    Context() :nextSymbol(0), indexMode(HexaIndex) {
         while(nextSymbol < sizeof(PreDefSymbols)/sizeof(void*))
             link({PreDef_RunTimeEnvironment, PreDef_Holds, symbolFor<PreDef_Text>(PreDefSymbols[nextSymbol])});
+        link({PreDef_RunTimeEnvironment, PreDef_ArchitectureSize, symbolFor<PreDef_Natural>(ArchitectureSize)});
     }
 
     ArchitectureType searchGGG(ArchitectureType index, Triple& triple, std::function<void()> callback) {

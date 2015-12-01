@@ -18,6 +18,7 @@ enum {
 };
 typedef uint64_t ArchitectureType;
 typedef ArchitectureType Symbol;
+const ArchitectureType ArchitectureSize = sizeof(ArchitectureType)*8;
 union Triple {
     Symbol pos[3];
     struct {
@@ -45,7 +46,6 @@ union Triple {
         return {pos[alpha[from]], pos[beta[from]], pos[gamma[from]]};
     }
 };
-const uint64_t ArchitectureSize = sizeof(ArchitectureType)*8;
 
 #define PreDefWrapper(token) PreDef_##token
 enum PreDefSymbols {

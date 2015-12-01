@@ -111,6 +111,8 @@ PreDefProcedure(GetEnv) {
         case PreDef_Block:
             InputSymbol = task.block;
         break;
+        default:
+            task.throwException("Invalid Input Symbol");
     }
     task.setSolitary({TargetSymbol, OutputSymbol, InputSymbol});
 }
@@ -565,12 +567,14 @@ PreDefProcedure(Divide) {
         case PreDef_Natural: {
             auto DividendValue = task.get<uint64_t>(DividendBlob),
                  DivisorValue = task.get<uint64_t>(DivisorBlob);
+            if(DivisorValue == 0) task.throwException("Division by Zero");
             if(rest) RestBlob->overwrite(DividendValue%DivisorValue);
             if(quotient) QuotientBlob->overwrite(DividendValue/DivisorValue);
         } break;
         case PreDef_Integer: {
             auto DividendValue = task.get<int64_t>(DividendBlob),
                  DivisorValue = task.get<int64_t>(DivisorBlob);
+            if(DivisorValue == 0) task.throwException("Division by Zero");
             if(rest) RestBlob->overwrite(DividendValue%DivisorValue);
             if(quotient) QuotientBlob->overwrite(DividendValue/DivisorValue);
         } break;
@@ -578,6 +582,7 @@ PreDefProcedure(Divide) {
             auto DividendValue = task.get<double>(DividendBlob),
                  DivisorValue = task.get<double>(DivisorBlob),
                  QuotientValue = DividendValue/DivisorValue;
+            if(DivisorValue == 0.0) task.throwException("Division by Zero");
             if(rest) RestBlob->overwrite(modf(QuotientValue, &QuotientValue));
             if(quotient) QuotientBlob->overwrite(QuotientValue);
         } break;
@@ -625,9 +630,8 @@ bool Task::step() {
     if(!running())
         return false;
 
-    Symbol parentBlock = block, parentFrame = frame,
-           procedure = PreDef_Void, next = PreDef_Void,
-           catcher = PreDef_Void, execute;
+    Symbol parentBlock = block, parentFrame = frame, execute,
+           procedure, next, catcher, staticParams, dynamicParams;
     if(!getUncertain(parentFrame, PreDef_Execute, execute)) {
         popCallStack();
         return true;
@@ -642,42 +646,27 @@ bool Task::step() {
             {PreDef_Block, block},
         }));
 
-        query(12, {execute, PreDef_Void, PreDef_Void}, [&](Triple result, ArchitectureType) {
-            switch(result.pos[0]) {
-                case PreDef_BlobType:
-                case PreDef_Holds:
-                case PreDef_Global:
-                return;
-                case PreDef_Procedure:
-                    procedureCallHelper(parentBlock, result.pos[1], procedure);
-                break;
-                case PreDef_Next:
-                    procedureCallHelper(parentBlock, result.pos[1], next);
-                break;
-                case PreDef_Catch:
-                    procedureCallHelper(parentBlock, result.pos[1], catcher);
-                break;
-                default:
-                    if(query(0, {execute, PreDef_Global, result.pos[1]}) == 1 ||
-                       query(9, {parentBlock, result.pos[1], PreDef_Void}, [&](Triple resultB, ArchitectureType) {
-                        link({block, result.pos[0], resultB.pos[0]});
-                    }) == 0)
-                        link({block, result.pos[0], result.pos[1]});
-                break;
-            }
-        });
+        if(getUncertain(execute, PreDef_Static, staticParams))
+            query(12, {staticParams, PreDef_Void, PreDef_Void}, [&](Triple result, ArchitectureType) {
+                link({block, result.pos[0], result.pos[1]});
+            });
 
-        if(procedure == PreDef_Void)
-            throwException("Expected Procedure");
-        if(context->debug)
-            link({frame, PreDef_Procedure, procedure});
+        if(getUncertain(execute, PreDef_Dynamic, dynamicParams))
+            query(12, {dynamicParams, PreDef_Void, PreDef_Void}, [&](Triple result, ArchitectureType) {
+                query(9, {parentBlock, result.pos[1], PreDef_Void}, [&](Triple resultB, ArchitectureType) {
+                    link({block, result.pos[0], resultB.pos[0]});
+                });
+            });
 
-        if(next == PreDef_Void)
-            unlink(parentFrame, PreDef_Execute);
-        else
+        procedure = getGuaranteed(execute, PreDef_Procedure);
+        link({frame, PreDef_Procedure, procedure}); // TODO: debugging
+
+        if(getUncertain(execute, PreDef_Next, next))
             setSolitary({parentFrame, PreDef_Execute, next});
+        else
+            unlink(parentFrame, PreDef_Execute);
 
-        if(catcher != PreDef_Void)
+        if(getUncertain(execute, PreDef_Catch, catcher))
             link({frame, PreDef_Catch, catcher});
 
         auto iter = PreDefProcedures.find(procedure);
