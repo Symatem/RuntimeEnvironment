@@ -55,17 +55,12 @@ int main(int argc, const char** argv) {
                 break;
             }
             if(!execute) continue;
-            Symbol TargetSymbol;
-            if(task.getUncertain(task.block, PreDef_Target, TargetSymbol)) {
-                task.link({task.frame, PreDef_Execute, TargetSymbol});
-                task.executeInfinite();
-                if(task.uncaughtException()) {
-                    interfaceBuffer = "Exception occurred while executing file ";
-                    interfaceBuffer += filePath;
-                    break;
-                }
-            } else {
-                interfaceBuffer = "Not sure what to execute in file ";
+            if(!task.executeDeserialized()) {
+                interfaceBuffer = "Nothing to execute in file ";
+                interfaceBuffer += filePath;
+                break;
+            } else if(task.uncaughtException()) {
+                interfaceBuffer = "Exception occurred while executing file ";
                 interfaceBuffer += filePath;
                 break;
             }

@@ -111,7 +111,6 @@ void render() {
     }
 
     setCursorPosition(0, screenSize.ws_row-2);
-    // TODO: Improve interfaceBuffer limits
     switch(mode) {
         case Mode_Browse:
             stream << interfaceBuffer;
@@ -323,27 +322,24 @@ uint64_t ModeInput(bool special, uint64_t size, const char* buffer) {
             case 10: {
                 setCursorHidden(true);
                 mode = Mode_Browse;
-                if(interfaceBuffer.empty()) {
-                    history[historyTop] = task.task;
-                    break;
-                }
+                history.clear();
+                history.push_back(task.task);
+                if(interfaceBuffer.empty()) break;
                 task.deserializationTask(task.Task::symbolFor(interfaceBuffer));
-                history[historyTop] = task.task;
+                history[0] = task.task;
                 if(task.uncaughtException()) {
                     interfaceBuffer = "Exception occurred while deserializing input";
                     break;
                 }
                 interfaceBuffer.clear();
-                Symbol TargetSymbol, ProcedureSymbol;
-                if(task.getUncertain(task.block, PreDef_Target, TargetSymbol)) {
-                    if(task.getUncertain(TargetSymbol, PreDef_Procedure, ProcedureSymbol)) {
-                        task.link({task.frame, PreDef_Execute, TargetSymbol});
-                        task.executeInfinite();
-                        if(task.uncaughtException())
-                            interfaceBuffer = "Exception occurred while executing input";
-                    } else
-                        history[historyTop] = TargetSymbol;
+                Symbol OutputSymbol, ProcedureSymbol;
+                if(task.getUncertain(task.block, PreDef_Output, OutputSymbol) &&
+                   !task.getUncertain(OutputSymbol, PreDef_Procedure, ProcedureSymbol)) {
+                    history[0] = OutputSymbol;
+                    break;
                 }
+                if(task.executeDeserialized() && task.uncaughtException())
+                    interfaceBuffer = "Exception occurred while executing input";
             } break;
             case 127:
                 if(interfaceBuffer.size())

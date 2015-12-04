@@ -365,10 +365,12 @@ struct Task {
     bool step();
 
     bool uncaughtException() {
+        assert(task != PreDef_Void);
         return query(0, {task, PreDef_Status, PreDef_Exception}) == 1;
     }
 
     bool running() {
+        assert(task != PreDef_Void);
         return query(0, {task, PreDef_Status, PreDef_Run}) == 1;
     }
 
@@ -396,7 +398,7 @@ struct Task {
             {PreDef_Package, package},
             {PreDef_Input, input},
             {PreDef_Target, block},
-            {PreDef_Output, PreDef_Target}
+            {PreDef_Output, PreDef_Output}
         }), execute = context->create({
             {PreDef_Procedure, PreDef_Deserialize},
             {PreDef_Static, staticParams}
@@ -409,5 +411,20 @@ struct Task {
         }));
         link({block, PreDef_Holds, execute});
         executeFinite(1);
+    }
+
+    bool executeDeserialized() {
+        std::set<Symbol> executeSymbols;
+        if(query(9, {block, PreDef_Output, PreDef_Void}, [&](Triple result, ArchitectureType) {
+            executeSymbols.insert(result.pos[0]);
+        }) == 0) return false;
+
+        for(auto execute : executeSymbols) {
+            setSolitary({frame, PreDef_Execute, execute});
+            executeInfinite();
+            if(uncaughtException()) break;
+        }
+
+        return true;
     }
 };
