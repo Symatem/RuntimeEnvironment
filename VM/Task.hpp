@@ -239,8 +239,11 @@ struct Task {
                 default:
                     stream << "raw:" << std::setfill('0') << std::hex << std::uppercase;
                     auto ptr = reinterpret_cast<uint8_t*>(topIter->second->blob.data.get());
-                    for(size_t i = 0; i < (topIter->second->blob.size+7)/8; ++i)
-                        stream << std::setw(2) << static_cast<uint16_t>(ptr[i]);
+                    for(size_t i = 0; i < (topIter->second->blob.size+7)/8; ++i) {
+                        uint16_t byte = ptr[i];
+                        byte = ((byte&0xF0)>>4) | ((byte&0x0F)<<4);
+                        stream << std::setw(2) << byte;
+                    }
                     stream << std::dec;
                 break;
             }
@@ -414,17 +417,19 @@ struct Task {
     }
 
     bool executeDeserialized() {
-        std::set<Symbol> executeSymbols;
+        Symbol prev = PreDef_Void;
         if(query(9, {block, PreDef_Output, PreDef_Void}, [&](Triple result, ArchitectureType) {
-            executeSymbols.insert(result.pos[0]);
+            Symbol next = context->create({
+                {PreDef_Procedure, result.pos[0]}
+            });
+            if(prev == PreDef_Void)
+                setSolitary({frame, PreDef_Execute, next});
+            else
+                link({prev, PreDef_Next, next});
+            prev = next;
         }) == 0) return false;
 
-        for(auto execute : executeSymbols) {
-            setSolitary({frame, PreDef_Execute, execute});
-            executeInfinite();
-            if(uncaughtException()) break;
-        }
-
+        executeInfinite();
         return true;
     }
 };

@@ -55,22 +55,30 @@ class Deserialize {
                 locals.insert(std::make_pair(token, symbol));
             } else
                 symbol = (*iter).second;
-        } else if(token.compare(0, 4, "raw:") == 0) {
-            if(token.size() % 2 == 1)
-                throwException("Odd count of characters in raw data");
+        } else if(token.compare(0, strlen(HRLRawBegin), HRLRawBegin) == 0) {
+            ArchitectureType nibbleCount = token.size()-strlen(HRLRawBegin);
+            if(nibbleCount == 0)
+                throwException("Empty raw data");
             Blob blob;
-            blob.allocate((token.size()-4)*4);
-            uint8_t *ptr = reinterpret_cast<uint8_t*>(blob.data.get()), byte = 0;
-            for(size_t i = 4; i < token.size(); ++i) {
-                char current = token[i];
-                if(current >= '0' && current <= '9')
-                    byte |= current-'0';
-                else if(current >= 'A' && current <= 'F')
-                    byte |= current-'A'+0xA;
+            blob.allocate(nibbleCount*4);
+            uint8_t *dst = reinterpret_cast<uint8_t*>(blob.data.get()), odd = 0, nibble;
+            const uint8_t *src = reinterpret_cast<const uint8_t*>(token.c_str())+strlen(HRLRawBegin),
+                          *end = src+nibbleCount;
+            while(src < end) {
+                if(*src >= '0' && *src <= '9')
+                    nibble = *src-'0';
+                else if(*src >= 'A' && *src <= 'F')
+                    nibble = *src-'A'+0xA;
                 else
                     throwException("Non hex characters");
-                if(i % 2 == 1) ptr[(i-4)/2] = byte;
-                byte <<= 4;
+                if(odd == 0) {
+                    *dst = nibble;
+                    odd = 1;
+                } else {
+                    *(dst++) |= nibble<<4;
+                    odd = 0;
+                }
+                ++src;
             }
             symbol = task.context->symbolFor<PreDef_Void>(std::move(blob));
         } else {

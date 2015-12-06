@@ -19,6 +19,7 @@ enum {
 typedef uint64_t ArchitectureType;
 typedef ArchitectureType Symbol;
 const ArchitectureType ArchitectureSize = sizeof(ArchitectureType)*8;
+const char* HRLRawBegin = "raw:";
 union Triple {
     Symbol pos[3];
     struct {
