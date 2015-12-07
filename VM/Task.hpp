@@ -216,35 +216,29 @@ struct Task {
     void serializeBlob(std::ostream& stream, Symbol entity) {
         auto topIter = context->topIndex.find(entity);
         assert(topIter != context->topIndex.end());
-        if(topIter->second->blob.size) {
+        Blob* blob = &topIter->second->blob;
+        if(blob->size) {
             Symbol type = PreDef_Void;
             getUncertain(entity, PreDef_BlobType, type);
             switch(type) {
                 case PreDef_Text: {
-                    std::string str((const char*)topIter->second->blob.data.get(), (topIter->second->blob.size+7)/8);
+                    std::string str((const char*)blob->data.get(), (blob->size+7)/8);
                     if(std::find_if(str.begin(), str.end(), ::isspace) == str.end())
                         stream << str;
                     else
                         stream << '"' << str << '"';
                 } break;
                 case PreDef_Natural:
-                    stream << get<uint64_t>(&topIter->second->blob);
+                    stream << get<uint64_t>(blob);
                 break;
                 case PreDef_Integer:
-                    stream << get<int64_t>(&topIter->second->blob);
+                    stream << get<int64_t>(blob);
                 break;
                 case PreDef_Float:
-                    stream << get<double>(&topIter->second->blob);
+                    stream << get<double>(blob);
                 break;
                 default:
-                    stream << "raw:" << std::setfill('0') << std::hex << std::uppercase;
-                    auto ptr = reinterpret_cast<uint8_t*>(topIter->second->blob.data.get());
-                    for(size_t i = 0; i < (topIter->second->blob.size+7)/8; ++i) {
-                        uint16_t byte = ptr[i];
-                        byte = ((byte&0xF0)>>4) | ((byte&0x0F)<<4);
-                        stream << std::setw(2) << byte;
-                    }
-                    stream << std::dec;
+                    blob->serializeRaw(stream);
                 break;
             }
         } else

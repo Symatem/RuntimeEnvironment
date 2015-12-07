@@ -3,72 +3,84 @@
 template<typename type>
 struct BitMask {
     const static type empty = 0, one = 1, full = ~empty;
-    constexpr static type fillLSBs(uint64_t len) {
+    constexpr static type fillLSBs(ArchitectureType len) {
         return (len == sizeof(type)*8) ? full : (one<<len)-one;
     }
-    constexpr static type fillMSBs(uint64_t len) {
-        return (len == sizeof(type)*8) ? full : ~((one<<(sizeof(type)*8-len))-one);
+    constexpr static type fillMSBs(ArchitectureType len) {
+        return (len == 0) ? empty : ~((one<<(sizeof(type)*8-len))-one);
     }
 };
 
-ArchitectureType aquireSegmentFrom(const ArchitectureType* src, uint64_t& srcOffset, uint64_t totalLen) {
-    auto index = srcOffset/ArchitectureSize,
-         begin = srcOffset%ArchitectureSize,
-         firstPart = ArchitectureSize-begin;
-    srcOffset += totalLen;
+ArchitectureType aquireSegmentFrom(const ArchitectureType* src, uint64_t& srcOffset, uint64_t length) {
+    ArchitectureType lower = srcOffset%ArchitectureSize,
+                     index = srcOffset/ArchitectureSize,
+                     firstPart = ArchitectureSize-lower,
+                     result = src[index]>>lower;
+    srcOffset += length;
 
-    if(firstPart < totalLen)
-        return (src[index]>>begin)|((src[index+1]&BitMask<ArchitectureType>::fillLSBs(totalLen-firstPart))<<firstPart);
-    else
-        return (src[index]>>begin)&BitMask<ArchitectureType>::fillLSBs(totalLen);
+    if(firstPart < length)
+        result |= src[index+1]<<firstPart;
+
+    return result&BitMask<ArchitectureType>::fillLSBs(length);
+}
+
+void writeSegmentTo(ArchitectureType* dst, ArchitectureType keepMask, ArchitectureType input) {
+    *dst &= keepMask;
+    *dst |= (~keepMask)&input;
 }
 
 void bitWiseCopyForward(ArchitectureType* dst, const ArchitectureType* src,
                         ArchitectureType length, ArchitectureType dstOffset, ArchitectureType srcOffset) {
-    auto index = dstOffset/ArchitectureSize,
-         endIndex = (dstOffset+length)/ArchitectureSize,
-         beginLen = ArchitectureSize-(dstOffset%ArchitectureSize),
-         endLen = (dstOffset+length)%ArchitectureSize;
+    assert(length > 0);
+    ArchitectureType index = dstOffset/ArchitectureSize,
+                     endIndex = (dstOffset+length-1)/ArchitectureSize,
+                     lowSkip = dstOffset%ArchitectureSize,
+                     highSkip = (endIndex+1)*ArchitectureSize-dstOffset-length;
 
     if(index == endIndex) {
-        ArchitectureType mask = BitMask<ArchitectureType>::fillLSBs(endLen)<<dstOffset;
-        dst[index] = (dst[index]&~mask)|(mask&(aquireSegmentFrom(src, srcOffset, endLen)<<dstOffset));
+        writeSegmentTo(dst+index,
+                       BitMask<ArchitectureType>::fillLSBs(lowSkip)|BitMask<ArchitectureType>::fillMSBs(highSkip),
+                       aquireSegmentFrom(src, srcOffset, length)<<lowSkip);
         return;
     }
 
-    ArchitectureType mask = BitMask<ArchitectureType>::fillMSBs(beginLen);
-    dst[index] = (dst[index]&~mask)|(mask&(aquireSegmentFrom(src, srcOffset, beginLen)<<(ArchitectureSize-beginLen)));
+    writeSegmentTo(dst+index,
+                   BitMask<ArchitectureType>::fillLSBs(lowSkip),
+                   aquireSegmentFrom(src, srcOffset, ArchitectureSize-lowSkip)<<lowSkip);
 
     while(++index < endIndex)
         dst[index] = aquireSegmentFrom(src, srcOffset, ArchitectureSize);
 
-    if(endLen == 0) return;
-    mask = BitMask<ArchitectureType>::fillLSBs(endLen);
-    dst[index] = (dst[index]&~mask)|(mask&aquireSegmentFrom(src, srcOffset, endLen));
+    writeSegmentTo(dst+index,
+                   BitMask<ArchitectureType>::fillMSBs(highSkip),
+                   aquireSegmentFrom(src, srcOffset, ArchitectureSize-highSkip));
 }
 
 void bitWiseCopyReverse(ArchitectureType* dst, const ArchitectureType* src,
                         ArchitectureType length, ArchitectureType dstOffset, ArchitectureType srcOffset) {
-    auto index = (dstOffset+length)/ArchitectureSize,
-         endIndex = dstOffset/ArchitectureSize,
-         beginLen = (dstOffset+length)%ArchitectureSize,
-         endLen = ArchitectureSize-(dstOffset%ArchitectureSize);
+    assert(length > 0);
+    ArchitectureType index = (dstOffset+length-1)/ArchitectureSize,
+                     beginIndex = dstOffset/ArchitectureSize,
+                     lowSkip = dstOffset%ArchitectureSize,
+                     highSkip = (index+1)*ArchitectureSize-dstOffset-length;
 
-    if(index == endIndex) {
-        ArchitectureType mask = BitMask<ArchitectureType>::fillLSBs(endLen)<<dstOffset;
-        dst[index] = (dst[index]&~mask)|(mask&(aquireSegmentFrom(src, srcOffset, endLen)<<dstOffset));
+    if(index == beginIndex) {
+        writeSegmentTo(dst+index,
+                       BitMask<ArchitectureType>::fillLSBs(lowSkip)|BitMask<ArchitectureType>::fillMSBs(highSkip),
+                       aquireSegmentFrom(src, srcOffset, length)<<lowSkip);
         return;
     }
 
-    ArchitectureType mask = BitMask<ArchitectureType>::fillLSBs(beginLen);
-    dst[index] = (dst[index]&~mask)|(mask&aquireSegmentFrom(src, srcOffset, beginLen));
+    writeSegmentTo(dst+index,
+                   BitMask<ArchitectureType>::fillMSBs(highSkip),
+                   aquireSegmentFrom(src, srcOffset, ArchitectureSize-highSkip));
 
-    while(--index > endIndex)
+    while(--index > beginIndex)
         dst[index] = aquireSegmentFrom(src, srcOffset, ArchitectureSize);
 
-    if(endLen == 0) return;
-    mask = BitMask<ArchitectureType>::fillMSBs(endLen);
-    dst[index] = (dst[index]&~mask)|(mask&aquireSegmentFrom(src, srcOffset, endLen));
+    writeSegmentTo(dst+index,
+                   BitMask<ArchitectureType>::fillLSBs(lowSkip),
+                   aquireSegmentFrom(src, srcOffset, ArchitectureSize-lowSkip)<<lowSkip);
 }
 
 void bitWiseCopy(ArchitectureType* dst, const ArchitectureType* src,
@@ -80,9 +92,9 @@ void bitWiseCopy(ArchitectureType* dst, const ArchitectureType* src,
     } else
         reverse = (dst > src);
     if(reverse)
-        bitWiseCopyForward(dst, src, length, dstOffset, srcOffset);
-    else
         bitWiseCopyReverse(dst, src, length, dstOffset, srcOffset);
+    else
+        bitWiseCopyForward(dst, src, length, dstOffset, srcOffset);
 }
 
 class Blob {
@@ -102,6 +114,14 @@ class Blob {
 
     Blob(Blob&& other) :size(other.size), data(std::move(other.data)) {
         other.size = 0;
+    }
+
+    void serializeRaw(std::ostream& stream) const {
+        stream << HRLRawBegin << std::hex << std::uppercase;
+        auto ptr = reinterpret_cast<const uint8_t*>(data.get());
+        for(size_t i = 0; i < (size+3)/4; ++i)
+            stream << ((ptr[i/2]>>((i%2)*4))&0x0F);
+        stream << std::dec;
     }
 
     Blob& operator=(Blob&& other) {
