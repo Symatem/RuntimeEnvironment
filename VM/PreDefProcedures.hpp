@@ -29,7 +29,7 @@ PreDefProcedure(Search) {
         blobSize = ArchitectureSize*size*(index+1);
         if(blobSize > OutputBlob->size)
             OutputBlob->reallocate(OutputBlob->size*2);
-        bitWiseCopyForward(OutputBlob->data.get(), result.pos, ArchitectureSize*size, ArchitectureSize*size*index, 0);
+        bitWiseCopy<1>(OutputBlob->data.get(), result.pos, ArchitectureSize*size, ArchitectureSize*size*index, 0);
         ++index;
     });
     OutputBlob->reallocate(blobSize);
@@ -357,7 +357,7 @@ PreDefProcedure(Complement) {
     getSymbolAndBlobByName(Input)
     getSymbolAndBlobByName(Output)
 
-    task.setSolitary({OutputSymbol, PreDef_BlobType, PreDef_Natural});
+    task.unlink(OutputSymbol, PreDef_BlobType);
     OutputBlob->overwrite(~task.get<uint64_t>(InputBlob));
     task.popCallStack();
 }
@@ -405,7 +405,7 @@ PreDefProcedure(Shift) {
     else
         op::p(result, CountValue);
 
-    task.setSolitary({OutputSymbol, PreDef_BlobType, PreDef_Natural});
+    task.unlink(OutputSymbol, PreDef_BlobType);
     OutputBlob->overwrite(result);
     task.popCallStack();
 }
@@ -438,7 +438,7 @@ PreDefProcedure(AssociativeCommutativeBitWise) {
         task.throwException("Expected more Input");
 
     getSymbolAndBlobByName(Output)
-    task.setSolitary({OutputSymbol, PreDef_BlobType, PreDef_Natural});
+    task.unlink(OutputSymbol, PreDef_BlobType);
     OutputBlob->overwrite(OutputValue);
     task.popCallStack();
 }
