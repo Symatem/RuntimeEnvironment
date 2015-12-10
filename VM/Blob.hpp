@@ -32,7 +32,7 @@ void writeSegmentTo(ArchitectureType* dst, ArchitectureType keepMask, Architectu
 }
 
 template<int dir>
-void bitWiseCopy(ArchitectureType* dst, const ArchitectureType* src,
+void bitwiseCopy(ArchitectureType* dst, const ArchitectureType* src,
                  ArchitectureType length, ArchitectureType dstOffset, ArchitectureType srcOffset) {
     assert(length > 0);
     ArchitectureType index, lastIndex, lowSkip, highSkip;
@@ -82,7 +82,7 @@ void bitWiseCopy(ArchitectureType* dst, const ArchitectureType* src,
     }
 }
 
-void bitWiseCopy(ArchitectureType* dst, const ArchitectureType* src,
+void bitwiseCopy(ArchitectureType* dst, const ArchitectureType* src,
                  ArchitectureType length, ArchitectureType dstOffset, ArchitectureType srcOffset) {
     bool reverse;
     if(dst == src) {
@@ -91,9 +91,9 @@ void bitWiseCopy(ArchitectureType* dst, const ArchitectureType* src,
     } else
         reverse = (dst > src);
     if(reverse)
-        bitWiseCopy<-1>(dst, src, length, dstOffset, srcOffset);
+        bitwiseCopy<-1>(dst, src, length, dstOffset, srcOffset);
     else
-        bitWiseCopy<+1>(dst, src, length, dstOffset, srcOffset);
+        bitwiseCopy<+1>(dst, src, length, dstOffset, srcOffset);
 }
 
 class Blob {
@@ -147,7 +147,7 @@ class Blob {
         auto _data = getMemory(_size);
         ArchitectureType length = std::min(std::min(size, _size), preserve);
         if(length > 0)
-            bitWiseCopy<1>(_data.get(), data.get(), length, 0, 0);
+            bitwiseCopy<1>(_data.get(), data.get(), length, 0, 0);
         size = _size;
         data = std::move(_data);
     }
@@ -159,7 +159,7 @@ class Blob {
     void overwrite(ArchitectureType _size, const ArchitectureType* ptr) {
         allocate(_size);
         if(size > 0)
-            bitWiseCopy<1>(data.get(), ptr, size, 0, 0);
+            bitwiseCopy<1>(data.get(), ptr, size, 0, 0);
     }
 
     void overwrite(uint64_t value) {
@@ -195,7 +195,7 @@ class Blob {
         if(end <= dstOffset || end > size) return false;
         end = srcOffset+length;
         if(end <= srcOffset || end > other.size) return false;
-        bitWiseCopy(data.get(), other.data.get(), length, dstOffset, srcOffset);
+        bitwiseCopy(data.get(), other.data.get(), length, dstOffset, srcOffset);
         return true;
     }
 };

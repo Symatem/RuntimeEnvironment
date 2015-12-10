@@ -68,7 +68,7 @@ const char* PreDefSymbols[] = {
     Blob* Name##Blob = task.context->getBlob(Name##Symbol);
 
 #define checkBlobType(Name, expectedType) \
-if(task.getGuaranteed(Name##Symbol, PreDef_BlobType) != expectedType) \
+if(task.query(1, {Name##Symbol, PreDef_BlobType, expectedType}) == 0) \
     task.throwException("Invalid Blob Type");
 
 #define getUncertainSymbolAndBlobByName(Name, DefaultValue) \

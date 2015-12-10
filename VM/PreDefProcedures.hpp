@@ -29,7 +29,7 @@ PreDefProcedure(Search) {
         blobSize = ArchitectureSize*size*(index+1);
         if(blobSize > OutputBlob->size)
             OutputBlob->reallocate(OutputBlob->size*2);
-        bitWiseCopy<1>(OutputBlob->data.get(), result.pos, ArchitectureSize*size, ArchitectureSize*size*index, 0);
+        bitwiseCopy<1>(OutputBlob->data.get(), result.pos, ArchitectureSize*size, ArchitectureSize*size*index, 0);
         ++index;
     });
     OutputBlob->reallocate(blobSize);
@@ -353,7 +353,61 @@ PreDefProcedure(CompareLogic) {
     task.popCallStack();
 }
 
-PreDefProcedure(Complement) {
+struct PreDefProcedure_BitShiftEmpty {
+    static void d(ArchitectureType& dst, uint64_t count) { dst >>= count; };
+    static void m(ArchitectureType& dst, uint64_t count) { dst <<= count; };
+};
+
+struct PreDefProcedure_BitShiftReplicate {
+    static void d(ArchitectureType& dst, uint64_t count) {
+        *reinterpret_cast<int64_t*>(&dst) >>= count;
+    };
+    static void m(ArchitectureType& dst, uint64_t count) {
+        ArchitectureType lowestBit = dst&BitMask<uint64_t>::one;
+        dst <<= count;
+        dst |= lowestBit*BitMask<uint64_t>::fillLSBs(count);
+    };
+};
+
+struct PreDefProcedure_BitShiftBarrel {
+    static void d(ArchitectureType& dst, uint64_t count) {
+        ArchitectureType aux = dst&BitMask<uint64_t>::fillLSBs(count);
+        dst >>= count;
+        dst |= aux<<(ArchitectureSize-count);
+    };
+    static void m(ArchitectureType& dst, uint64_t count) {
+        ArchitectureType aux = dst&BitMask<uint64_t>::fillMSBs(count);
+        dst <<= count;
+        dst |= aux>>(ArchitectureSize-count);
+    };
+};
+
+template<class op>
+PreDefProcedure(BitShift) {
+    getSymbolAndBlobByName(Input)
+    getSymbolAndBlobByName(Count)
+    getSymbolAndBlobByName(Output)
+    checkBlobType(Count, PreDef_Natural)
+
+    auto result = task.get<uint64_t>(InputBlob);
+    auto CountValue = task.get<uint64_t>(CountBlob);
+    switch(task.getGuaranteed(task.block, PreDef_Direction)) {
+        case PreDef_Divide:
+            op::d(result, CountValue);
+        break;
+        case PreDef_Multiply:
+            op::m(result, CountValue);
+        break;
+        default:
+            task.throwException("Invalid Direction");
+    }
+
+    task.unlink(OutputSymbol, PreDef_BlobType);
+    OutputBlob->overwrite(result);
+    task.popCallStack();
+}
+
+PreDefProcedure(BitwiseComplement) {
     getSymbolAndBlobByName(Input)
     getSymbolAndBlobByName(Output)
 
@@ -362,68 +416,20 @@ PreDefProcedure(Complement) {
     task.popCallStack();
 }
 
-struct PreDefProcedure_ClearShift {
-    static void n(ArchitectureType& dst, uint64_t count) { dst >>= count; };
-    static void p(ArchitectureType& dst, uint64_t count) { dst <<= count; };
-};
-
-struct PreDefProcedure_CloneShift {
-    static void n(ArchitectureType& dst, uint64_t count) {
-        *reinterpret_cast<int64_t*>(&dst) >>= count;
-    };
-    static void p(ArchitectureType& dst, uint64_t count) {
-        ArchitectureType lowestBit = dst&BitMask<uint64_t>::one;
-        dst <<= count;
-        dst |= lowestBit*BitMask<uint64_t>::fillLSBs(count);
-    };
-};
-
-struct PreDefProcedure_BarrelShift {
-    static void n(ArchitectureType& dst, uint64_t count) {
-        ArchitectureType aux = dst&BitMask<uint64_t>::fillLSBs(count);
-        dst >>= count;
-        dst |= aux<<(ArchitectureSize-count);
-    };
-    static void p(ArchitectureType& dst, uint64_t count) {
-        ArchitectureType aux = dst&BitMask<uint64_t>::fillMSBs(count);
-        dst <<= count;
-        dst |= aux>>(ArchitectureSize-count);
-    };
-};
-
-template<class op>
-PreDefProcedure(Shift) {
-    getSymbolAndBlobByName(Input)
-    getSymbolAndBlobByName(Count)
-    getSymbolAndBlobByName(Output)
-    checkBlobType(Count, PreDef_Integer)
-
-    auto result = task.get<uint64_t>(InputBlob);
-    auto CountValue = task.get<int64_t>(CountBlob);
-    if(CountValue < 0)
-        op::n(result, -CountValue);
-    else
-        op::p(result, CountValue);
-
-    task.unlink(OutputSymbol, PreDef_BlobType);
-    OutputBlob->overwrite(result);
-    task.popCallStack();
-}
-
-struct PreDefProcedure_And {
+struct PreDefProcedure_BitwiseAnd {
     static void n(uint64_t& dst, uint64_t src) { dst &= src; };
 };
 
-struct PreDefProcedure_Or {
+struct PreDefProcedure_BitwiseOr {
     static void n(uint64_t& dst, uint64_t src) { dst |= src; };
 };
 
-struct PreDefProcedure_Xor {
+struct PreDefProcedure_BitwiseXor {
     static void n(uint64_t& dst, uint64_t src) { dst ^= src; };
 };
 
 template<class op>
-PreDefProcedure(AssociativeCommutativeBitWise) {
+PreDefProcedure(AssociativeCommutativeBitwise) {
     uint64_t OutputValue;
     bool first = true;
 
@@ -613,13 +619,13 @@ std::map<Symbol, void(*)(Task&)> PreDefProcedures = {
     {PreDef_Equal, PreDefProcedure_Equal},
     {PreDef_LessThan, PreDefProcedure_CompareLogic<PreDefProcedure_LessThan>},
     {PreDef_LessEqual, PreDefProcedure_CompareLogic<PreDefProcedure_LessEqual>},
-    {PreDef_Complement, PreDefProcedure_Complement},
-    {PreDef_ClearShift, PreDefProcedure_Shift<PreDefProcedure_ClearShift>},
-    {PreDef_CloneShift, PreDefProcedure_Shift<PreDefProcedure_CloneShift>},
-    {PreDef_BarrelShift, PreDefProcedure_Shift<PreDefProcedure_BarrelShift>},
-    {PreDef_And, PreDefProcedure_AssociativeCommutativeBitWise<PreDefProcedure_And>},
-    {PreDef_Or, PreDefProcedure_AssociativeCommutativeBitWise<PreDefProcedure_Or>},
-    {PreDef_Xor, PreDefProcedure_AssociativeCommutativeBitWise<PreDefProcedure_Xor>},
+    {PreDef_BitShiftEmpty, PreDefProcedure_BitShift<PreDefProcedure_BitShiftEmpty>},
+    {PreDef_BitShiftReplicate, PreDefProcedure_BitShift<PreDefProcedure_BitShiftReplicate>},
+    {PreDef_BitShiftBarrel, PreDefProcedure_BitShift<PreDefProcedure_BitShiftBarrel>},
+    {PreDef_BitwiseComplement, PreDefProcedure_BitwiseComplement},
+    {PreDef_BitwiseAnd, PreDefProcedure_AssociativeCommutativeBitwise<PreDefProcedure_BitwiseAnd>},
+    {PreDef_BitwiseOr, PreDefProcedure_AssociativeCommutativeBitwise<PreDefProcedure_BitwiseOr>},
+    {PreDef_BitwiseXor, PreDefProcedure_AssociativeCommutativeBitwise<PreDefProcedure_BitwiseXor>},
     {PreDef_Add, PreDefProcedure_AssociativeCommutativeArithmetic<PreDefProcedure_Add>},
     {PreDef_Multiply, PreDefProcedure_AssociativeCommutativeArithmetic<PreDefProcedure_Multiply>},
     {PreDef_Subtract, PreDefProcedure_Subtract},

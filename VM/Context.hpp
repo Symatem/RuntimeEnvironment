@@ -145,7 +145,8 @@ class Context {
         Symbol symbol = nextSymbol++;
         auto pair = std::make_pair(&SymbolFactory(symbol)->second->blob, symbol);
         *pair.first = std::move(blob);
-        link({pair.second, PreDef_BlobType, type});
+        if(type != PreDef_Void)
+            link({pair.second, PreDef_BlobType, type});
 
         return symbol;
     }
