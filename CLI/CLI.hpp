@@ -1,5 +1,7 @@
 #include "../VM/PreDefProcedures.hpp"
 #include <sys/ioctl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <termios.h>
 
 const std::string CSI = "\33["; // "\e["
@@ -117,4 +119,9 @@ ArchitectureType printStreamLimited(ArchitectureType mode = 0,
         end = (pos >= str.size());
     }
     return row;
+}
+
+bool stringEndsWith(std::string const& value, std::string const& ending) {
+    if(ending.size() > value.size()) return false;
+    return std::equal(ending.rbegin(), ending.rend(), value.rbegin());
 }

@@ -1,5 +1,59 @@
 #include "Modi.hpp"
 
+void loadFromPath(Symbol parentPackage, bool execute, std::string path) {
+    if(path[path.size()-1] == '/') path.resize(path.size()-1);
+
+    struct stat s;
+    if(stat(path.c_str(), &s) != 0) return;
+    if(s.st_mode & S_IFDIR) {
+        DIR* dp = opendir(path.c_str());
+        if(dp == NULL) {
+            interfaceBuffer = "Could not open directory ";
+            interfaceBuffer += path;
+            return;
+        }
+
+        auto slashIndex = path.rfind('/');
+        std::string name = (slashIndex != std::string::npos) ? path.substr(slashIndex+1) : path;
+        Symbol package = task.symbolFor(name);
+        if(parentPackage == PreDef_Void) parentPackage = package;
+        task.link({package, PreDef_Holds, parentPackage});
+
+        struct dirent* entry;
+        while(interfaceBuffer.empty() && (entry = readdir(dp)))
+            if(entry->d_name[0] != '.')
+                loadFromPath(package, execute, path+'/'+entry->d_name);
+        closedir(dp);
+    } else if(s.st_mode & S_IFREG) {
+        if(!stringEndsWith(path, ".sym")) return;
+
+        std::ifstream file(path);
+        if(!file.good()) {
+            interfaceBuffer = "Could not open file ";
+            interfaceBuffer += path;
+            return;
+        }
+
+        task.deserializationTask(task.symbolFor(file), parentPackage);
+        if(task.uncaughtException()) {
+            interfaceBuffer = "Exception occurred while deserializing file ";
+            interfaceBuffer += path;
+            return;
+        }
+
+        if(!execute) return;
+        if(!task.executeDeserialized()) {
+            interfaceBuffer = "Nothing to execute in file ";
+            interfaceBuffer += path;
+            return;
+        } else if(task.uncaughtException()) {
+            interfaceBuffer = "Exception occurred while executing file ";
+            interfaceBuffer += path;
+            return;
+        }
+    }
+}
+
 int main(int argc, const char** argv) {
     init();
 
@@ -22,50 +76,7 @@ int main(int argc, const char** argv) {
             continue;
         }
 
-        DIR* dp = opendir(argv[i]);
-        if(dp == NULL) {
-            interfaceBuffer = "Could not open directory ";
-            interfaceBuffer += argv[i];
-            break;
-        }
-        std::string directoryPath = argv[i];
-        if(directoryPath[directoryPath.size()-1] == '/') directoryPath.resize(directoryPath.size()-1);
-        std::string directoryName = directoryPath;
-        auto slashIndex = directoryName.rfind('/');
-        if(slashIndex != std::string::npos)
-            directoryName = directoryName.substr(slashIndex+1);
-        directoryPath += '/';
-        Symbol package = task.symbolFor(directoryName);
-        task.link({package, PreDef_Holds, package});
-        struct dirent* entry;
-        while((entry = readdir(dp))) {
-            auto len = strlen(entry->d_name);
-            if(len <= 4 || strncmp(entry->d_name+len-4, ".sym", 4) != 0) continue;
-            std::string filePath = directoryPath+entry->d_name;
-            std::ifstream file(filePath);
-            if(!file.good()) {
-                interfaceBuffer = "Could not open file ";
-                interfaceBuffer += filePath;
-                break;
-            }
-            task.deserializationTask(task.symbolFor(file), package);
-            if(task.uncaughtException()) {
-                interfaceBuffer = "Exception occurred while deserializing file ";
-                interfaceBuffer += filePath;
-                break;
-            }
-            if(!execute) continue;
-            if(!task.executeDeserialized()) {
-                interfaceBuffer = "Nothing to execute in file ";
-                interfaceBuffer += filePath;
-                break;
-            } else if(task.uncaughtException()) {
-                interfaceBuffer = "Exception occurred while executing file ";
-                interfaceBuffer += filePath;
-                break;
-            }
-        }
-        closedir(dp);
+        loadFromPath(PreDef_Void, execute, argv[i]);
     }
     if(interfaceBuffer.empty())
         task.clear();

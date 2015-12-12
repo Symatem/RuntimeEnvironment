@@ -332,9 +332,9 @@ uint64_t ModeInput(bool special, uint64_t size, const char* buffer) {
                     break;
                 }
                 interfaceBuffer.clear();
-                Symbol OutputSymbol, ProcedureSymbol;
+                Symbol OutputSymbol, ExecuteSymbol;
                 if(task.getUncertain(task.block, PreDef_Output, OutputSymbol) &&
-                   !task.getUncertain(OutputSymbol, PreDef_Procedure, ProcedureSymbol)) {
+                   !task.getUncertain(OutputSymbol, PreDef_Execute, ExecuteSymbol)) {
                     history[0] = OutputSymbol;
                     break;
                 }

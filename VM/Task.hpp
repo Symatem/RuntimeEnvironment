@@ -137,13 +137,12 @@ struct Task {
         while(!symbols.empty()) {
             symbol = symbols.front();
             symbols.pop();
-            if(context->topIndex.find(symbol) != context->topIndex.end() &&
-               query(1, {PreDef_Void, PreDef_Holds, symbol}) == 0) {
-                query(9, {symbol, PreDef_Holds, PreDef_Void}, [&](Triple result, ArchitectureType) {
-                    symbols.push(result.pos[0]);
-                });
-                destroy(symbol);
-            }
+            if(context->topIndex.find(symbol) == context->topIndex.end() ||
+               query(1, {PreDef_Void, PreDef_Holds, symbol}) > 0) continue;
+            query(9, {symbol, PreDef_Holds, PreDef_Void}, [&](Triple result, ArchitectureType) {
+                symbols.push(result.pos[0]);
+            });
+            destroy(symbol);
         }
     }
 
@@ -296,13 +295,19 @@ struct Task {
 
     template<bool unlinkHolds, bool setBlock>
     void setFrame(Symbol _frame) {
+        if(_frame == PreDef_Void) {
+            block = PreDef_Void;
+        } else {
+            link({task, PreDef_Holds, _frame});
+            setSolitary({task, PreDef_Frame, _frame});
+            if(setBlock)
+                block = getGuaranteed(_frame, PreDef_Block);
+        }
         if(unlinkHolds)
             unlink({task, PreDef_Holds, frame});
+        if(frame != PreDef_Void)
+            scrutinizeExistence(frame);
         frame = _frame;
-        link({task, PreDef_Holds, frame});
-        setSolitary({task, PreDef_Frame, frame});
-        if(setBlock)
-            block = getGuaranteed(frame, PreDef_Block);
     }
 
     void throwException(const char* message, std::set<std::pair<Symbol, Symbol>> links = {}) {
@@ -330,17 +335,13 @@ struct Task {
 
         Symbol parentFrame;
         bool parentExists = getUncertain(frame, PreDef_Parent, parentFrame);
-        destroy(frame);
-        scrutinizeExistence(block);
-        if(parentExists) {
-            setFrame<false, true>(parentFrame);
-            return true;
-        }
+        if(parentExists)
+            setStatus(PreDef_Done);
+        else
+            parentFrame = PreDef_Void;
 
-        unlink(task, PreDef_Frame);
-        frame = block = PreDef_Void;
-        setStatus(PreDef_Done);
-        return false;
+        setFrame<true, true>(parentFrame);
+        return parentExists;
     }
 
     Symbol popCallStackTargetSymbol() {
@@ -402,11 +403,12 @@ struct Task {
         });
         task = context->create();
         setFrame<false, false>(context->create({
+            {PreDef_Holds, staticParams},
+            {PreDef_Holds, execute},
             {PreDef_Holds, block},
             {PreDef_Block, block},
             {PreDef_Execute, execute}
         }));
-        link({block, PreDef_Holds, execute});
         executeFinite(1);
     }
 
