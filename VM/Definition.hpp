@@ -48,6 +48,10 @@ union Triple {
     }
 };
 
+constexpr ArchitectureType architecturePadding(ArchitectureType bits) {
+    return (bits+ArchitectureSize-1)/ArchitectureSize;
+}
+
 #define PreDefWrapper(token) PreDef_##token
 enum PreDefSymbols {
 #include "PreDefSymbols.hpp"
