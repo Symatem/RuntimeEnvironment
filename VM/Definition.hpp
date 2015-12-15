@@ -49,7 +49,7 @@ union Triple {
 };
 
 constexpr ArchitectureType architecturePadding(ArchitectureType bits) {
-    return (bits+ArchitectureSize-1)/ArchitectureSize;
+    return (bits+ArchitectureSize-1)/ArchitectureSize*ArchitectureSize;
 }
 
 #define PreDefWrapper(token) PreDef_##token
