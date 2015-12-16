@@ -12,7 +12,7 @@ class BpTree {
     public:
     typedef uint16_t IndexType;
     typedef uint8_t LayerType;
-    typedef uint64_t ReferenceType;
+    typedef BasePage* ReferenceType;
     typedef TemplateKeyType KeyType;
     typedef TemplateValueType ValueType;
 
@@ -56,7 +56,7 @@ class BpTree {
         Type get(IndexType src) {
             Type result;
             bitwiseCopy<1>(reinterpret_cast<ArchitectureType*>(&result), reinterpret_cast<ArchitectureType*>(this),
-                           sizeof(Type)*8, 0, bitOffset+src*sizeof(Type)*8);
+                           0, bitOffset+src*sizeof(Type)*8, sizeof(Type)*8);
             return result;
         }
 
@@ -75,7 +75,7 @@ class BpTree {
         template<typename Type, ArchitectureType bitOffset>
         void set(IndexType dst, Type content) {
             bitwiseCopy<1>(reinterpret_cast<ArchitectureType*>(this), reinterpret_cast<ArchitectureType*>(&content),
-                           sizeof(Type)*8, bitOffset+dst*sizeof(Type)*8, 0);
+                           bitOffset+dst*sizeof(Type)*8, 0, sizeof(Type)*8);
         }
 
         void setKey(IndexType src, KeyType content) {
@@ -105,6 +105,8 @@ class BpTree {
                 else
                     stream << getReference(i);
             }
+            if(!isLeaf)
+                stream << " " << getReference(count);
             stream << std::endl;
         }
 
@@ -129,48 +131,54 @@ class BpTree {
         }
 
         template<bool additionalReference>
-        void overwriteBranchContent(const KeyType*& srcKeys, const ReferenceType*& srcReferences,
+        void overwriteBranchContent(const ArchitectureType* srcKeys, const ArchitectureType* srcReferences,
                                     IndexType dst, IndexType n) {
             assert(n > 0 && n+dst <= BranchCapacity);
-            bitwiseCopy<-1>(reinterpret_cast<ArchitectureType*>(this), srcKeys -= n,
-                            n*KeyBits, KeysBitOffset+dst*KeyBits, 0);
-            bitwiseCopy<-1>(reinterpret_cast<ArchitectureType*>(this), srcReferences -= n,
-                            (n+(additionalReference?1:0))*ReferenceBits,
-                            BranchReferencesBitOffset+dst*ReferenceBits, 0);
+            bitwiseCopy<-1>(reinterpret_cast<ArchitectureType*>(this), srcKeys,
+                            KeysBitOffset+dst*KeyBits, 0, n*KeyBits);
+            bitwiseCopy<-1>(reinterpret_cast<ArchitectureType*>(this), srcReferences,
+                            BranchReferencesBitOffset+dst*ReferenceBits, 0,
+                            (n+(additionalReference?1:0))*ReferenceBits);
         }
 
-        void overwriteLeafContent(const KeyType*& srcKeys, const ValueType*& srcValues,
+        void overwriteLeafContent(const ArchitectureType* srcKeys, const ArchitectureType* srcValues,
                                   IndexType dst, IndexType n) {
             assert(n > 0 && n+dst <= LeafCapacity);
-            bitwiseCopy<-1>(reinterpret_cast<ArchitectureType*>(this), srcKeys -= n,
-                            n*KeyBits, KeysBitOffset+dst*KeyBits, 0);
-            bitwiseCopy<-1>(reinterpret_cast<ArchitectureType*>(this), srcValues -= n,
-                            n*ValueBits, LeafValuesBitOffset+dst*ValueBits, 0);
+            bitwiseCopy<-1>(reinterpret_cast<ArchitectureType*>(this), srcKeys,
+                            KeysBitOffset+dst*KeyBits, 0, n*KeyBits);
+            bitwiseCopy<-1>(reinterpret_cast<ArchitectureType*>(this), srcValues,
+                            LeafValuesBitOffset+dst*ValueBits, 0, n*ValueBits);
         }
 
         template<bool isLowest>
-        void initBranch(KeyType*& keyBufferPos, const KeyType*& keys, const ReferenceType*& references, IndexType n) {
+        void initBranch(const ArchitectureType* keys, const ArchitectureType* references,
+                        Page* parent, IndexType parentIndex, IndexType n) {
             assert(n > 0 && n <= BranchCapacity);
             count = n;
+            if(!isLowest) {
+                parent->setKey(parentIndex, keys);
+                keys = reinterpret_cast<const ArchitectureType*>(reinterpret_cast<const uint8_t*>(keys)+sizeof(KeyType));
+            }
             overwriteBranchContent<true>(keys, references, 0, count);
-            if(!isLowest)
-                bitwiseCopy<1>(--keyBufferPos, --keys, KeyBits, 0, 0);
         }
 
         template<bool isLowest>
-        void initLeaf(KeyType*& keyBufferPos, const KeyType*& keys, const ValueType*& values, IndexType n) {
+        void initLeaf(const ArchitectureType* keys, const ArchitectureType* values,
+                      Page* parent, IndexType parentIndex, IndexType n) {
             assert(n > 0 && n <= LeafCapacity);
             count = n;
-            overwriteLeafContent(keys, values, 0, n);
             if(!isLowest)
-                bitwiseCopy<1>(--keyBufferPos, keys, KeyBits, 0, 0);
+                parent->setKey(parentIndex, keys);
+            overwriteLeafContent(keys, values, 0, n);
         }
 
         // TODO: Fill Insert
 
-        static void shiftKey(Page* dstPage, IndexType dstIndex,
-                             Page* srcPage, IndexType srcIndex) {
-            bitwiseCopy<1>(dstPage, srcPage, sizeof(KeyType)*8, KeysBitOffset+dstIndex*KeyBits, KeysBitOffset+srcIndex*KeyBits);
+        static void shiftKey(Page* dstPage, Page* srcPage,
+                             IndexType dstIndex, IndexType srcIndex) {
+            bitwiseCopy<1>(reinterpret_cast<ArchitectureType*>(dstPage), reinterpret_cast<ArchitectureType*>(srcPage),
+                           KeysBitOffset+dstIndex*KeyBits, KeysBitOffset+srcIndex*KeyBits,
+                           sizeof(KeyType)*8);
         }
 
         static void swapKeyInParent(Page* dstPage, Page* srcPage, Page* parent,
@@ -184,28 +192,32 @@ class BpTree {
                                         IndexType dstIndex, IndexType srcIndex,
                                         IndexType n) {
             assert(n > 0 && dstIndex <= dstPage->count && srcIndex+n <= srcPage->count);
-            bitwiseCopy<1>(dstPage, srcPage, (n+(additionalReference?1:0))*ReferenceBits,
-                           BranchReferencesBitOffset+dstIndex*ReferenceBits, BranchReferencesBitOffset+srcIndex*ReferenceBits);
+            bitwiseCopy<1>(reinterpret_cast<ArchitectureType*>(dstPage), reinterpret_cast<ArchitectureType*>(srcPage),
+                           BranchReferencesBitOffset+dstIndex*ReferenceBits, BranchReferencesBitOffset+srcIndex*ReferenceBits,
+                           (n+(additionalReference?1:0))*ReferenceBits);
             if(!additionalReference) {
                 --dstIndex;
                 --srcIndex;
             }
-            bitwiseCopy<1>(dstPage, srcPage, n*KeyBits,
-                           KeysBitOffset+dstIndex*KeyBits, KeysBitOffset+srcIndex*KeyBits);
+            bitwiseCopy<1>(reinterpret_cast<ArchitectureType*>(dstPage), reinterpret_cast<ArchitectureType*>(srcPage),
+                           KeysBitOffset+dstIndex*KeyBits, KeysBitOffset+srcIndex*KeyBits,
+                           n*KeyBits);
         }
 
         static void shiftLeafElements(Page* dstPage, Page* srcPage,
                                       IndexType dstIndex, IndexType srcIndex,
                                       IndexType n) {
             assert(n > 0 && dstIndex <= dstPage->count && srcIndex+n <= srcPage->count);
-            bitwiseCopy<1>(dstPage, srcPage, n*KeyBits,
-                           KeysBitOffset+dstIndex*KeyBits, KeysBitOffset+srcIndex*KeyBits);
-            bitwiseCopy<1>(dstPage, srcPage, n*ValueBits,
-                           LeafValuesBitOffset+dstIndex*ValueBits, LeafValuesBitOffset+srcIndex*ValueBits);
+            bitwiseCopy<1>(reinterpret_cast<ArchitectureType*>(dstPage), reinterpret_cast<ArchitectureType*>(srcPage),
+                           KeysBitOffset+dstIndex*KeyBits, KeysBitOffset+srcIndex*KeyBits,
+                           n*KeyBits);
+            bitwiseCopy<1>(reinterpret_cast<ArchitectureType*>(dstPage), reinterpret_cast<ArchitectureType*>(srcPage),
+                           LeafValuesBitOffset+dstIndex*ValueBits, LeafValuesBitOffset+srcIndex*ValueBits,
+                           n*ValueBits);
         }
 
         void eraseFromBranch(IndexType start, IndexType end) {
-            assert(start < end && end <= count);
+            assert(start > 0 && start < end && end <= count);
             auto shiftCount = count-end;
             shiftBranchElements<false>(this, this, start, end, shiftCount);
             count -= end-start;
@@ -272,59 +284,125 @@ class BpTree {
             }
         }
 
-        static void evacuateBranchDown(Page* lower, Page* higher, Page* parent, IndexType parentIndex) {
-            shiftBranchElements<true>(lower, higher, lower->count+1, 0, higher->count);
-            shiftKey(lower, parent, lower->count, parentIndex);
-            lower->count += higher->count+1;
+        template<bool isLeaf>
+        static void evacuateDown(Page* lower, Page* higher, Page* parent, IndexType parentIndex) {
+            if(isLeaf) {
+                shiftLeafElements(lower, higher, lower->count, 0, higher->count);
+                lower->count += higher->count;
+            } else {
+                shiftBranchElements<true>(lower, higher, lower->count+1, 0, higher->count);
+                shiftKey(lower, parent, lower->count, parentIndex);
+                lower->count += higher->count+1;
+            }
         }
 
-        static void evacuateBranchUp(Page* lower, Page* higher, Page* parent, IndexType parentIndex) {
-            shiftBranchElements<true>(higher, higher, lower->count+1, 0, higher->count);
-            shiftBranchElements<true>(higher, lower, 0, 0, lower->count);
-            shiftKey(higher, parent, lower->count, parentIndex);
-            higher->count += lower->count+1;
+        template<bool isLeaf>
+        static void evacuateUp(Page* lower, Page* higher, Page* parent, IndexType parentIndex) {
+            if(isLeaf) {
+                shiftLeafElements(higher, higher, lower->count, 0, higher->count);
+                shiftLeafElements(higher, lower, 0, 0, lower->count);
+                higher->count += lower->count;
+            } else {
+                shiftBranchElements<true>(higher, higher, lower->count+1, 0, higher->count);
+                shiftBranchElements<true>(higher, lower, 0, 0, lower->count);
+                shiftKey(higher, parent, lower->count, parentIndex);
+                higher->count += lower->count+1;
+            }
         }
 
-        static void evacuateLeafDown(Page* lower, Page* higher, Page* parent, IndexType parentIndex) {
-            shiftLeafElements(lower, higher, lower->count, 0, higher->count);
-            lower->count += higher->count;
+        template<bool isLeaf>
+        static void shiftDown(Page* lower, Page* higher, Page* parent, IndexType parentIndex, IndexType count) {
+            if(isLeaf) {
+                shiftLeafElements(lower, higher, lower->count, 0, count);
+                updateCounts(lower, higher, count);
+                shiftLeafElements(higher, higher, 0, count, higher->count);
+                shiftKey(parent, higher, parentIndex, 0);
+            } else {
+                swapKeyInParent(lower, higher, parent, lower->count, count-1, parentIndex);
+                shiftBranchElements<true>(lower, lower->count+1, higher, 0, count-1);
+                updateCounts(lower, higher, count);
+                shiftBranchElements<true>(higher, 0, higher, count, higher->count);
+            }
         }
 
-        static void evacuateLeafUp(Page* lower, Page* higher, Page* parent, IndexType parentIndex) {
-            shiftLeafElements(higher, higher, lower->count, 0, higher->count);
-            shiftLeafElements(higher, lower, 0, 0, lower->count);
-            higher->count += lower->count;
+        template<bool isLeaf>
+        static void shiftUp(Page* lower, Page* higher, Page* parent, IndexType parentIndex, IndexType count) {
+            if(isLeaf) {
+                shiftLeafElements(higher, higher, count, 0, higher->count);
+                updateCounts(higher, lower, count);
+                shiftLeafElements(higher, lower, 0, lower->count, count);
+                shiftKey(parent, higher, parentIndex, 0);
+            } else {
+                shiftBranchElements<true>(higher, higher, count, 0, higher->count);
+                updateCounts(higher, lower, count);
+                shiftBranchElements<true>(higher, lower, 0, lower->count+1, count-1);
+                swapKeyInParent(higher, lower, parent, count-1, lower->count, parentIndex);
+            }
         }
 
-        static void shiftBranchDown(Page* lower, Page* higher, Page* parent, IndexType parentIndex, IndexType count) {
-            swapKeyInParent(lower, higher, parent, lower->count, count-1, parentIndex);
-            shiftBranchElements<true>(lower, lower->count+1, higher, 0, count-1);
-            updateCounts(lower, higher, count);
-            shiftBranchElements<true>(higher, 0, higher, count, higher->count);
+        template<bool isLeaf, bool focus>
+        static bool redistribute2(Page* lower, Page* higher, Page* parent, IndexType parentIndex) {
+            auto count = lower->count+higher->count;
+            if(count <= ((isLeaf) ? LeafCapacity : BranchCapacity)) {
+                if(focus)
+                    evacuateUp<isLeaf>(lower, higher, parent, parentIndex);
+                else
+                    evacuateDown<isLeaf>(lower, higher, parent, parentIndex);
+                return true;
+            } else {
+                count = ((focus) ? higher : lower)->count-count/2;
+                if(focus)
+                    shiftDown<isLeaf>(lower, higher, parent, parentIndex, count);
+                else
+                    shiftUp<isLeaf>(lower, higher, parent, parentIndex, count);
+                return false;
+            }
         }
 
-        static void shiftBranchUp(Page* lower, Page* higher, Page* parent, IndexType parentIndex, IndexType count) {
-            shiftBranchElements<true>(higher, higher, count, 0, higher->count);
-            updateCounts(higher, lower, count);
-            shiftBranchElements<true>(higher, lower, 0, lower->count+1, count-1);
-            swapKeyInParent(higher, lower, parent, count-1, lower->count, parentIndex);
+        template<bool isLeaf>
+        static bool redistribute3(Page* lower, Page* middle, Page* higher,
+                                  Page* middleParent, Page* higherParent,
+                                  IndexType middleParentIndex, IndexType higherParentIndex) {
+            auto count = lower->count+middle->count+higher->count;
+            if(count <= ((isLeaf) ? LeafCapacity : BranchCapacity)*2) {
+                count = count/2-higher->count;
+                if(count > 0)
+                    shiftUp<isLeaf>(middle, higher, higherParent, higherParentIndex, count);
+                evacuateDown<isLeaf>(lower, middle, middleParent, middleParentIndex);
+                return true;
+            } else {
+                count = count/3;
+                auto shiftLower = lower->count-count, shiftUpper = higher->count-count;
+                if(shiftLower < 0) {
+                    if(shiftUpper < 0)
+                        shiftUp<isLeaf>(middle, higher, higherParent, higherParentIndex, -shiftUpper);
+                    else
+                        shiftDown<isLeaf>(middle, higher, higherParent, higherParentIndex, shiftUpper);
+                    shiftDown<isLeaf>(lower, middle, middleParent, middleParentIndex, -shiftLower);
+                } else {
+                    shiftUp<isLeaf>(lower, middle, middleParent, middleParentIndex, shiftLower);
+                    if(shiftUpper < 0)
+                        shiftUp<isLeaf>(middle, higher, higherParent, higherParentIndex, -shiftUpper);
+                    else
+                        shiftDown<isLeaf>(middle, higher, higherParent, higherParentIndex, shiftUpper);
+                }
+                return false;
+            }
         }
 
-        static void shiftLeafDown(Page* lower, Page* higher, Page* parent, IndexType parentIndex, IndexType count) {
-            shiftLeafElements(lower, higher, lower->count, 0, count);
-            updateCounts(lower, higher, count);
-            shiftLeafElements(higher, higher, 0, count, higher->count);
-            shiftKey(parent, higher, parentIndex, 0);
+        template<bool isLeaf>
+        static bool redistribute(Page* lower, Page* middle, Page* higher,
+                                 Page* middleParent, Page* higherParent,
+                                 IndexType middleParentIndex, IndexType higherParentIndex) {
+            if(lower) {
+                if(higher)
+                    return redistribute3<isLeaf>(lower, middle, higher,
+                                                 middleParent, higherParent,
+                                                 middleParentIndex, higherParentIndex);
+                else
+                    return redistribute2<isLeaf, true>(lower, middle, middleParent, middleParentIndex);
+            } else
+                return redistribute2<isLeaf, false>(middle, higher, higherParent, higherParentIndex);
         }
-
-        static void shiftLeafUp(Page* lower, Page* higher, Page* parent, IndexType parentIndex, IndexType count) {
-            shiftLeafElements(higher, higher, count, 0, higher->count);
-            updateCounts(higher, lower, count);
-            shiftLeafElements(higher, lower, 0, lower->count, count);
-            shiftKey(parent, higher, parentIndex, 0);
-        }
-
-        // TODO: redistribute
     };
-
 };

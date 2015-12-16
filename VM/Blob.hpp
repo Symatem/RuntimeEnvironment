@@ -33,7 +33,8 @@ void writeSegmentTo(ArchitectureType* dst, ArchitectureType keepMask, Architectu
 
 template<int dir>
 void bitwiseCopy(ArchitectureType* dst, const ArchitectureType* src,
-                 ArchitectureType length, ArchitectureType dstOffset, ArchitectureType srcOffset) {
+                 ArchitectureType dstOffset, ArchitectureType srcOffset,
+                 ArchitectureType length) {
     assert(length > 0);
     ArchitectureType index, lastIndex, lowSkip, highSkip;
     if(dir == 1) {
@@ -83,7 +84,8 @@ void bitwiseCopy(ArchitectureType* dst, const ArchitectureType* src,
 }
 
 void bitwiseCopy(ArchitectureType* dst, const ArchitectureType* src,
-                 ArchitectureType length, ArchitectureType dstOffset, ArchitectureType srcOffset) {
+                 ArchitectureType dstOffset, ArchitectureType srcOffset,
+                 ArchitectureType length) {
     bool reverse;
     if(dst == src) {
         if(dstOffset == srcOffset) return;
@@ -91,9 +93,9 @@ void bitwiseCopy(ArchitectureType* dst, const ArchitectureType* src,
     } else
         reverse = (dst > src);
     if(reverse)
-        bitwiseCopy<-1>(dst, src, length, dstOffset, srcOffset);
+        bitwiseCopy<-1>(dst, src, dstOffset, srcOffset, length);
     else
-        bitwiseCopy<+1>(dst, src, length, dstOffset, srcOffset);
+        bitwiseCopy<+1>(dst, src, dstOffset, srcOffset, length);
 }
 
 class Blob {
@@ -147,7 +149,7 @@ class Blob {
         auto _data = getMemory(_size);
         ArchitectureType length = std::min(std::min(size, _size), preserve);
         if(length > 0)
-            bitwiseCopy<1>(_data.get(), data.get(), length, 0, 0);
+            bitwiseCopy<1>(_data.get(), data.get(), 0, 0, length);
         size = _size;
         data = std::move(_data);
     }
@@ -159,7 +161,7 @@ class Blob {
     void overwrite(ArchitectureType _size, const ArchitectureType* ptr) {
         allocate(_size);
         if(size > 0)
-            bitwiseCopy<1>(data.get(), ptr, size, 0, 0);
+            bitwiseCopy<1>(data.get(), ptr, 0, 0, size);
     }
 
     void overwrite(uint64_t value) {
@@ -195,7 +197,7 @@ class Blob {
         if(end <= dstOffset || end > size) return false;
         end = srcOffset+length;
         if(end <= srcOffset || end > other.size) return false;
-        bitwiseCopy(data.get(), other.data.get(), length, dstOffset, srcOffset);
+        bitwiseCopy(data.get(), other.data.get(), dstOffset, srcOffset, length);
         return true;
     }
 };

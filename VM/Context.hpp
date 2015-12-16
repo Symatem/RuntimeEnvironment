@@ -67,6 +67,14 @@ class Context {
     std::map<Symbol, std::unique_ptr<SearchIndexEntry>> topIndex;
     std::map<Blob*, Symbol, BlobIndexCompare> textIndex;
 
+    BasePage* aquirePage() {
+        return reinterpret_cast<BasePage*>(malloc(bitsPerPage/8));
+    }
+
+    void releasePage(BasePage* ptr) {
+        free(ptr);
+    }
+
     TopIter SymbolFactory(Symbol symbol) {
         return topIndex.insert(std::make_pair(symbol, std::unique_ptr<SearchIndexEntry>(new SearchIndexEntry()))).first;
     }
