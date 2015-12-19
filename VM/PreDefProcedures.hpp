@@ -29,7 +29,7 @@ PreDefProcedure(Search) {
         blobSize = ArchitectureSize*size*(index+1);
         if(blobSize > OutputBlob->size)
             OutputBlob->reallocate(OutputBlob->size*2);
-        bitwiseCopy<1>(OutputBlob->data.get(), result.pos, ArchitectureSize*size*index, 0, ArchitectureSize*size);
+        bitwiseCopy<-1>(OutputBlob->data.get(), result.pos, ArchitectureSize*size*index, 0, ArchitectureSize*size);
         ++index;
     });
     OutputBlob->reallocate(blobSize);

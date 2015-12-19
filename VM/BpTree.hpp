@@ -68,9 +68,9 @@ class BpTree {
         template<typename Type, ArchitectureType bitOffset>
         Type get(IndexType src) const {
             Type result;
-            bitwiseCopy<1>(reinterpret_cast<ArchitectureType*>(&result),
-                           reinterpret_cast<const ArchitectureType*>(this),
-                           0, bitOffset+src*sizeof(Type)*8, sizeof(Type)*8);
+            bitwiseCopy<-1>(reinterpret_cast<ArchitectureType*>(&result),
+                            reinterpret_cast<const ArchitectureType*>(this),
+                            0, bitOffset+src*sizeof(Type)*8, sizeof(Type)*8);
             return result;
         }
 
@@ -88,9 +88,9 @@ class BpTree {
 
         template<typename Type, ArchitectureType bitOffset>
         void set(IndexType dst, Type content) {
-            bitwiseCopy<1>(reinterpret_cast<ArchitectureType*>(this),
-                           reinterpret_cast<const ArchitectureType*>(&content),
-                           bitOffset+dst*sizeof(Type)*8, 0, sizeof(Type)*8);
+            bitwiseCopy<-1>(reinterpret_cast<ArchitectureType*>(this),
+                            reinterpret_cast<const ArchitectureType*>(&content),
+                            bitOffset+dst*sizeof(Type)*8, 0, sizeof(Type)*8);
         }
 
         void setKey(IndexType src, KeyType content) {
@@ -151,9 +151,9 @@ class BpTree {
         void overwriteBranch(const ArchitectureType* srcKeys, const ArchitectureType* srcReferences,
                                     IndexType dst, IndexType n) {
             assert(n > 0 && n+dst <= BranchCapacity);
-            bitwiseCopy<-1>(reinterpret_cast<ArchitectureType*>(this), srcKeys,
+            bitwiseCopy<+1>(reinterpret_cast<ArchitectureType*>(this), srcKeys,
                             KeysBitOffset+dst*KeyBits, 0, n*KeyBits);
-            bitwiseCopy<-1>(reinterpret_cast<ArchitectureType*>(this), srcReferences,
+            bitwiseCopy<+1>(reinterpret_cast<ArchitectureType*>(this), srcReferences,
                             BranchReferencesBitOffset+dst*ReferenceBits, 0,
                             (n+(additionalReference?1:0))*ReferenceBits);
         }
@@ -161,9 +161,9 @@ class BpTree {
         void overwriteLeaf(const ArchitectureType* srcKeys, const ArchitectureType* srcValues,
                            IndexType dst, IndexType n) {
             assert(n > 0 && n+dst <= LeafCapacity);
-            bitwiseCopy<-1>(reinterpret_cast<ArchitectureType*>(this), srcKeys,
+            bitwiseCopy<+1>(reinterpret_cast<ArchitectureType*>(this), srcKeys,
                             KeysBitOffset+dst*KeyBits, 0, n*KeyBits);
-            bitwiseCopy<-1>(reinterpret_cast<ArchitectureType*>(this), srcValues,
+            bitwiseCopy<+1>(reinterpret_cast<ArchitectureType*>(this), srcValues,
                             LeafValuesBitOffset+dst*ValueBits, 0, n*ValueBits);
         }
 
@@ -191,38 +191,39 @@ class BpTree {
 
         // TODO: Fill Insert
 
-        template<bool additionalReference>
+        template<bool additionalReference, int dir = -1>
         static void copyBranchElements(Page* dstPage, Page* srcPage,
                                        IndexType dstIndex, IndexType srcIndex,
                                        IndexType n) {
             assert(dstIndex <= dstPage->count && srcIndex+n <= srcPage->count);
-            bitwiseCopy<1>(reinterpret_cast<ArchitectureType*>(dstPage),
-                           reinterpret_cast<const ArchitectureType*>(srcPage),
-                           BranchReferencesBitOffset+dstIndex*ReferenceBits, BranchReferencesBitOffset+srcIndex*ReferenceBits,
-                           (n+(additionalReference?1:0))*ReferenceBits);
+            bitwiseCopy<dir>(reinterpret_cast<ArchitectureType*>(dstPage),
+                             reinterpret_cast<const ArchitectureType*>(srcPage),
+                             BranchReferencesBitOffset+dstIndex*ReferenceBits, BranchReferencesBitOffset+srcIndex*ReferenceBits,
+                             (n+(additionalReference?1:0))*ReferenceBits);
             if(!additionalReference) {
-                assert(n > 0);
+                assert(dstIndex > 0 && srcIndex > 0 && n > 0);
                 --dstIndex;
                 --srcIndex;
             } else if(n == 0) return;
-            bitwiseCopy<1>(reinterpret_cast<ArchitectureType*>(dstPage),
-                           reinterpret_cast<const ArchitectureType*>(srcPage),
-                           KeysBitOffset+dstIndex*KeyBits, KeysBitOffset+srcIndex*KeyBits,
-                           n*KeyBits);
+            bitwiseCopy<dir>(reinterpret_cast<ArchitectureType*>(dstPage),
+                             reinterpret_cast<const ArchitectureType*>(srcPage),
+                             KeysBitOffset+dstIndex*KeyBits, KeysBitOffset+srcIndex*KeyBits,
+                             n*KeyBits);
         }
 
+        template<int dir = -1>
         static void copyLeafElements(Page* dstPage, Page* srcPage,
                                      IndexType dstIndex, IndexType srcIndex,
                                      IndexType n) {
             assert(n > 0 && dstIndex <= dstPage->count && srcIndex+n <= srcPage->count);
-            bitwiseCopy<1>(reinterpret_cast<ArchitectureType*>(dstPage),
-                           reinterpret_cast<const ArchitectureType*>(srcPage),
-                           KeysBitOffset+dstIndex*KeyBits, KeysBitOffset+srcIndex*KeyBits,
-                           n*KeyBits);
-            bitwiseCopy<1>(reinterpret_cast<ArchitectureType*>(dstPage),
-                           reinterpret_cast<const ArchitectureType*>(srcPage),
-                           LeafValuesBitOffset+dstIndex*ValueBits, LeafValuesBitOffset+srcIndex*ValueBits,
-                           n*ValueBits);
+            bitwiseCopy<dir>(reinterpret_cast<ArchitectureType*>(dstPage),
+                             reinterpret_cast<const ArchitectureType*>(srcPage),
+                             KeysBitOffset+dstIndex*KeyBits, KeysBitOffset+srcIndex*KeyBits,
+                             n*KeyBits);
+            bitwiseCopy<dir>(reinterpret_cast<ArchitectureType*>(dstPage),
+                             reinterpret_cast<const ArchitectureType*>(srcPage),
+                             LeafValuesBitOffset+dstIndex*ValueBits, LeafValuesBitOffset+srcIndex*ValueBits,
+                             n*ValueBits);
         }
 
         static void copyKey(Page* dstPage, Page* srcPage,
@@ -240,10 +241,10 @@ class BpTree {
         void erase1(IndexType start, IndexType end) {
             if(isLeaf) {
                 assert(start < end && end <= count);
-                copyLeafElements(this, this, start, end, count-end);
+                copyLeafElements<-1>(this, this, start, end, count-end);
             } else {
                 assert(start > 0 && start < end && end <= count+1);
-                copyBranchElements<false>(this, this, start, end, count+1-end);
+                copyBranchElements<false, -1>(this, this, start, end, count-end+1);
             }
             count -= end-start;
         }
@@ -260,7 +261,7 @@ class BpTree {
                 if(isLeaf)
                     copyLeafElements(lower, higher, startInLower, endInHigher, higher->count-endInHigher);
                 else
-                    copyBranchElements<true>(lower, higher, startInLower, endInHigher, higher->count-endInHigher);
+                    copyBranchElements<false>(lower, higher, startInLower, endInHigher, higher->count-endInHigher+1);
                 lower->count = count;
                 return true;
             } else {
@@ -269,28 +270,26 @@ class BpTree {
                 higher->count = count/2;
                 count = startInLower-lower->count;
                 if(isLeaf) {
-                    if(count < 0) {
+                    if(count <= 0) {
                         count *= -1;
                         copyLeafElements(lower, higher, startInLower, endInHigher, count);
-                        copyLeafElements(higher, higher, 0, endInHigher+count, higher->count);
+                        copyLeafElements<-1>(higher, higher, 0, endInHigher+count, higher->count);
                     } else {
-                        copyLeafElements(higher, higher, count, endInHigher, higher->count);
                         copyLeafElements(higher, lower, 0, lower->count, count);
+                        copyLeafElements<-1>(higher, higher, count, endInHigher, higher->count);
                     }
                     copyKey(parent, higher, parentIndex, 0);
                 } else {
                     --count;
-                    if(count < 0) {
+                    if(count <= 0) {
                         count *= -1;
-                        swapKeyInParent(parent, lower, higher, parentIndex, lower->count, endInHigher);
-                        copyBranchElements<true>(lower, higher, lower->count+1, endInHigher, count-1);
-                        copyBranchElements<true>(higher, higher, 0, endInHigher+count, higher->count);
-                    } else if(count == 0)
-                        copyBranchElements<true>(higher, higher, 0, endInHigher, higher->count);
-                    else {
-                        copyBranchElements<true>(higher, higher, count, endInHigher, higher->count);
+                        copyKey(parent, higher, parentIndex, endInHigher+count-1);
+                        copyBranchElements<false>(lower, higher, startInLower, endInHigher, count);
+                        copyBranchElements<true, -1>(higher, higher, 0, endInHigher+count, higher->count);
+                    } else {
+                        copyKey(parent, lower, parentIndex, lower->count);
                         copyBranchElements<true>(higher, lower, 0, lower->count+1, count-1);
-                        swapKeyInParent(parent, higher, lower, parentIndex, count-1, lower->count);
+                        copyBranchElements<false, -1>(higher, higher, count, endInHigher, higher->count);
                     }
                 }
                 return false;
@@ -312,11 +311,11 @@ class BpTree {
         template<bool isLeaf>
         static void evacuateUp(Page* parent, Page* lower, Page* higher, IndexType parentIndex) {
             if(isLeaf) {
-                copyLeafElements(higher, higher, lower->count, 0, higher->count);
+                copyLeafElements<+1>(higher, higher, lower->count, 0, higher->count);
                 copyLeafElements(higher, lower, 0, 0, lower->count);
                 higher->count += lower->count;
             } else {
-                copyBranchElements<true>(higher, higher, lower->count+1, 0, higher->count);
+                copyBranchElements<true, +1>(higher, higher, lower->count+1, 0, higher->count);
                 copyBranchElements<true>(higher, lower, 0, 0, lower->count);
                 copyKey(higher, parent, lower->count, parentIndex);
                 higher->count += lower->count+1;
@@ -328,25 +327,25 @@ class BpTree {
             if(isLeaf) {
                 copyLeafElements(lower, higher, lower->count, 0, count);
                 updateCounts(lower, higher, count);
-                copyLeafElements(higher, higher, 0, count, higher->count);
+                copyLeafElements<-1>(higher, higher, 0, count, higher->count);
                 copyKey(parent, higher, parentIndex, 0);
             } else {
                 swapKeyInParent(parent, lower, higher, parentIndex, lower->count, count-1);
-                copyBranchElements<true>(lower, lower->count+1, higher, 0, count-1);
+                copyBranchElements<true>(lower, higher, lower->count+1, 0, count-1);
                 updateCounts(lower, higher, count);
-                copyBranchElements<true>(higher, 0, higher, count, higher->count);
+                copyBranchElements<true, -1>(higher, higher, 0, count, higher->count);
             }
         }
 
         template<bool isLeaf>
         static void shiftUp(Page* parent, Page* lower, Page* higher, IndexType parentIndex, IndexType count) {
             if(isLeaf) {
-                copyLeafElements(higher, higher, count, 0, higher->count);
+                copyLeafElements<+1>(higher, higher, count, 0, higher->count);
                 updateCounts(higher, lower, count);
                 copyLeafElements(higher, lower, 0, lower->count, count);
                 copyKey(parent, higher, parentIndex, 0);
             } else {
-                copyBranchElements<true>(higher, higher, count, 0, higher->count);
+                copyBranchElements<true, +1>(higher, higher, count, 0, higher->count);
                 updateCounts(higher, lower, count);
                 copyBranchElements<true>(higher, lower, 0, lower->count+1, count-1);
                 swapKeyInParent(parent, higher, lower, parentIndex, count-1, lower->count);
@@ -485,9 +484,9 @@ class BpTree {
         void copy(Iterator<srcReadOnly>* src) const {
             static_assert(srcReadOnly && !readOnly, "Can not copy from read only to writeable");
             assert(end-start == src->end-src->start);
-            bitwiseCopy<1>(reinterpret_cast<ArchitectureType*>((*this)[start]),
-                           reinterpret_cast<const ArchitectureType*>(src[src->start]),
-                           0, 0, sizeof(IteratorFrame)*8*(end-start));
+            bitwiseCopy<-1>(reinterpret_cast<ArchitectureType*>((*this)[start]),
+                            reinterpret_cast<const ArchitectureType*>(src[src->start]),
+                            0, 0, sizeof(IteratorFrame)*8*(end-start));
         }
 
         // Compares two iterators (-1 : smaller, 0 equal, 1 greater)

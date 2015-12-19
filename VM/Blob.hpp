@@ -13,12 +13,12 @@ struct BitMask {
 
 template<int dir>
 ArchitectureType aquireSegmentFrom(const ArchitectureType* src, uint64_t& srcOffset, uint64_t length) {
-    if(dir == -1) srcOffset -= length;
+    if(dir == +1) srcOffset -= length;
     ArchitectureType lower = srcOffset%ArchitectureSize,
                      index = srcOffset/ArchitectureSize,
                      firstPart = ArchitectureSize-lower,
                      result = src[index]>>lower;
-    if(dir == +1) srcOffset += length;
+    if(dir == -1) srcOffset += length;
 
     if(firstPart < length)
         result |= src[index+1]<<firstPart;
@@ -37,7 +37,7 @@ void bitwiseCopy(ArchitectureType* dst, const ArchitectureType* src,
                  ArchitectureType length) {
     assert(length > 0);
     ArchitectureType index, lastIndex, lowSkip, highSkip;
-    if(dir == 1) {
+    if(dir == -1) {
         index = dstOffset/ArchitectureSize;
         lastIndex = (dstOffset+length-1)/ArchitectureSize;
         highSkip = lastIndex;
@@ -56,7 +56,7 @@ void bitwiseCopy(ArchitectureType* dst, const ArchitectureType* src,
         return;
     }
 
-    if(dir == 1) {
+    if(dir == -1) {
         writeSegmentTo(dst+index,
                        BitMask<ArchitectureType>::fillLSBs(lowSkip),
                        aquireSegmentFrom<dir>(src, srcOffset, ArchitectureSize-lowSkip)<<lowSkip);
@@ -86,13 +86,13 @@ void bitwiseCopy(ArchitectureType* dst, const ArchitectureType* src,
 void bitwiseCopy(ArchitectureType* dst, const ArchitectureType* src,
                  ArchitectureType dstOffset, ArchitectureType srcOffset,
                  ArchitectureType length) {
-    bool reverse;
+    bool downward;
     if(dst == src) {
         if(dstOffset == srcOffset) return;
-        reverse = (dstOffset > srcOffset);
+        downward = (dstOffset < srcOffset);
     } else
-        reverse = (dst > src);
-    if(reverse)
+        downward = (dst < src);
+    if(downward)
         bitwiseCopy<-1>(dst, src, dstOffset, srcOffset, length);
     else
         bitwiseCopy<+1>(dst, src, dstOffset, srcOffset, length);
@@ -149,7 +149,7 @@ class Blob {
         auto _data = getMemory(_size);
         ArchitectureType length = std::min(std::min(size, _size), preserve);
         if(length > 0)
-            bitwiseCopy<1>(_data.get(), data.get(), 0, 0, length);
+            bitwiseCopy<-1>(_data.get(), data.get(), 0, 0, length);
         size = _size;
         data = std::move(_data);
     }
@@ -161,7 +161,7 @@ class Blob {
     void overwrite(ArchitectureType _size, const ArchitectureType* ptr) {
         allocate(_size);
         if(size > 0)
-            bitwiseCopy<1>(data.get(), ptr, 0, 0, size);
+            bitwiseCopy<-1>(data.get(), ptr, 0, 0, size);
     }
 
     void overwrite(uint64_t value) {
