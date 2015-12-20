@@ -628,79 +628,101 @@ class BpTree {
         // TODO
     }
 
-    template<bool isLeaf>
-    bool eraseAux(Context* context, Iterator<false>& from, Iterator<false>& to, Iterator<false>& aux, LayerType& layer) {
-        IndexType lowerInnerIndex = from[layer]->index,
-                  higherInnerIndex = to[layer]->index;
-        /*if(!isLeaf && lowerInnerIndex == higherInnerIndex)
-            return false; TODO */
-        ++higherInnerIndex;
+    struct EraseData {
+        Context* context;
+        Iterator<false> *from, *to, *iter;
+        bool spareLowerInner, eraseHigherInner;
+        LayerType layer;
+    };
 
-        Page* lowerInner = Iterator<false>::getPage(context, from[layer]->reference);
-        if(layer == from.start) {
+    template<bool isLeaf>
+    bool eraseLayer(EraseData& data) {
+        IndexType lowerInnerIndex = (*data.from)[data.layer]->index+data.spareLowerInner,
+                  higherInnerIndex = (*data.to)[data.layer]->index+data.eraseHigherInner;
+        if(lowerInnerIndex == higherInnerIndex)
+            return false;
+
+        Page* lowerInner = Iterator<false>::getPage(data.context, (*data.from)[data.layer]->reference);
+        if(data.layer == data.from->start) {
             lowerInner->template erase1<isLeaf>(lowerInnerIndex, higherInnerIndex);
             if(lowerInner->count == 0) {
-                releasePage(context, from[layer]->reference);
+                releasePage(data.context, (*data.from)[data.layer]->reference);
                 if(isLeaf) init();
             }
             return false;
         }
 
-        Page* higherInner = Iterator<false>::getPage(context, to[layer]->reference);
-        if(lowerInner == higherInner)
+        Page* higherInner = Iterator<false>::getPage(data.context, (*data.to)[data.layer]->reference);
+        if(lowerInner == higherInner) {
             lowerInner->template erase1<isLeaf>(lowerInnerIndex, higherInnerIndex);
-        else {
-            IndexType higherInnerParentIndex = to[layer-1]->index;
-            Page* higherInnerParent = Iterator<false>::getPage(context, to[layer-1]->reference);
+            data.eraseHigherInner = false;
+        } else {
+            IndexType higherInnerParentIndex = (*data.to)[data.layer-1]->index;
+            Page* higherInnerParent = Iterator<false>::getPage(data.context, (*data.to)[data.layer-1]->reference);
             if(Page::erase2<isLeaf>(higherInnerParent, lowerInner, higherInner,
-                                    higherInnerParentIndex, lowerInnerIndex, higherInnerIndex))
-                releasePage(context, to[layer]->reference);
+                                    higherInnerParentIndex, lowerInnerIndex, higherInnerIndex)) {
+                releasePage(data.context, (*data.to)[data.layer]->reference);
+                data.eraseHigherInner = true;
+            } else
+                data.eraseHigherInner = false;
 
-            aux.copy(&to);
-            while(aux.template advance<-1>(context, layer-1) == 0 && aux[layer]->reference != from[layer]->reference)
-                releasePage(context, aux[layer]->reference);
+            data.iter->copy(data.to);
+            while(data.iter->template advance<-1>(data.context, data.layer-1) == 0 &&
+                  (*data.iter)[data.layer]->reference != (*data.from)[data.layer]->reference)
+                releasePage(data.context, (*data.iter)[data.layer]->reference);
         }
 
         if(lowerInner->count < Page::template capacity<isLeaf>()/2) {
-            aux.copy(&from);
-            IndexType lowerInnerParentIndex = from[layer-1]->index, higherOuterParentIndex;
-            Page *lowerInnerParent = Iterator<false>::getPage(context, from[layer-1]->reference), *higherOuterParent;
-            Page *lowerOuter = (aux.template advance<-1>(context, layer-1) == 0)
-                               ? Iterator<false>::getPage(context, aux[layer]->reference) : NULL, *higherOuter;
+            data.iter->copy(data.from);
+            IndexType lowerInnerParentIndex = (*data.from)[data.layer-1]->index, higherOuterParentIndex;
+            Page *lowerInnerParent = Iterator<false>::getPage(data.context, (*data.from)[data.layer-1]->reference),
+                 *lowerOuter = (data.iter->template advance<-1>(data.context, data.layer-1) == 0)
+                               ? Iterator<false>::getPage(data.context, (*data.iter)[data.layer]->reference) : NULL,
+                 *higherOuterParent, *higherOuter;
 
-            aux.copy(&to);
-            if(aux.template advance<1>(context, layer-1) == 0) {
-                higherOuter = Iterator<false>::getPage(context, aux[layer]->reference);
-                higherOuterParent = Iterator<false>::getPage(context, aux[layer-1]->reference);
-                higherOuterParentIndex = aux[layer-1]->index;
+            data.iter->copy(data.to);
+            if(data.iter->template advance<1>(data.context, data.layer-1) == 0) {
+                higherOuter = Iterator<false>::getPage(data.context, (*data.iter)[data.layer]->reference);
+                higherOuterParent = Iterator<false>::getPage(data.context, (*data.iter)[data.layer-1]->reference);
+                higherOuterParentIndex = (*data.iter)[data.layer-1]->index;
             } else
                 higherOuter = NULL;
 
             if(!lowerOuter && !higherOuter) {
                 if(lowerInner->count == 0) {
-                    releasePage(context, from[layer]->reference);
+                    releasePage(data.context, (*data.from)[data.layer]->reference);
                     if(isLeaf) init();
                 } else {
-                    rootReference = from[layer]->reference;
-                    layerCount = layer-from.start;
+                    rootReference = (*data.from)[data.layer]->reference;
+                    layerCount = data.layer-data.from->start;
                 }
             } else if(Page::redistribute<isLeaf>(lowerInnerParent, higherOuterParent,
                                                  lowerOuter, lowerInner, higherOuter,
                                                  lowerInnerParentIndex, higherOuterParentIndex)) {
-                releasePage(context, from[layer]->reference);
-            }
-        }
+                releasePage(data.context, (*data.from)[data.layer]->reference);
+                data.spareLowerInner = false;
+            } else
+                data.spareLowerInner = true;
+        } else
+            data.spareLowerInner = true;
 
-        --layer;
+        --data.layer;
         return true;
     }
 
-    void erase(Context* context, Iterator<false>& from, Iterator<false>& to) {
-        assert(from.isValid() && to.isValid() && from <= to);
+    void eraseRange(Context* context, Iterator<false>* from, Iterator<false>* to) {
+        assert(from->isValid() && to->isValid() && *from <= *to);
 
-        Iterator<false> aux;
-        LayerType layer = to.end-1;
-        if(eraseAux<true>(context, from, to, aux, layer))
-            while(eraseAux<false>(context, from, to, aux, layer));
+        EraseData data;
+        data.context = context;
+        data.from = from;
+        data.to = to;
+        data.iter = createIterator<false>();
+        data.spareLowerInner = false;
+        data.eraseHigherInner = true;
+        data.layer = to->end-1;
+
+        if(eraseLayer<true>(data))
+            while(eraseLayer<false>(data));
     }
 };
