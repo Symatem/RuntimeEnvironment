@@ -142,11 +142,6 @@ class BpTree {
             return begin;
         }
 
-        static void shiftCounts(Page* dstPage, Page* srcPage, IndexType n) {
-            dstPage->count += n;
-            srcPage->count -= n;
-        }
-
         template<bool additionalReference>
         void overwriteBranch(const ArchitectureType* srcKeys, const ArchitectureType* srcReferences,
                                     IndexType dst, IndexType n) {
@@ -166,30 +161,6 @@ class BpTree {
             bitwiseCopy<+1>(reinterpret_cast<ArchitectureType*>(this), srcValues,
                             LeafValuesBitOffset+dst*ValueBits, 0, n*ValueBits);
         }
-
-        template<bool isLowest>
-        void initBranch(Page* parent, const ArchitectureType* keys, const ArchitectureType* references,
-                        IndexType parentIndex, IndexType n) {
-            assert(n > 0 && n <= BranchCapacity);
-            count = n;
-            if(!isLowest) {
-                parent->setKey(parentIndex, *keys);
-                keys = reinterpret_cast<const ArchitectureType*>(reinterpret_cast<const uint8_t*>(keys)+sizeof(KeyType));
-            }
-            overwriteBranch<true>(keys, references, 0, count);
-        }
-
-        template<bool isLowest>
-        void initLeaf(Page* parent, const ArchitectureType* keys, const ArchitectureType* values,
-                      IndexType parentIndex, IndexType n) {
-            assert(n > 0 && n <= LeafCapacity);
-            count = n;
-            if(!isLowest)
-                parent->setKey(parentIndex, *keys);
-            overwriteLeaf(keys, values, 0, n);
-        }
-
-        // TODO: Fill Insert
 
         template<bool additionalReference, int dir = -1>
         static void copyBranchElements(Page* dstPage, Page* srcPage,
@@ -235,6 +206,83 @@ class BpTree {
                                     IndexType parentIndex, IndexType dstIndex, IndexType srcIndex) {
             copyKey(dstPage, parent, dstIndex, parentIndex);
             copyKey(parent, srcPage, parentIndex, srcIndex);
+        }
+
+        static void shiftCounts(Page* dstPage, Page* srcPage, IndexType n) {
+            dstPage->count += n;
+            srcPage->count -= n;
+        }
+
+        template<bool isLeaf, bool isLowest>
+        void fill(Page* parent, const ArchitectureType* keys, const ArchitectureType* values,
+                  IndexType parentIndex, IndexType n) {
+            assert(n > 0 && n <= capacity<isLeaf>());
+            if(isLeaf) {
+                if(!isLowest)
+                    parent->setKey(parentIndex, *keys);
+                overwriteLeaf(keys, values, 0, n);
+            } else {
+                if(!isLowest) {
+                    parent->setKey(parentIndex, *keys);
+                    keys = reinterpret_cast<const ArchitectureType*>(reinterpret_cast<const uint8_t*>(keys)+sizeof(KeyType));
+                }
+                overwriteBranch<true>(keys, values, 0, n);
+            }
+            count = n;
+        }
+
+        template<bool isLeaf, bool isLowest>
+        void insert1(Page* parent, const ArchitectureType* keys, const ArchitectureType* values,
+                     IndexType parentIndex, IndexType dst, IndexType n) {
+            assert(n > 0 && count+n <= capacity<isLeaf>());
+            if(isLeaf) {
+                assert(dst <= count);
+                copyLeafElements<1>(this, this, dst+n, dst, count-dst);
+                overwriteLeaf(keys, values, dst, n);
+            } else {
+                assert(dst <= count+1);
+                copyBranchElements<false, 1>(this, this, dst+n, dst, count-dst+1);
+                overwriteBranch<false>(keys, values, dst, n);
+            }
+            count += n;
+        }
+
+        template<bool isLeaf>
+        static bool insert2(Page* parent, Page* lower, Page* higher, const ArchitectureType* keys, const ArchitectureType* values,
+                            IndexType parentIndex, IndexType dst, IndexType n) {
+            IndexType shiftLower = dst+n, shiftHigher = lower->count-dst, insertLower, insertHigher;
+
+            int count = lower->count+n;
+            if(isLeaf)
+                assert(dst <= lower->count);
+            else {
+                assert(dst <= lower->count+1);
+                --count;
+            }
+            assert(n > 0 && count <= capacity<isLeaf>()*2);
+            lower->count = (count+1)/2;
+            higher->count = count/2;
+
+            if(lower->count > shiftLower) {
+                shiftLower = lower->count-shiftLower;
+                shiftHigher -= shiftLower;
+            } else
+                shiftLower = 0;
+            insertLower = lower->count-dst-shiftLower;
+            insertHigher = n-insertLower;
+
+            // dst+insertLower = lower->count-shiftLower
+
+            if(isLeaf) {
+                copyLeafElements<1>(lower, lower, dst+insertLower, dst, shiftLower);
+                copyLeafElements(higher, lower, insertHigher, dst, shiftHigher);
+                lower->overwriteLeaf(keys, values, dst, insertLower);
+                // higher->overwriteLeaf(keys, values, 0, insertHigher);
+                // copyKey(parent, higher, parentIndex, 0);
+                // TODO
+            } else {
+                // TODO
+            }
         }
 
         template<bool isLeaf>
@@ -623,9 +671,9 @@ class BpTree {
 	    }
 	}
 
-    void insert(Context* context, Iterator<false>& at, ArchitectureType insertCounter,
-                const KeyType* keys, const ValueType* values, float density = 1.0F) {
+    void insert(Context* context, Iterator<false>* at, ArchitectureType insertCounter) {
         // TODO
+
     }
 
     struct EraseData {
@@ -662,7 +710,7 @@ class BpTree {
             if(Page::erase2<isLeaf>(higherInnerParent, lowerInner, higherInner,
                                     higherInnerParentIndex, lowerInnerIndex, higherInnerIndex)) {
                 releasePage(data.context, (*data.to)[data.layer]->reference);
-                data.eraseHigherInner = true;
+                data.eraseHigherInner = true; // TODO Necessary ?
             } else
                 data.eraseHigherInner = false;
 
@@ -691,16 +739,17 @@ class BpTree {
             if(!lowerOuter && !higherOuter) {
                 if(lowerInner->count == 0) {
                     releasePage(data.context, (*data.from)[data.layer]->reference);
-                    if(isLeaf) init();
+                    data.spareLowerInner = false; // TODO Necessary ?
                 } else {
                     rootReference = (*data.from)[data.layer]->reference;
-                    layerCount = data.layer-data.from->start;
+                    layerCount = data.from->end-data.layer;
+                    data.spareLowerInner = true;
                 }
             } else if(Page::redistribute<isLeaf>(lowerInnerParent, higherOuterParent,
                                                  lowerOuter, lowerInner, higherOuter,
                                                  lowerInnerParentIndex, higherOuterParentIndex)) {
                 releasePage(data.context, (*data.from)[data.layer]->reference);
-                data.spareLowerInner = false;
+                data.spareLowerInner = false; // TODO Necessary ?
             } else
                 data.spareLowerInner = true;
         } else
