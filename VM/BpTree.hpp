@@ -23,6 +23,7 @@ class BpTree {
     typedef BasePage* ReferenceType;
     typedef TemplateKeyType KeyType;
     typedef TemplateValueType ValueType;
+    typedef std::function<void(const ArchitectureType*& keys, const ArchitectureType*& values, IndexType n)> AquireData;
 
     LayerType layerCount;
     ReferenceType rootReference;
@@ -55,12 +56,12 @@ class BpTree {
             return (isLeaf) ? LeafCapacity : BranchCapacity;
         }
 
-        static ArchitectureType branchesNeededForReferences(ArchitectureType n) {
-            return (n+BranchCapacity)/(BranchCapacity+1);
-        }
-
-        static ArchitectureType leavesNeededForElements(ArchitectureType n) {
-            return (n+LeafCapacity-1)/LeafCapacity;
+        template<bool isLeaf>
+        static ArchitectureType pagesNeededFor(ArchitectureType n) {
+            if(isLeaf)
+                return (n+LeafCapacity-1)/LeafCapacity;
+            else
+                return (n+BranchCapacity)/(BranchCapacity+1);
         }
 
         IndexType count;
@@ -213,25 +214,7 @@ class BpTree {
             srcPage->count -= n;
         }
 
-        template<bool isLeaf, bool isLowest>
-        void fill(Page* parent, const ArchitectureType* keys, const ArchitectureType* values,
-                  IndexType parentIndex, IndexType n) {
-            assert(n > 0 && n <= capacity<isLeaf>());
-            if(isLeaf) {
-                if(!isLowest)
-                    parent->setKey(parentIndex, *keys);
-                overwriteLeaf(keys, values, 0, n);
-            } else {
-                if(!isLowest) {
-                    parent->setKey(parentIndex, *keys);
-                    keys = reinterpret_cast<const ArchitectureType*>(reinterpret_cast<const uint8_t*>(keys)+sizeof(KeyType));
-                }
-                overwriteBranch<true>(keys, values, 0, n);
-            }
-            count = n;
-        }
-
-        template<bool isLeaf, bool isLowest>
+        template<bool isLeaf>
         void insert1(Page* parent, const ArchitectureType* keys, const ArchitectureType* values,
                      IndexType parentIndex, IndexType dst, IndexType n) {
             assert(n > 0 && count+n <= capacity<isLeaf>());
@@ -240,7 +223,7 @@ class BpTree {
                 copyLeafElements<1>(this, this, dst+n, dst, count-dst);
                 overwriteLeaf(keys, values, dst, n);
             } else {
-                assert(dst <= count+1);
+                assert(dst > 0 && dst <= count+1);
                 copyBranchElements<false, 1>(this, this, dst+n, dst, count-dst+1);
                 overwriteBranch<false>(keys, values, dst, n);
             }
@@ -248,41 +231,37 @@ class BpTree {
         }
 
         template<bool isLeaf>
-        static bool insert2(Page* parent, Page* lower, Page* higher, const ArchitectureType* keys, const ArchitectureType* values,
-                            IndexType parentIndex, IndexType dst, IndexType n) {
-            IndexType shiftLower = dst+n, shiftHigher = lower->count-dst, insertLower, insertHigher;
-
+        static IndexType insert2(Page* lower, Page* higher,
+                                 IndexType dst, IndexType n,
+                                 IndexType& insertLower, IndexType& insertHigher) {
+            IndexType shiftLower = dst+n, shiftHigher = lower->count-dst;
             int count = lower->count+n;
             if(isLeaf)
                 assert(dst <= lower->count);
             else {
-                assert(dst <= lower->count+1);
+                assert(dst > 0 && dst <= lower->count+1);
                 --count;
             }
             assert(n > 0 && count <= capacity<isLeaf>()*2);
             lower->count = (count+1)/2;
             higher->count = count/2;
-
             if(lower->count > shiftLower) {
                 shiftLower = lower->count-shiftLower;
                 shiftHigher -= shiftLower;
             } else
                 shiftLower = 0;
             insertLower = lower->count-dst-shiftLower;
+            if(!isLeaf) ++insertLower;
             insertHigher = n-insertLower;
-
-            // dst+insertLower = lower->count-shiftLower
-
             if(isLeaf) {
                 copyLeafElements<1>(lower, lower, dst+insertLower, dst, shiftLower);
                 copyLeafElements(higher, lower, insertHigher, dst, shiftHigher);
-                lower->overwriteLeaf(keys, values, dst, insertLower);
-                // higher->overwriteLeaf(keys, values, 0, insertHigher);
-                // copyKey(parent, higher, parentIndex, 0);
-                // TODO
             } else {
-                // TODO
+                --insertHigher;
+                copyBranchElements<false, 1>(lower, lower, dst+insertLower, dst, shiftLower);
+                copyBranchElements<false>(higher, lower, insertHigher+1, dst, shiftHigher);
             }
+            return insertHigher;
         }
 
         template<bool isLeaf>
@@ -466,10 +445,8 @@ class BpTree {
         }
     };
 
-    // Iterator
-
     struct IteratorFrame {
-        ReferenceType stackBottom;
+        ReferenceType reference;
         IndexType index, maxIndex;
     };
 
@@ -673,7 +650,16 @@ class BpTree {
 
     void insert(Context* context, Iterator<false>* at, ArchitectureType insertCounter) {
         // TODO
+        Page *lower = at->fromEnd()->reference, *higher;
+        ArchitectureType elementCount = lower->count+insertCounter,
+                         pageCount = Page::pagesNeededFor<true>(elementCount),
+                         elementsPerPage = elementCount/pageCount;
+        if(!isEmpty()) --pageCount;
 
+        auto iter = createIterator<false>();
+        iter->copy(at, log(pageCount)/log(Page::BranchCapacity+1)+0.5);
+
+        // insert(at->fromEnd()->index, elementCount-pageCount*elementsPerPage);
     }
 
     struct EraseData {
