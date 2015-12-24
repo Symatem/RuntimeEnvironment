@@ -143,26 +143,6 @@ class BpTree {
             return begin;
         }
 
-        /* template<bool additionalReference>
-        void overwriteBranch(const ArchitectureType* srcKeys, const ArchitectureType* srcReferences,
-                                    IndexType dst, IndexType n) {
-            assert(n > 0 && n+dst <= BranchCapacity);
-            bitwiseCopy<+1>(reinterpret_cast<ArchitectureType*>(this), srcKeys,
-                            KeysBitOffset+dst*KeyBits, 0, n*KeyBits);
-            bitwiseCopy<+1>(reinterpret_cast<ArchitectureType*>(this), srcReferences,
-                            BranchReferencesBitOffset+dst*ReferenceBits, 0,
-                            (n+(additionalReference?1:0))*ReferenceBits);
-        }
-
-        void overwriteLeaf(const ArchitectureType* srcKeys, const ArchitectureType* srcValues,
-                           IndexType dst, IndexType n) {
-            assert(n > 0 && n+dst <= LeafCapacity);
-            bitwiseCopy<+1>(reinterpret_cast<ArchitectureType*>(this), srcKeys,
-                            KeysBitOffset+dst*KeyBits, 0, n*KeyBits);
-            bitwiseCopy<+1>(reinterpret_cast<ArchitectureType*>(this), srcValues,
-                            LeafValuesBitOffset+dst*ValueBits, 0, n*ValueBits);
-        } */
-
         template<bool additionalReference, int dir = -1>
         static void copyBranchElements(Page* dstPage, Page* srcPage,
                                        IndexType dstIndex, IndexType srcIndex,
@@ -660,85 +640,105 @@ class BpTree {
 	    }
 	}
 
-    void insert(Context* context, Iterator<false>* at, AquireData aquireData, ArchitectureType insertCount) {
-        ArchitectureType additionalLayers = 0; // TODO
-
-
-        auto iter = createIterator<false>();
-        iter->copy(at, additionalLayers);
-
-        LayerType layer = iter.end;
-        ArchitectureType elementCount = insertCount;
-        while(elementCount > 0) {
-            auto frame = (*iter)[--layer];
-            Page *lower, *higher;
-            if(layer >= iter.start) {
-                lower = Iterator<false>::getPage(context, frame->reference);
-                elementCount += lower->count;
-                if(!isLeaf) ++elementCount;
-            }
-
-            ArchitectureType pageCount = Page::pagesNeededFor<isLeaf>(elementCount);
+    template<bool apply, bool isLeaf>
+    void insertLayer(Context* context, Iterator<false>* iter, LayerType& layer, ArchitectureType& elementCount) {
+        Page *lower, *higher;
+        auto frame = (*iter)[--layer];
+        if(layer >= iter->start) {
+            lower = Iterator<false>::getPage(context, frame->reference);
+            elementCount += lower->count;
+            if(!isLeaf) ++elementCount;
+        }
+        ArchitectureType pageCount = Page::pagesNeededFor<isLeaf>(elementCount);
+        if(apply) {
             frame->elementsPerPage = elementCount/pageCount;
-            IndexType n = elementCount-pageCount*frame->elementsPerPage;
-            frame->elementCount = elementCount-n;
-
-            if(layer >= iter.start) {
+            frame->elementCount = elementCount;
+            elementCount -= pageCount*frame->elementsPerPage;
+            frame->elementCount -= elementCount;
+        }
+        if(layer >= iter->start) {
+            if(apply) {
                 if(pageCount == 1) {
                     frame->auxReference = 0;
-                    Page::insert1<isLeaf>(lower, frame->index, n);
+                    Page::insert1<isLeaf>(lower, frame->index, elementCount);
                 } else {
                     frame->auxReference = aquirePage(context);
                     higher = Iterator<false>::getPage(context, frame->auxReference);
-                    n = Page::insert2<isLeaf>(lower, higher, frame->index, n);
+                    elementCount = Page::insert2<isLeaf>(lower, higher, frame->index, elementCount);
                 }
-                --pageCount;
-            } else {
-                frame->reference = aquirePage(context);
-                lower = Iterator<false>::getPage(context, frame->reference);
-                lower->init<isLeaf>(n);
-                frame->auxReference = 0;
-                frame->index = 0;
             }
-
-            frame->maxIndex = frame->index+n-1;
-            elementCount = pageCount;
+            --pageCount;
+        } else if(apply) {
+            frame->reference = aquirePage(context);
+            lower = Iterator<false>::getPage(context, frame->reference);
+            lower->init<isLeaf>(elementCount);
+            frame->auxReference = 0;
+            frame->index = 0;
         }
-        iter.start = layer;
+        if(apply)
+            frame->maxIndex = frame->index+elementCount-1;
+        elementCount = pageCount;
+    }
+
+    template<bool apply>
+    LayerType insertAux(Context* context, Iterator<false>* iter, ArchitectureType elementCount) {
+        LayerType layer = iter->end;
+        insertLayer<apply, true>(context, iter, layer, elementCount);
+        while(elementCount > 0)
+            insertLayer<apply, false>(context, iter, layer, elementCount);
+        return layer;
+    }
+
+    template<bool isLeaf>
+    Page* insertAdvanceLayer(Context* context, IteratorFrame* frame) {
+        Page* page;
+        if(frame->auxReference && frame->elementCount <= frame->elementsPerPage) {
+            frame->reference = frame->auxReference;
+            frame->maxIndex = frame->elementCount-1;
+            page = Iterator<false>::getPage(context, frame->reference);
+        } else {
+            frame->reference = aquirePage(context);
+            frame->maxIndex = frame->elementsPerPage-1;
+            page = Iterator<false>::getPage(context, frame->reference);
+            page->init<isLeaf>(frame->elementsPerPage);
+        }
+        frame->index = 0;
+        frame->elementCount -= frame->maxIndex+1;
+    }
+
+    void insert(Context* context, Iterator<false>* at, AquireData aquireData, ArchitectureType insertCount) {
+        assert(insertCount > 0);
+        auto iter = createIterator<false>();
+        iter->copy(at, insertAux<false>(context, at, insertCount));
+        iter->start = insertAux<true>(context, iter, insertCount);
         layerCount = iter.end-iter.start;
 
         KeyType key;
         ValueType value;
         Page* page = Iterator<false>::getPage(context, (*iter)[iter.end-1]->reference);
-        while(insertCount > 0) {
-            layer = iter.end-1;
+        while(true) {
+            LayerType layer = iter.end-1;
             auto frame = (*iter)[layer];
             if(frame->index > frame->maxIndex) {
+                if(frame->elementCount == 0) break;
                 key = page->getKey(0);
-
-                if(/* TODO */) { // Middle Page
-                    frame->reference = aquirePage(context);
-                    frame->maxIndex = frame->elementsPerPage-1;
-                    page = Iterator<false>::getPage(context, frame->reference);
-                    page->init<isLeaf>(frame->elementsPerPage);
-                } else { // Last Page
-                    frame->reference = frame->auxReference;
-                    frame->maxIndex = insertCount-1;
-                    page = Iterator<false>::getPage(context, frame->reference);
-                }
-
-                frame->index = 0;
-                insertCount -= (*iter)[layer]->maxIndex;
-
-                /*--layer;
+                page = insertAdvanceLayer<true>(context, frame);
                 while(true) {
-                    page->insertInBranch(key, reference, index);
-
-                }*/
+                    auto branchFrame = (*iter)[--layer];
+                    Page* branchPage = Iterator<false>::getPage(context, branchFrame->reference);
+                    if(branchFrame->index <= branchFrame->maxIndex) {
+                        if(branchFrame->index == 0)
+                            branchPage->setReference((*iter)[layer+1]->reference, branchFrame->index++);
+                        else
+                            branchPage->insertInBranch(key, (*iter)[layer+1]->reference, branchFrame->index++);
+                        break;
+                    }
+                    branchPage = insertAdvanceLayer<false>(context, branchFrame);
+                    branchPage->setReference((*iter)[layer+1]->reference, branchFrame->index++);
+                }
             }
             aquireData(key, value);
             page->insertInLeaf(key, value, frame->index++);
-            --insertCount;
         }
     }
 
