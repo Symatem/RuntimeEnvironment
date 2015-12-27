@@ -295,6 +295,7 @@ struct Task {
 
     template<bool unlinkHolds, bool setBlock>
     void setFrame(Symbol _frame) {
+        assert(frame != _frame);
         if(_frame == PreDef_Void) {
             block = PreDef_Void;
         } else {
@@ -313,7 +314,6 @@ struct Task {
     void throwException(const char* message, std::set<std::pair<Symbol, Symbol>> links = {}) {
         assert(task != PreDef_Void && frame != PreDef_Void);
         links.insert(std::make_pair(PreDef_Message, symbolFor(message)));
-
         Symbol parentFrame = frame;
         block = context->create(links);
         setFrame<true, false>(context->create({
@@ -323,8 +323,6 @@ struct Task {
             {PreDef_Block, block}
         }));
         link({frame, PreDef_Procedure, PreDef_Exception}); // TODO: debugging
-
-        setSolitary({task, PreDef_Frame, frame});
         throw Exception{};
     }
 
@@ -332,14 +330,12 @@ struct Task {
         assert(task != PreDef_Void);
         if(frame == PreDef_Void) return false;
         assert(context->topIndex.find(frame) != context->topIndex.end());
-
         Symbol parentFrame;
         bool parentExists = getUncertain(frame, PreDef_Parent, parentFrame);
-        if(parentExists)
-            setStatus(PreDef_Done);
-        else
+        if(!parentExists) {
             parentFrame = PreDef_Void;
-
+            setStatus(PreDef_Done);
+        }
         setFrame<true, true>(parentFrame);
         return parentExists;
     }

@@ -1,5 +1,4 @@
-INCLUDES :=
-CPPOPTIONS := -std=c++1y -stdlib=libc++ ${PGO_OPTIONS} ${INCLUDES}
+CPPOPTIONS := -std=c++1y -stdlib=libc++ ${PGO_OPTIONS}
 BUILDDIR := build
 TARGET := $(BUILDDIR)/CLI
 STDPATH := ../StandardLibrary
@@ -10,13 +9,13 @@ STDPATH := ../StandardLibrary
 
 $(TARGET):
 	mkdir -p $(BUILDDIR)
-	clang++ ${CPPOPTIONS} -o $(TARGET) CLI/main.cpp
+	$(CXX) ${CPPOPTIONS} -o $(TARGET) CLI/main.cpp
 
 run: $(TARGET)
 	$(TARGET) $(STDPATH)/Foundation/
 
 test: $(TARGET)
-	$(TARGET) $(STDPATH)/Foundation/ -e $(STDPATH)/Tests/
+	$(TARGET) -t $(STDPATH)/Foundation/ -e $(STDPATH)/Tests/
 
 clear:
 	rm -fr $(BUILDDIR)

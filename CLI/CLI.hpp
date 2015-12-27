@@ -59,10 +59,10 @@ void setCursorHidden(bool hidden) {
     std::cout.flush();
 }
 
-void terminate() {
+void terminate(int code = 0) {
     tcsetattr(0, TCSANOW, &termiosOld);
     setCursorHidden(false);
-    exit(0);
+    exit(code);
 }
 
 void init() {

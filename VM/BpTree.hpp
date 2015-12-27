@@ -107,7 +107,7 @@ class BpTree {
 
         template<bool isLeaf>
         void debugPrint(std::ostream& stream) const {
-            stream << "Page " << (ArchitectureType)(this) << " " << count << std::endl;
+            stream << "Page " << this << " " << count << std::endl;
             for(IndexType i = 0; i < count; ++i) {
                 if(i > 0) stream << " ";
                 stream << getKey(i);
@@ -181,7 +181,10 @@ class BpTree {
 
         static void copyKey(Page* dstPage, Page* srcPage,
                             IndexType dstIndex, IndexType srcIndex) {
-            copyBranchElements<true>(dstPage, srcPage, dstIndex, srcIndex, 0);
+            bitwiseCopy<-1>(reinterpret_cast<ArchitectureType*>(dstPage),
+                            reinterpret_cast<const ArchitectureType*>(srcPage),
+                            KeysBitOffset+dstIndex*KeyBits, KeysBitOffset+srcIndex*KeyBits,
+                            KeyBits);
         }
 
         static void swapKeyInParent(Page* parent, Page* dstPage, Page* srcPage,
@@ -486,14 +489,11 @@ class BpTree {
 
         template<int dir = 1>
         bool advance(Context* context, LayerType atLayer, ArchitectureType steps = 1) {
-            if(start >= end || atLayer >= end)
-                return steps;
-
+            if(start >= end || atLayer >= end) return steps;
             while(steps > 0) {
                 bool abort = true;
                 LayerType layer = atLayer;
                 IteratorFrame* frame = (*this)[layer];
-
                 ArchitectureType stepsToTake;
                 if(dir == 1) {
                     stepsToTake = std::min((ArchitectureType)(frame->maxIndex-frame->index), steps);
@@ -503,7 +503,6 @@ class BpTree {
                     frame->index -= stepsToTake;
                 }
                 steps -= stepsToTake;
-
                 if(steps > 0)
                     while(layer > start) {
                         frame = (*this)[--layer];
@@ -523,7 +522,7 @@ class BpTree {
                             }
                         }
                     }
-
+                if(abort && atLayer+1 == end) break;
                 while(layer+1 < end) {
                     Page* page = getPage(context, frame->reference);
                     ReferenceType reference = page->getReference(frame->index);
@@ -533,15 +532,13 @@ class BpTree {
                     frame->maxIndex = (layer+1 == end) ? page->count-1 : page->count;
                     frame->index = (dir == 1) ? 0 : frame->maxIndex;
                 }
-
                 if(abort) break;
             }
-
             return steps;
         }
 
-        void debugPrint(std::ostream& stream) const {
-            stream << (end-start) << " (" << start << "/" << end << ")" << std::endl;
+        void debugPrint(std::ostream& stream) {
+            stream << (end-start) << " (" << static_cast<uint16_t>(start) << "/" << static_cast<uint16_t>(end) << ")" << std::endl;
             for(LayerType layer = start; layer < end; ++layer) {
                 auto frame = (*this)[layer];
                 stream << "    " << layer << ": " << frame->reference << " (" << frame->index << "/" << frame->maxIndex << ")" << std::endl;
@@ -559,14 +556,14 @@ class BpTree {
     }
 
     template<bool readOnly, bool border = false, bool lower = false>
-	bool at(typename Iterator<readOnly>::ContextType context, Iterator<readOnly>* iterator, KeyType key = 0) const {
+	bool at(Context* context, Iterator<readOnly>* iterator, KeyType key = 0) {
 		if(isEmpty()) return false;
         LayerType layer = iterator->start;
-        ReferenceType* reference = &rootReference;
+        ReferenceType reference = rootReference; // TODO: Update reference in getPage
 	    while(true) {
-            Page* page = Iterator<readOnly>::getPage(context, *reference);
+            Page* page = Iterator<readOnly>::getPage(context, reference);
 	        auto frame = (*iterator)[layer];
-            frame->reference = *reference;
+            frame->reference = reference;
 	        if(++layer == iterator->end) {
                 frame->maxIndex = page->count-1;
                 if(border)
@@ -580,7 +577,7 @@ class BpTree {
                     frame->index = (lower) ? 0 : frame->maxIndex;
                 else
                     frame->index = page->template indexOfKey<false>(key);
-                reference = &page->Branch.References[frame->index];
+                reference = page->getReference(frame->index);
 	        }
 	    }
 	}
@@ -620,10 +617,10 @@ class BpTree {
             --pageCount;
         } else if(apply) {
             frame->reference = aquirePage(context);
-            if(!isLeaf)
-                lower->setReference(frame->reference, 0);
             lower = Iterator<false>::getPage(context, frame->reference);
             lower->template init<isLeaf>(elementCount);
+            if(!isLeaf)
+                lower->setReference((*iter)[layer+1]->reference, 0);
             frame->auxReference = 0;
             frame->index = (isLeaf) ? 0 : 1;
         }
@@ -666,6 +663,8 @@ class BpTree {
         iter->copy(at);
         iter->start = insertAux<true>(context, iter, insertCount);
         layerCount = iter->end-iter->start;
+        assert(iter->start == 0);
+        rootReference = (*iter)[iter->start]->reference;
         LayerType layer = iter->end-1;
         IteratorFrame *parentFrame, *frame = (*iter)[layer];
         Page *parentPage, *page = Iterator<false>::getPage(context, (*iter)[iter->end-1]->reference);

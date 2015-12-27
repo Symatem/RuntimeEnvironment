@@ -62,21 +62,28 @@ int main(int argc, const char** argv) {
                       successMessage = CSI+"1;32m[Success]"+CSI+"m",
                       infoMessage = CSI+"1;36m[Info]"+CSI+"m";*/
 
-    bool execute = false;
+    bool execute = false, terminateAfterwards  = false;
     for(ArchitectureType i = 1; interfaceBuffer.empty() && i < argc; ++i) {
         if(strcmp(argv[i], "-h") == 0) {
             std::cout << "This is not the help page you are looking for." << std::endl;
             std::cout << "No, seriously, RTFM." << std::endl;
-            terminate();
-        } else if(strcmp(argv[i], "-d") == 0) {
-            execute = false;
-            continue;
+            terminate(2);
         } else if(strcmp(argv[i], "-e") == 0) {
             execute = true;
             continue;
+        } else if(strcmp(argv[i], "-t") == 0) {
+            terminateAfterwards = true;
+            continue;
         }
-
         loadFromPath(PreDef_Void, execute, argv[i]);
+    }
+    if(terminateAfterwards) {
+        if(interfaceBuffer.empty())
+            terminate(0);
+        else {
+            std::cout << interfaceBuffer << std::endl;
+            terminate(1);
+        }
     }
     if(interfaceBuffer.empty())
         task.clear();

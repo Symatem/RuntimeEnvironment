@@ -157,7 +157,7 @@ PreDefProcedure(Exception) {
         ExceptionSymbol = task.frame;
 
     Symbol execute, currentFrame = task.frame, prevFrame = currentFrame;
-    while(true) {
+    do {
         if(currentFrame != prevFrame && task.getUncertain(currentFrame, PreDef_Catch, execute)) {
             task.unlink(prevFrame, PreDef_Parent);
             task.setFrame<true, true>(currentFrame);
@@ -167,11 +167,7 @@ PreDefProcedure(Exception) {
             return;
         }
         prevFrame = currentFrame;
-        if(!task.getUncertain(currentFrame, PreDef_Parent, currentFrame))
-            break;
-    }
-
-    task.setFrame<true, true>(ExceptionSymbol);
+    } while(task.getUncertain(currentFrame, PreDef_Parent, currentFrame));
     task.setStatus(PreDef_Exception);
 }
 
@@ -649,7 +645,7 @@ bool Task::step() {
             {PreDef_Holds, parentFrame},
             {PreDef_Parent, parentFrame},
             {PreDef_Holds, block},
-            {PreDef_Block, block},
+            {PreDef_Block, block}
         }));
 
         if(getUncertain(execute, PreDef_Static, staticParams))
