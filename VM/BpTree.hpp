@@ -7,11 +7,14 @@ class BasePage {
     ArchitectureType transaction;
 };
 
+int PageLeakCounter = 0;
 BasePage* aquirePage(Context* context) {
+    ++PageLeakCounter;
     return reinterpret_cast<BasePage*>(malloc(bitsPerPage/8));
 }
 
 void releasePage(Context* context, BasePage* ptr) {
+    --PageLeakCounter;
     free(ptr);
 }
 
@@ -146,17 +149,20 @@ class BpTree {
         static void copyBranchElements(Page* dstPage, Page* srcPage,
                                        IndexType dstIndex, IndexType srcIndex,
                                        IndexType n) {
-            assert(dstIndex <= dstPage->count && srcIndex+n <= srcPage->count);
             bitwiseCopy<dir>(reinterpret_cast<ArchitectureType*>(dstPage),
                              reinterpret_cast<const ArchitectureType*>(srcPage),
                              BranchReferencesBitOffset+dstIndex*ReferenceBits,
                              BranchReferencesBitOffset+srcIndex*ReferenceBits,
                              (n+(additionalReference?1:0))*ReferenceBits);
             if(!additionalReference) {
+                assert(dstIndex <= dstPage->count && srcIndex+n <= srcPage->count);
                 assert(dstIndex > 0 && srcIndex > 0 && n > 0);
                 --dstIndex;
                 --srcIndex;
-            } else if(n == 0) return;
+            } else {
+                assert(dstIndex <= dstPage->count+1 && srcIndex+n <= srcPage->count+1);
+                if(n == 0) return;
+            }
             bitwiseCopy<dir>(reinterpret_cast<ArchitectureType*>(dstPage),
                              reinterpret_cast<const ArchitectureType*>(srcPage),
                              KeysBitOffset+dstIndex*KeyBits,
@@ -168,7 +174,8 @@ class BpTree {
         static void copyLeafElements(Page* dstPage, Page* srcPage,
                                      IndexType dstIndex, IndexType srcIndex,
                                      IndexType n) {
-            assert(n > 0 && dstIndex <= dstPage->count && srcIndex+n <= srcPage->count);
+            if(n == 0) return;
+            assert(dstIndex <= dstPage->count && srcIndex+n <= srcPage->count);
             bitwiseCopy<dir>(reinterpret_cast<ArchitectureType*>(dstPage),
                              reinterpret_cast<const ArchitectureType*>(srcPage),
                              KeysBitOffset+dstIndex*KeyBits, KeysBitOffset+srcIndex*KeyBits,
@@ -247,34 +254,46 @@ class BpTree {
             return insertLower;
         }
 
+        static void eraseAux(Page* dstPage, Page* srcPage,
+                             IndexType dstIndex, IndexType srcIndex,
+                             IndexType n) {
+            if(dstIndex == 0)
+                copyBranchElements<true, -1>(dstPage, srcPage, dstIndex, srcIndex, n);
+            else
+                copyBranchElements<false, -1>(dstPage, srcPage, dstIndex, srcIndex, n);
+        }
+
         template<bool isLeaf>
         static void erase1(Page* lower, IndexType start, IndexType end) {
             if(isLeaf) {
                 assert(start < end && end <= lower->count);
                 copyLeafElements<-1>(lower, lower, start, end, lower->count-end);
             } else {
-                assert(start > 0 && start < end && end <= lower->count+1);
-                copyBranchElements<false, -1>(lower, lower, start, end, lower->count-end+1);
+                assert(start < end && end <= lower->count+1);
+                eraseAux(lower, lower, start, end, lower->count-end+1);
             }
-            lower->count -= end-start;
+            lower->count -= (start == 0) ? end-1 : end-start;
         }
 
         template<bool isLeaf>
         static bool erase2(Page* parent, Page* lower, Page* higher,
                            IndexType parentIndex, IndexType startInLower, IndexType endInHigher) {
+            int count = startInLower+higher->count-endInHigher;
             if(isLeaf)
                 assert(startInLower < lower->count && endInHigher > 0 && endInHigher <= higher->count);
-            else
-                assert(startInLower > 0 && startInLower <= lower->count && endInHigher <= higher->count+1);
-            int count = startInLower+higher->count-endInHigher;
+            else {
+                assert(startInLower <= lower->count && endInHigher <= higher->count+1);
+                if(startInLower == 0) ++count;
+            }
             if(count <= capacity<isLeaf>()) {
                 if(isLeaf)
                     copyLeafElements(lower, higher, startInLower, endInHigher, higher->count-endInHigher);
                 else
-                    copyBranchElements<false>(lower, higher, startInLower, endInHigher, higher->count-endInHigher+1);
+                    eraseAux(lower, higher, startInLower, endInHigher, higher->count-endInHigher+1);
                 lower->count = count;
                 return true;
             } else {
+                assert(startInLower > 0);
                 if(!isLeaf) --count;
                 lower->count = (count+1)/2;
                 higher->count = count/2;
