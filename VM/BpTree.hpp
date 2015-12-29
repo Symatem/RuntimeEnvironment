@@ -149,19 +149,20 @@ class BpTree {
         static void copyBranchElements(Page* dstPage, Page* srcPage,
                                        IndexType dstIndex, IndexType srcIndex,
                                        IndexType n) {
+            if(n == 0 && !additionalReference) return;
             bitwiseCopy<dir>(reinterpret_cast<ArchitectureType*>(dstPage),
                              reinterpret_cast<const ArchitectureType*>(srcPage),
                              BranchReferencesBitOffset+dstIndex*ReferenceBits,
                              BranchReferencesBitOffset+srcIndex*ReferenceBits,
                              (n+(additionalReference?1:0))*ReferenceBits);
-            if(!additionalReference) {
+            if(additionalReference) {
+                assert(dstIndex <= dstPage->count+1 && srcIndex+n <= srcPage->count+1);
+                if(n == 0) return;
+            } else {
                 assert(dstIndex <= dstPage->count && srcIndex+n <= srcPage->count);
                 assert(dstIndex > 0 && srcIndex > 0 && n > 0);
                 --dstIndex;
                 --srcIndex;
-            } else {
-                assert(dstIndex <= dstPage->count+1 && srcIndex+n <= srcPage->count+1);
-                if(n == 0) return;
             }
             bitwiseCopy<dir>(reinterpret_cast<ArchitectureType*>(dstPage),
                              reinterpret_cast<const ArchitectureType*>(srcPage),
