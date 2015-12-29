@@ -2,8 +2,8 @@ language: cpp
 compiler:
 - clang
 before_install:
--  if [ "$TRAVIS_OS_NAME" == "linux" ]; then sudo apt-get install libc++-dev; fi
-script: make
+- if [ "$TRAVIS_OS_NAME" == "linux" ]; make installLinuxDependencies; fi
+script: make test
 os:
 - linux
 - osx
