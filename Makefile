@@ -17,14 +17,6 @@ run: $(TARGET)
 test: $(TARGET)
 	$(TARGET) -t $(STDPATH)/Foundation/ -e $(STDPATH)/Tests/
 
-installLinuxDependencies:
-	svn co -q http://llvm.org/svn/llvm-project/libcxx/trunk libcxx
-	mkdir build_libcxx
-	cd build_libcxx
-	CC=clang CXX=clang++ cmake -G "Unix Makefiles" -DLIBCXX_CXX_ABI=libsupc++ -DLIBCXX_LIBSUPCXX_INCLUDE_PATHS="/usr/include/c++/4.6/;/usr/include/c++/4.6/x86_64-linux-gnu/" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr ../libcxx
-	make
-	sudo make install
-
 clear:
 	rm -fr $(BUILDDIR)
 

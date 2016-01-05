@@ -1,10 +1,8 @@
 language: cpp
 compiler:
 - clang
-before_install:
-- if [ "$TRAVIS_OS_NAME" = "linux" ]; then make installLinuxDependencies; fi
 script: make test
 os:
-- linux
+#- linux
 - osx
 osx_image: xcode7.2

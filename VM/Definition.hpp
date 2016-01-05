@@ -2,6 +2,9 @@
 #include <iomanip>
 #include <fstream>
 #include <sstream>
+#include <limits>
+#include <fcntl.h>
+#include <sys/mman.h>
 #include <assert.h>
 #include <dirent.h>
 #include <math.h>
