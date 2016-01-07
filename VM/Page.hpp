@@ -125,7 +125,7 @@ class PagePool {
     }
 
     bool isEmpty() const {
-        return rootReference == 0;
+        return (rootReference == 0);
     }
 
     void push(Storage* storage, ReferenceType reference) {
@@ -176,8 +176,6 @@ ReferenceType Storage::aquirePage() {
 void Storage::releasePage(ReferenceType reference) {
     if(reference == maxReferenceType-1)
         mapPages(maxReferenceType-1);
-    else {
-        auto rootPage = dereferencePage<RootPage>(0);
-        return rootPage->freePool.push(this, reference);
-    }
+    else
+        dereferencePage<RootPage>(0)->freePool.push(this, reference);
 }

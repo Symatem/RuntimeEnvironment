@@ -16,8 +16,8 @@ class BpTree {
         layerCount = 0;
     }
 
-    inline bool isEmpty() const {
-        return (layerCount == 0);
+    bool isEmpty() const {
+        return (rootReference == 0);
     }
 
     class Page : public BasePage {
@@ -458,13 +458,6 @@ class BpTree {
             return storage->template dereferencePage<Page>(reference);
         }
 
-        /* typedef std::pair<KeyType*, ValueType*> PairType;
-        PairType get(DatabaseType db) const {
-            auto frame = fromEnd();
-            auto page = pageByID<Page>(db, frame->reference);
-            return PairType(&page->leaf.keys[frame->index], &page->leaf.values[frame->index]);
-        } */
-
         bool isValid() {
             return start < end && fromEnd()->index <= fromEnd()->maxIndex;
         }
@@ -493,8 +486,7 @@ class BpTree {
             assert(storage != 0);
             if(start >= end || atLayer >= end) return steps;
             while(steps > 0) {
-                bool abort = true;
-                LayerType layer = atLayer;
+                LayerType stopLayer, layer = atLayer;
                 IteratorFrame* frame = (*this)[layer];
                 ArchitectureType stepsToTake;
                 if(dir == 1) {
@@ -505,27 +497,26 @@ class BpTree {
                     frame->index -= stepsToTake;
                 }
                 steps -= stepsToTake;
-                if(steps > 0)
+                if(steps > 0) {
+                    stopLayer = atLayer;
                     while(layer > start) {
                         frame = (*this)[--layer];
                         if(dir == 1) {
-                            if(frame->index < frame->maxIndex) {
+                            if(frame->index < frame->maxIndex)
                                 ++frame->index;
-                                --steps;
-                                abort = false;
-                                break;
-                            }
+                            else continue;
                         } else {
-                            if(frame->index > 0) {
+                            if(frame->index > 0)
                                 --frame->index;
-                                --steps;
-                                abort = false;
-                                break;
-                            }
+                            else continue;
                         }
+                        --steps;
+                        stopLayer = end;
+                        break;
                     }
-                if(abort && atLayer+1 == end) break;
-                while(layer+1 < end) {
+                } else
+                    stopLayer = end;
+                while(layer+1 < stopLayer) {
                     Page* page = getPage(storage, frame->reference);
                     ReferenceType reference = page->getReference(frame->index);
                     page = getPage(storage, reference);
@@ -534,7 +525,7 @@ class BpTree {
                     frame->maxIndex = (layer+1 == end) ? page->count-1 : page->count;
                     frame->index = (dir == 1) ? 0 : frame->maxIndex;
                 }
-                if(abort) break;
+                if(stopLayer == atLayer) break;
             }
             return steps;
         }
@@ -705,7 +696,6 @@ class BpTree {
                   higherInnerIndex = (*data.to)[data.layer]->index+data.eraseHigherInner;
         if(lowerInnerIndex == higherInnerIndex)
             return false;
-
         Page* lowerInner = Iterator<false>::getPage(data.storage, (*data.from)[data.layer]->reference);
         if(data.layer == data.from->start) {
             Page::template erase1<isLeaf>(lowerInner, lowerInnerIndex, higherInnerIndex);
@@ -715,7 +705,6 @@ class BpTree {
             }
             return false;
         }
-
         Page* higherInner = Iterator<false>::getPage(data.storage, (*data.to)[data.layer]->reference);
         if(lowerInner == higherInner) {
             Page::template erase1<isLeaf>(lowerInner, lowerInnerIndex, higherInnerIndex);
@@ -729,13 +718,11 @@ class BpTree {
                 data.eraseHigherInner = true;
             } else
                 data.eraseHigherInner = false;
-
             data.iter->copy(data.to);
             while(data.iter->template advance<-1>(data.storage, data.layer-1) == 0 &&
                   (*data.iter)[data.layer]->reference != (*data.from)[data.layer]->reference)
                 data.storage->releasePage((*data.iter)[data.layer]->reference);
         }
-
         if(lowerInner->count < Page::template capacity<isLeaf>()/2) {
             data.iter->copy(data.from);
             IndexType lowerInnerParentIndex = (*data.from)[data.layer-1]->index, higherOuterParentIndex;
@@ -743,7 +730,6 @@ class BpTree {
                  *lowerOuter = (data.iter->template advance<-1>(data.storage, data.layer-1) == 0)
                                ? Iterator<false>::getPage(data.storage, (*data.iter)[data.layer]->reference) : NULL,
                  *higherOuterParent, *higherOuter;
-
             data.iter->copy(data.to);
             if(data.iter->template advance<1>(data.storage, data.layer-1) == 0) {
                 higherOuter = Iterator<false>::getPage(data.storage, (*data.iter)[data.layer]->reference);
@@ -751,7 +737,6 @@ class BpTree {
                 higherOuterParentIndex = (*data.iter)[data.layer-1]->index;
             } else
                 higherOuter = NULL;
-
             if(!lowerOuter && !higherOuter) {
                 if(lowerInner->count == 0) {
                     data.storage->releasePage((*data.from)[data.layer]->reference);
@@ -770,14 +755,12 @@ class BpTree {
                 data.spareLowerInner = true;
         } else
             data.spareLowerInner = true;
-
         --data.layer;
         return true;
     }
 
     void erase(Storage* storage, Iterator<false>* from, Iterator<false>* to) {
         assert(from->isValid() && to->isValid() && from->compare(to) < 1);
-
         EraseData data;
         data.storage = storage;
         data.from = from;
@@ -786,7 +769,6 @@ class BpTree {
         data.spareLowerInner = false;
         data.eraseHigherInner = true;
         data.layer = to->end-1;
-
         if(eraseLayer<true>(data))
             while(eraseLayer<false>(data));
     }
