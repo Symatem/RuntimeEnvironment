@@ -39,14 +39,6 @@ class BpTree {
             return (isLeaf) ? LeafCapacity : BranchCapacity;
         }
 
-        template<bool isLeaf>
-        static ArchitectureType pagesNeededFor(ArchitectureType n) {
-            if(isLeaf)
-                return (n+LeafCapacity-1)/LeafCapacity;
-            else
-                return (n+BranchCapacity)/(BranchCapacity+1);
-        }
-
         IndexType count;
 
         template<typename Type, ArchitectureType bitOffset>
@@ -91,7 +83,7 @@ class BpTree {
 
         template<bool isLeaf>
         void debugPrint(std::ostream& stream) const {
-            stream << "Page " << this << " " << count << std::endl;
+            stream << count << std::endl;
             for(IndexType i = 0; i < count; ++i) {
                 if(i > 0) stream << " ";
                 stream << getKey(i);
@@ -589,9 +581,12 @@ class BpTree {
             if(elementCount <= 1) return false;
             frame = (*iter)[--layer];
         }
-        ArchitectureType pageCount = Page::template pagesNeededFor<isLeaf>(elementCount);
+        ArchitectureType pageCount = (isLeaf)
+            ? (elementCount+Page::LeafCapacity-1)/Page::LeafCapacity
+            : (elementCount+Page::BranchCapacity)/(Page::BranchCapacity+1);
+        // TODO: 1048576 element case, leads to 1048576-4112*255=16 elements on first page (less than half of the capacity)
         if(apply) {
-            frame->elementsPerPage = elementCount/pageCount;
+            frame->elementsPerPage = (elementCount+pageCount-1)/pageCount;
             frame->elementCount = elementCount;
             elementCount -= (pageCount-1)*frame->elementsPerPage;
             frame->elementCount -= elementCount;
@@ -618,7 +613,7 @@ class BpTree {
             frame->index = (isLeaf) ? 0 : 1;
         }
         if(apply)
-            frame->maxIndex = frame->index+elementCount-1;
+            frame->maxIndex = lower->count - ((isLeaf) ? 1 : 0);
         elementCount = pageCount;
         return true;
     }
@@ -667,8 +662,8 @@ class BpTree {
             frame = (*iter)[layer];
             page = insertAdvanceLayer<true>(storage, frame);
             aquireData(page, frame->index, frame->maxIndex);
+            ReferenceType childReference = frame->reference;
             while(true) {
-                ReferenceType childReference = frame->reference;
                 parentFrame = (*iter)[--layer];
                 if(parentFrame->index <= parentFrame->maxIndex) {
                     parentPage = Iterator<false>::getPage(storage, parentFrame->reference);
@@ -678,6 +673,7 @@ class BpTree {
                 } else {
                     parentPage = insertAdvanceLayer<false>(storage, parentFrame);
                     parentPage->setReference(childReference, parentFrame->index++);
+                    childReference = parentFrame->reference;
                 }
             }
         } while(frame->elementCount > 0);
