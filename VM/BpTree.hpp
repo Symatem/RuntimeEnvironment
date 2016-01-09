@@ -129,11 +129,10 @@ class BpTree {
                              BranchReferencesBitOffset+srcIndex*ReferenceBits,
                              (n+(additionalReference?1:0))*ReferenceBits);
             if(additionalReference) {
-                assert(dstIndex <= dstPage->count+1 && srcIndex+n <= srcPage->count+1);
+                assert(dstIndex <= dstPage->count+1);
                 if(n == 0) return;
             } else {
-                assert(dstIndex <= dstPage->count && srcIndex+n <= srcPage->count);
-                assert(dstIndex > 0 && srcIndex > 0 && n > 0);
+                assert(dstIndex <= dstPage->count && dstIndex > 0 && srcIndex > 0 && n > 0);
                 --dstIndex;
                 --srcIndex;
             }
@@ -149,7 +148,7 @@ class BpTree {
                                      IndexType dstIndex, IndexType srcIndex,
                                      IndexType n) {
             if(n == 0) return;
-            assert(dstIndex <= dstPage->count && srcIndex+n <= srcPage->count);
+            assert(dstIndex <= dstPage->count);
             bitwiseCopy<dir>(reinterpret_cast<ArchitectureType*>(dstPage),
                              reinterpret_cast<const ArchitectureType*>(srcPage),
                              KeysBitOffset+dstIndex*KeyBits, KeysBitOffset+srcIndex*KeyBits,
@@ -198,8 +197,9 @@ class BpTree {
         }
 
         template<bool isLeaf>
-        static IndexType insert2(Page* lower, Page* higher, IndexType dst, IndexType n) {
-            IndexType insertLower, insertHigher, shiftLower = dst+n, shiftHigher = lower->count-dst;
+        static IndexType insert2(Page* parent, Page* lower, Page* higher,
+                                 IndexType parentIndex, IndexType dst, IndexType n) {
+            IndexType lowerEnd, insertLower, insertHigher, shiftA = dst+n, shiftB = 0, shiftC = lower->count-dst;
             int count = lower->count+n;
             if(isLeaf)
                 assert(dst <= lower->count);
@@ -210,20 +210,37 @@ class BpTree {
             assert(n > 0 && count <= capacity<isLeaf>()*2);
             lower->count = (count+1)/2;
             higher->count = count/2;
-            if(lower->count > shiftLower) {
-                shiftLower = lower->count-shiftLower;
-                shiftHigher -= shiftLower;
-            } else
-                shiftLower = 0;
-            insertLower = lower->count-dst-shiftLower;
-            if(!isLeaf) ++insertLower;
+            lowerEnd = lower->count;
+            if(!isLeaf) {
+                ++lowerEnd;
+                ++shiftC;
+            }
+            if(shiftA < lowerEnd) {
+                shiftA = lowerEnd-shiftA;
+                shiftB = 0;
+                shiftC -= shiftA;
+            } else {
+                shiftA = 0;
+                shiftB = (dst > lowerEnd) ? dst-lowerEnd : 0;
+            }
+            insertLower = (dst < lowerEnd) ? lowerEnd-dst-shiftA : 0;
             insertHigher = n-insertLower;
             if(isLeaf) {
-                copyLeafElements<1>(lower, lower, dst+insertLower, dst, shiftLower);
-                copyLeafElements(higher, lower, insertHigher, dst, shiftHigher);
+                copyLeafElements(higher, lower, 0, lower->count, shiftB);
+                copyLeafElements(higher, lower, insertHigher, dst, shiftC);
+                copyLeafElements<1>(lower, lower, dst+insertLower, dst, shiftA);
+                copyKey(parent, higher, parentIndex, 0);
             } else {
-                copyBranchElements<false, 1>(lower, lower, dst+insertLower, dst, shiftLower);
-                copyBranchElements<false>(higher, lower, insertHigher, dst, shiftHigher);
+                if(shiftB > 0) {
+                    copyKey(parent, lower, parentIndex, lower->count);
+                    copyBranchElements<true>(higher, lower, 0, lower->count, shiftB-1);
+                }
+                if(insertHigher == 0) {
+                    copyKey(parent, lower, parentIndex, lower->count-insertLower);
+                    copyBranchElements<true>(higher, lower, 0, dst, shiftC-1);
+                } else
+                    copyBranchElements<false>(higher, lower, insertHigher, dst, shiftC);
+                copyBranchElements<false, 1>(lower, lower, dst+insertLower, dst, shiftA);
             }
             return insertLower;
         }
@@ -422,8 +439,12 @@ class BpTree {
     };
 
     struct IteratorFrame {
-        ReferenceType reference, auxReference;
+        ReferenceType reference;
         IndexType index, maxIndex;
+
+        // TODO: split in sublcass
+        ReferenceType auxReference;
+        IndexType auxIndex;
         ArchitectureType elementCount, elementsPerPage;
     };
 
@@ -571,15 +592,15 @@ class BpTree {
     bool insertAuxLayer(Storage* storage, Iterator<false>* iter, LayerType& layer, ArchitectureType& elementCount) {
         Page *lower, *higher;
         IteratorFrame* frame;
-        if(layer >= iter->start && layer < iter->end) {
+        if(layer >= iter->start) {
             if(elementCount == 0) return false;
-            frame = (*iter)[--layer];
+            frame = (*iter)[layer--];
             lower = Iterator<false>::getPage(storage, frame->reference);
             elementCount += lower->count;
             if(!isLeaf) ++elementCount;
         } else {
             if(elementCount <= 1) return false;
-            frame = (*iter)[--layer];
+            frame = (*iter)[layer--];
         }
         ArchitectureType pageCount = (isLeaf)
             ? (elementCount+Page::LeafCapacity-1)/Page::LeafCapacity
@@ -597,9 +618,11 @@ class BpTree {
                     frame->auxReference = 0;
                     Page::template insert1<isLeaf>(lower, frame->index, elementCount);
                 } else {
+                    auto parentFrame = (*iter)[layer];
+                    Page* parent = Iterator<false>::getPage(storage, parentFrame->reference);
                     frame->auxReference = storage->aquirePage();
                     higher = Iterator<false>::getPage(storage, frame->auxReference);
-                    elementCount = Page::template insert2<isLeaf>(lower, higher, frame->index, elementCount);
+                    elementCount = Page::template insert2<isLeaf>(parent, lower, higher, parentFrame->index, frame->index, elementCount);
                 }
             }
             --pageCount;
@@ -620,10 +643,10 @@ class BpTree {
 
     template<bool apply>
     LayerType insertAux(Storage* storage, Iterator<false>* iter, ArchitectureType elementCount) {
-        LayerType layer = iter->end;
+        LayerType layer = iter->end-1;
         insertAuxLayer<apply, true>(storage, iter, layer, elementCount);
         while(insertAuxLayer<apply, false>(storage, iter, layer, elementCount));
-        return layer;
+        return layer+1;
     }
 
     template<bool isLeaf>
@@ -646,16 +669,17 @@ class BpTree {
 
     typedef std::function<void(Page*, IndexType, IndexType)> AquireData;
     void insert(Storage* storage, Iterator<false>* at, AquireData aquireData, ArchitectureType insertCount) {
+        // TODO: Insert behind "at" in leaf
         assert(insertCount > 0);
         auto iter = createIterator<false>(at->start-insertAux<false>(storage, at, insertCount));
         iter->copy(at);
         iter->start = insertAux<true>(storage, iter, insertCount);
-        layerCount = iter->end-iter->start;
         assert(iter->start == 0);
+        layerCount = iter->end-iter->start;
         rootReference = (*iter)[iter->start]->reference;
         LayerType layer = iter->end-1;
         IteratorFrame *parentFrame, *frame = (*iter)[layer];
-        Page *parentPage, *page = Iterator<false>::getPage(storage, (*iter)[iter->end-1]->reference);
+        Page *parentPage, *page = Iterator<false>::getPage(storage, frame->reference);
         aquireData(page, frame->index, frame->maxIndex);
         do {
             layer = iter->end-1;
@@ -697,7 +721,7 @@ class BpTree {
             Page::template erase1<isLeaf>(lowerInner, lowerInnerIndex, higherInnerIndex);
             if(lowerInner->count == 0) {
                 data.storage->releasePage((*data.from)[data.layer]->reference);
-                if(isLeaf) init();
+                init();
             }
             return false;
         }
