@@ -21,7 +21,7 @@ class Storage {
     int file;
     uint8_t* ptr;
     public:
-    ReferenceType maxReferenceType;
+    ReferenceType maxReference;
 
     ArchitectureType bytesForPages(ArchitectureType pageCount) {
         return (pageCount*bitsPerPage+mmapBucketSize-1)/mmapBucketSize*mmapBucketSize/8;
@@ -33,20 +33,20 @@ class Storage {
             perror("open failed");
             exit(1);
         }
-        maxReferenceType = lseek(file, 0, SEEK_END)/(bitsPerPage/8);
-        if(maxReferenceType == 0) maxReferenceType = 1;
+        maxReference = lseek(file, 0, SEEK_END)/(bitsPerPage/8);
+        if(maxReference == 0) maxReference = 1;
         ptr = reinterpret_cast<uint8_t*>(MMAP_FUNC(NULL, bytesForPages(mmapMaxPageCount), PROT_NONE, MAP_FILE|MAP_SHARED, file, 0));
         if(ptr == MAP_FAILED) {
             perror("mmap failed");
             exit(1);
         }
-        mapPages(maxReferenceType);
+        mapPages(maxReference);
     }
 
     ~Storage() {
-        if(maxReferenceType)
-            munmap(ptr, bytesForPages(maxReferenceType));
-        if(ftruncate(file, bytesForPages(maxReferenceType)) != 0) {
+        if(maxReference)
+            munmap(ptr, bytesForPages(maxReference));
+        if(ftruncate(file, bytesForPages(maxReference)) != 0) {
             perror("ftruncate failed");
             exit(1);
         }
@@ -57,18 +57,18 @@ class Storage {
     }
 
     void mapPages(ArchitectureType pageCount) {
-        if(maxReferenceType)
-            munmap(ptr, bytesForPages(maxReferenceType));
+        if(maxReference)
+            munmap(ptr, bytesForPages(maxReference));
         if(pageCount >= mmapMaxPageCount) {
             perror("memory exhausted");
             exit(1);
         }
-        maxReferenceType = pageCount;
-        if(ftruncate(file, bytesForPages(maxReferenceType)) != 0) {
+        maxReference = pageCount;
+        if(ftruncate(file, bytesForPages(maxReference)) != 0) {
             perror("ftruncate failed");
             exit(1);
         }
-        if(MMAP_FUNC(ptr, bytesForPages(maxReferenceType),
+        if(MMAP_FUNC(ptr, bytesForPages(maxReference),
                      PROT_READ|PROT_WRITE, MAP_FIXED|MAP_FILE|MAP_SHARED,
                      file, 0) != ptr) {
             perror("re mmap failed");
@@ -78,7 +78,7 @@ class Storage {
 
     template<typename PageType>
     PageType* dereferencePage(ReferenceType reference) {
-        assert(reference < maxReferenceType);
+        assert(reference < maxReference);
         return reinterpret_cast<PageType*>(ptr+bitsPerPage/8*reference);
     }
 
@@ -109,14 +109,31 @@ class PagePool {
             chain = _chain;
         }
 
+        bool contains(ReferenceType item) {
+            for(ArchitectureType i = 0; i < count; ++i)
+                if(references[i] == item)
+                    return true;
+            return false;
+        }
+
+        void debugPrint(std::ostream& stream) {
+            stream << count << std::endl;
+            for(ArchitectureType i = 0; i < count; ++i) {
+                if(i > 0)
+                    std::cout << ", ";
+                std::cout << references[i];
+            }
+            std::cout << std::endl;
+        }
+
         void push(ReferenceType reference) {
             assert(count < Capacity);
-            references[++count] = reference;
+            references[count++] = reference;
         }
 
         ReferenceType pop() {
             assert(count > 0);
-            return references[count--];
+            return references[--count];
         }
     };
 
@@ -126,6 +143,27 @@ class PagePool {
 
     bool isEmpty() const {
         return (rootReference == 0);
+    }
+
+    bool contains(Storage* storage, ReferenceType item) {
+        ReferenceType reference = rootReference;
+        while(reference != 0) {
+            auto page = storage->template dereferencePage<Page>(reference);
+            if(reference == item || page->contains(item))
+                return true;
+            reference = page->chain;
+        }
+        return false;
+    }
+
+    void debugPrint(Storage* storage, std::ostream& stream) {
+        ReferenceType reference = rootReference;
+        while(reference != 0) {
+            auto page = storage->template dereferencePage<Page>(reference);
+            stream << "Page " << reference << " ";
+            page->debugPrint(stream);
+            reference = page->chain;
+        }
     }
 
     void push(Storage* storage, ReferenceType reference) {
@@ -166,16 +204,16 @@ ReferenceType Storage::aquirePage() {
     ReferenceType reference;
     auto rootPage = dereferencePage<RootPage>(0);
     if(rootPage->freePool.isEmpty()) {
-        mapPages(maxReferenceType+1);
-        reference = maxReferenceType-1;
+        mapPages(maxReference+1);
+        reference = maxReference-1;
     } else
         reference = rootPage->freePool.pop(this);
     return reference;
 }
 
 void Storage::releasePage(ReferenceType reference) {
-    if(reference == maxReferenceType-1)
-        mapPages(maxReferenceType-1);
+    if(reference == maxReference-1)
+        mapPages(maxReference-1);
     else
         dereferencePage<RootPage>(0)->freePool.push(this, reference);
 }
