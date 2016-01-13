@@ -288,7 +288,7 @@ class BpTree {
                     return true;
                 if(isLeaf)
                     copyLeafElements(lower, higher, startInLower, endInHigher, higher->count-endInHigher);
-                else if(startInLower == 0) {
+                else if(startInLower == 0) { // TODO: Never reached in any test!
                     assert(endInHigher > 0);
                     copyBranchElements<true, -1>(lower, higher, 0, endInHigher, higher->count-endInHigher);
                 } else if(endInHigher == 0) {
@@ -310,8 +310,11 @@ class BpTree {
                         copyLeafElements(lower, higher, startInLower, endInHigher, count);
                         copyLeafElements<-1>(higher, higher, 0, endInHigher+count, higher->count);
                     } else {
+                        if(count < endInHigher)
+                            copyLeafElements<-1>(higher, higher, count, endInHigher, higher->count);
+                        else
+                            copyLeafElements<1>(higher, higher, count, endInHigher, higher->count);
                         copyLeafElements(higher, lower, 0, lower->count, count);
-                        copyLeafElements<-1>(higher, higher, count, endInHigher, higher->count);
                     }
                     copyKey(parent, higher, parentIndex, 0);
                 } else {
@@ -323,8 +326,11 @@ class BpTree {
                         copyBranchElements<true, -1>(higher, higher, 0, endInHigher+count, higher->count);
                     } else {
                         copyKey(parent, lower, parentIndex, lower->count);
+                        if(count < endInHigher)
+                            copyBranchElements<false, -1>(higher, higher, count, endInHigher, higher->count);
+                        else
+                            copyBranchElements<false, 1>(higher, higher, count, endInHigher, higher->count);
                         copyBranchElements<true>(higher, lower, 0, lower->count+1, count-1);
-                        copyBranchElements<false, -1>(higher, higher, count, endInHigher, higher->count);
                     }
                 }
                 return false;
@@ -333,33 +339,35 @@ class BpTree {
 
         template<bool isLeaf>
         static void evacuateDown(Page* parent, Page* lower, Page* higher, IndexType parentIndex) {
-            if(isLeaf) {
+            assert(lower->count+higher->count <= capacity<isLeaf>());
+            if(isLeaf)
                 copyLeafElements(lower, higher, lower->count, 0, higher->count);
-                lower->count += higher->count;
-            } else {
+            else {
                 copyBranchElements<true>(lower, higher, lower->count+1, 0, higher->count);
                 copyKey(lower, parent, lower->count, parentIndex);
-                lower->count += higher->count+1;
+                ++lower->count;
             }
+            lower->count += higher->count;
         }
 
         template<bool isLeaf>
         static void evacuateUp(Page* parent, Page* lower, Page* higher, IndexType parentIndex) {
+            assert(lower->count+higher->count <= capacity<isLeaf>());
             if(isLeaf) {
                 copyLeafElements<+1>(higher, higher, lower->count, 0, higher->count);
                 copyLeafElements(higher, lower, 0, 0, lower->count);
-                higher->count += lower->count;
             } else {
                 copyBranchElements<true, +1>(higher, higher, lower->count+1, 0, higher->count);
                 copyBranchElements<true>(higher, lower, 0, 0, lower->count);
                 copyKey(higher, parent, lower->count, parentIndex);
-                higher->count += lower->count+1;
+                ++higher->count;
             }
+            higher->count += lower->count;
         }
 
         template<bool isLeaf>
         static void shiftDown(Page* parent, Page* lower, Page* higher, IndexType parentIndex, IndexType count) {
-            assert(count > 0);
+            assert(count > 0 && lower->count+count <= capacity<isLeaf>());
             if(isLeaf) {
                 copyLeafElements(lower, higher, lower->count, 0, count);
                 shiftCounts(lower, higher, count);
@@ -375,7 +383,7 @@ class BpTree {
 
         template<bool isLeaf>
         static void shiftUp(Page* parent, Page* lower, Page* higher, IndexType parentIndex, IndexType count) {
-            assert(count > 0);
+            assert(count > 0 && higher->count+count <= capacity<isLeaf>());
             if(isLeaf) {
                 copyLeafElements<+1>(higher, higher, count, 0, higher->count);
                 shiftCounts(higher, lower, count);
@@ -413,17 +421,52 @@ class BpTree {
                                   Page* lower, Page* middle, Page* higher,
                                   IndexType middleParentIndex, IndexType higherParentIndex) {
             int count = lower->count+middle->count+higher->count;
+            if(!isLeaf) ++count;
             if(count <= capacity<isLeaf>()*2) {
-                count = count/2-higher->count;
-                if(count > 0)
-                    shiftUp<isLeaf>(higherParent, middle, higher, higherParentIndex, count);
-                evacuateDown<isLeaf>(middleParent, lower, middle, middleParentIndex);
+                // TODO: What if !isLeaf && count == 0 ???
+
+                if(count < 0) { // TODO: Never reached in any test!
+                    count *= -1;
+                    evacuateDown<isLeaf>(middleParent, lower, middle, middleParentIndex);
+                    shiftDown<isLeaf>(higherParent, lower, higher, higherParentIndex, count);
+                } else if(count <= middle->count) { // TODO: Never reached in any test!
+                    if(count > 0)
+                        shiftUp<isLeaf>(higherParent, middle, higher, higherParentIndex, count);
+                    evacuateDown<isLeaf>(middleParent, lower, middle, middleParentIndex);
+                } else if(isLeaf) {
+                    copyLeafElements<+1>(higher, higher, count, 0, higher->count);
+                    higher->count += count;
+                    count -= middle->count;
+                    lower->count -= count;
+                    copyLeafElements(higher, middle, count, 0, middle->count);
+                    copyLeafElements(higher, lower, 0, lower->count, count);
+                    copyKey(higherParent, higher, higherParentIndex, 0);
+                } else if(count == middle->count+1) { // TODO: Never reached in any test!
+                    copyBranchElements<true, +1>(higher, higher, count, 0, higher->count);
+                    copyBranchElements<true>(higher, middle, 0, 0, middle->count);
+                    copyKey(higher, higherParent, middle->count, higherParentIndex);
+                    copyKey(higherParent, middleParent, higherParentIndex, middleParentIndex);
+                    higher->count += count;
+                } else { // TODO: Never reached in any test!
+                    copyBranchElements<true, +1>(higher, higher, count, 0, higher->count);
+                    higher->count += count;
+                    count -= middle->count+1;
+                    lower->count -= count;
+                    copyBranchElements<true>(higher, middle, count, 0, middle->count);
+                    copyKey(higher, higherParent, middle->count, higherParentIndex);
+                    copyBranchElements<true>(higher, lower, 0, lower->count+1, count-1);
+                    swapKeyInParent(higherParent, higher, lower, higherParentIndex, count-1, lower->count);
+                }
+
+                count = lower->count+higher->count;
+                assert(lower->count == (count+1)/2);
+                assert(higher->count == count/2);
                 return true;
             } else {
                 count = count/3;
                 int shiftLower = lower->count-count, shiftUpper = higher->count-count;
                 assert(shiftLower != 0 || shiftUpper != 0);
-                if(shiftLower < 0) {
+                if(shiftLower < 0) { // TODO: Never reached in any test!
                     if(shiftUpper < 0)
                         shiftUp<isLeaf>(higherParent, middle, higher, higherParentIndex, -shiftUpper);
                     else if(shiftUpper > 0)
@@ -432,7 +475,7 @@ class BpTree {
                 } else {
                     if(shiftLower > 0)
                         shiftUp<isLeaf>(middleParent, lower, middle, middleParentIndex, shiftLower);
-                    if(shiftUpper < 0)
+                    if(shiftUpper < 0) // TODO: Never reached in any test!
                         shiftUp<isLeaf>(higherParent, middle, higher, higherParentIndex, -shiftUpper);
                     else if(shiftUpper > 0)
                         shiftDown<isLeaf>(higherParent, middle, higher, higherParentIndex, shiftUpper);
@@ -796,9 +839,9 @@ class BpTree {
                     data.spareLowerInner = false;
                     init();
                 } else if(data.from->end-data.layer < layerCount) {
-                    if(data.layer == data.from->start)
+                    if(data.layer == data.from->start) // TODO: Never reached in any test!
                         init();
-                    else {
+                    else { // TODO: Never reached in any test!
                         rootReference = data.from->fromBegin(data.layer)->reference;
                         layerCount = data.from->end-data.layer;
                     }
