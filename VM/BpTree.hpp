@@ -277,9 +277,9 @@ class BpTree {
                            IndexType parentIndex, IndexType startInLower, IndexType endInHigher) {
             int count = startInLower+higher->count-endInHigher;
             if(isLeaf)
-                assert(startInLower < lower->count && endInHigher > 0 && endInHigher <= higher->count);
+                assert(startInLower <= lower->count && endInHigher > 0 && endInHigher <= higher->count);
             else {
-                assert(startInLower <= lower->count && endInHigher <= higher->count+1);
+                assert(startInLower <= lower->count+1 && endInHigher <= higher->count+1);
                 if(startInLower == 0) ++count;
             }
             if(count <= capacity<isLeaf>()) {
@@ -288,9 +288,9 @@ class BpTree {
                     return true;
                 if(isLeaf)
                     copyLeafElements(lower, higher, startInLower, endInHigher, higher->count-endInHigher);
-                else if(startInLower == 0) { // TODO: Never reached in any test!
+                else if(startInLower == 0) {
                     assert(endInHigher > 0);
-                    copyBranchElements<true, -1>(lower, higher, 0, endInHigher, higher->count-endInHigher);
+                    copyBranchElements<true, -1>(lower, higher, 0, endInHigher, --lower->count);
                 } else if(endInHigher == 0) {
                     copyKey(lower, parent, startInLower-1, parentIndex);
                     copyBranchElements<true, -1>(lower, higher, startInLower, 0, higher->count);
@@ -423,13 +423,14 @@ class BpTree {
             int count = lower->count+middle->count+higher->count;
             if(!isLeaf) ++count;
             if(count <= capacity<isLeaf>()*2) {
+                count = count/2-higher->count;
                 // TODO: What if !isLeaf && count == 0 ???
 
-                if(count < 0) { // TODO: Never reached in any test!
+                if(count < 0) {
                     count *= -1;
                     evacuateDown<isLeaf>(middleParent, lower, middle, middleParentIndex);
                     shiftDown<isLeaf>(higherParent, lower, higher, higherParentIndex, count);
-                } else if(count <= middle->count) { // TODO: Never reached in any test!
+                } else if(count <= middle->count) {
                     if(count > 0)
                         shiftUp<isLeaf>(higherParent, middle, higher, higherParentIndex, count);
                     evacuateDown<isLeaf>(middleParent, lower, middle, middleParentIndex);
@@ -447,15 +448,16 @@ class BpTree {
                     copyKey(higher, higherParent, middle->count, higherParentIndex);
                     copyKey(higherParent, middleParent, higherParentIndex, middleParentIndex);
                     higher->count += count;
-                } else { // TODO: Never reached in any test!
+                } else {
                     copyBranchElements<true, +1>(higher, higher, count, 0, higher->count);
+                    copyKey(higher, higherParent, count-1, higherParentIndex);
                     higher->count += count;
                     count -= middle->count+1;
                     lower->count -= count;
                     copyBranchElements<true>(higher, middle, count, 0, middle->count);
-                    copyKey(higher, higherParent, middle->count, higherParentIndex);
                     copyBranchElements<true>(higher, lower, 0, lower->count+1, count-1);
-                    swapKeyInParent(higherParent, higher, lower, higherParentIndex, count-1, lower->count);
+                    copyKey(higher, middleParent, count-1, middleParentIndex);
+                    copyKey(higherParent, lower, higherParentIndex, lower->count);
                 }
 
                 count = lower->count+higher->count;
@@ -532,8 +534,8 @@ class BpTree {
 
         FrameType* getParentFrame(LayerType layer) {
             while(true) {
+                assert(layer > start);
                 FrameType* frame = fromBegin(--layer);
-                assert(layer >= start);
                 if(frame->index > 0)
                     return frame;
             }
@@ -572,7 +574,7 @@ class BpTree {
         template<int dir = 1>
         bool advance(Storage* storage, LayerType atLayer, ArchitectureType steps = 1) {
             assert(storage != 0);
-            if(start >= end || atLayer >= end) return steps;
+            if(start >= end || atLayer < start || atLayer >= end) return steps;
             while(steps > 0) {
                 LayerType stopLayer, layer = atLayer;
                 FrameType* frame = fromBegin(layer);
@@ -784,6 +786,18 @@ class BpTree {
         LayerType layer;
     };
 
+    template<int dir>
+    Page* eraseLayerAux(EraseData& data, IndexType& parentIndex, Page*& parent) {
+        data.iter->copy((dir == -1) ? data.from : data.to);
+        if(data.iter->template advance<dir>(data.storage, data.layer-1) == 0) {
+            IteratorFrame* parentFrame = ((dir == -1) ? data.from : data.iter)->getParentFrame(data.layer);
+            parentIndex = parentFrame->index-1;
+            parent = Iterator<false>::getPage(data.storage, parentFrame->reference);
+            return Iterator<false>::getPage(data.storage, data.iter->fromBegin(data.layer)->reference);
+        } else
+            return NULL;
+    }
+
     template<bool isLeaf>
     bool eraseLayer(EraseData& data) {
         IndexType lowerInnerIndex = data.from->fromBegin(data.layer)->index+data.spareLowerInner,
@@ -796,9 +810,14 @@ class BpTree {
             if(lowerInnerIndex >= higherInnerIndex)
                 return false;
             Page::template erase1<isLeaf>(lowerInner, lowerInnerIndex, higherInnerIndex);
-            if(lowerInner->count == 0)
-                data.storage->releasePage(data.from->fromBegin(data.layer)->reference);
-            return data.layer-- > data.from->start;
+            if(data.layer == data.from->start) {
+                if(lowerInner->count == 0) {
+                    data.storage->releasePage(data.from->fromBegin(data.layer)->reference);
+                    if(isLeaf)
+                        init();
+                }
+                return false;
+            }
         } else {
             IteratorFrame* parentFrame = data.to->getParentFrame(data.layer);
             IndexType higherInnerParentIndex = parentFrame->index-1;
@@ -814,43 +833,26 @@ class BpTree {
                 data.storage->releasePage(data.iter->fromBegin(data.layer)->reference);
         }
         if(lowerInner->count < Page::template capacity<isLeaf>()/2) {
-            data.eraseHigherInner = true;
             IndexType lowerInnerParentIndex, higherOuterParentIndex;
-            Page *lowerInnerParent, *lowerOuter, *higherOuterParent, *higherOuter;
-            data.iter->copy(data.from);
-            if(data.iter->template advance<-1>(data.storage, data.layer-1) == 0) {
-                IteratorFrame* parentFrame = data.from->getParentFrame(data.layer);
-                lowerInnerParentIndex = parentFrame->index-1;
-                lowerInnerParent = Iterator<false>::getPage(data.storage, parentFrame->reference);
-                lowerOuter = Iterator<false>::getPage(data.storage, data.iter->fromBegin(data.layer)->reference);
-            } else
-                lowerOuter = NULL;
-            data.iter->copy(data.to);
-            if(data.iter->template advance<1>(data.storage, data.layer-1) == 0) {
-                IteratorFrame* parentFrame = data.iter->getParentFrame(data.layer);
-                higherOuterParentIndex = parentFrame->index-1;
-                higherOuterParent = Iterator<false>::getPage(data.storage, parentFrame->reference);
-                higherOuter = Iterator<false>::getPage(data.storage, data.iter->fromBegin(data.layer)->reference);
-            } else
-                higherOuter = NULL;
+            Page *lowerInnerParent, *higherOuterParent,
+                 *lowerOuter = eraseLayerAux<-1>(data, lowerInnerParentIndex, lowerInnerParent),
+                 *higherOuter = eraseLayerAux<1>(data, higherOuterParentIndex, higherOuterParent);
             if(!lowerOuter && !higherOuter) {
-                if(lowerInner->count == 0) {
+                if(lowerInner->count == 0) { // TODO: Never reached in any test!
                     data.storage->releasePage(data.from->fromBegin(data.layer)->reference);
                     data.spareLowerInner = false;
+                    data.eraseHigherInner = true;
                     init();
-                } else if(data.from->end-data.layer < layerCount) {
-                    if(data.layer == data.from->start) // TODO: Never reached in any test!
-                        init();
-                    else { // TODO: Never reached in any test!
-                        rootReference = data.from->fromBegin(data.layer)->reference;
-                        layerCount = data.from->end-data.layer;
-                    }
+                } else if(data.from->end-data.layer < layerCount) { // TODO: Never reached in any test!
+                    rootReference = data.from->fromBegin(data.layer)->reference;
+                    layerCount = data.from->end-data.layer;
                 }
             } else if(Page::template redistribute<isLeaf>(lowerInnerParent, higherOuterParent,
                                                           lowerOuter, lowerInner, higherOuter,
                                                           lowerInnerParentIndex, higherOuterParentIndex)) {
                 data.storage->releasePage(data.from->fromBegin(data.layer)->reference);
                 data.spareLowerInner = false;
+                data.eraseHigherInner = true;
             }
         }
         --data.layer;
