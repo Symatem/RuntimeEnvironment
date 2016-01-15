@@ -288,10 +288,9 @@ class BpTree {
                     return true;
                 if(isLeaf)
                     copyLeafElements(lower, higher, startInLower, endInHigher, higher->count-endInHigher);
-                else if(startInLower == 0) {
-                    assert(endInHigher > 0);
+                else if(startInLower == 0)
                     copyBranchElements<true, -1>(lower, higher, 0, endInHigher, --lower->count);
-                } else if(endInHigher == 0) {
+                else if(endInHigher == 0) {
                     copyKey(lower, parent, startInLower-1, parentIndex);
                     copyBranchElements<true, -1>(lower, higher, startInLower, 0, higher->count);
                 } else
@@ -299,7 +298,6 @@ class BpTree {
                 return true;
             } else {
                 assert(startInLower > 0);
-                assert(endInHigher > 0);
                 if(!isLeaf) --count;
                 lower->count = (count+1)/2;
                 higher->count = count/2;
@@ -321,15 +319,25 @@ class BpTree {
                     --count;
                     if(count <= 0) {
                         count *= -1;
-                        copyKey(parent, higher, parentIndex, endInHigher+count-1);
-                        copyBranchElements<false>(lower, higher, startInLower, endInHigher, count);
+                        if(endInHigher == 0 && count > 0) {
+                            copyBranchElements<true>(lower, higher, startInLower, 0, count-1);
+                            swapKeyInParent(parent, lower, higher, parentIndex, startInLower-1, count-1);
+                        } else {
+                            copyBranchElements<false>(lower, higher, startInLower, endInHigher, count);
+                            copyKey(parent, higher, parentIndex, endInHigher+count-1);
+                        }
                         copyBranchElements<true, -1>(higher, higher, 0, endInHigher+count, higher->count);
                     } else {
-                        copyKey(parent, lower, parentIndex, lower->count);
-                        if(count < endInHigher)
-                            copyBranchElements<false, -1>(higher, higher, count, endInHigher, higher->count);
-                        else
-                            copyBranchElements<false, 1>(higher, higher, count, endInHigher, higher->count);
+                        if(endInHigher == 0) { // TODO: Never reached in any test!
+                            copyBranchElements<true, 1>(higher, higher, count, 0, higher->count);
+                            swapKeyInParent(parent, higher, lower, parentIndex, count-1, lower->count);
+                        } else {
+                            if(count < endInHigher)
+                                copyBranchElements<false, -1>(higher, higher, count, endInHigher, higher->count);
+                            else
+                                copyBranchElements<false, 1>(higher, higher, count, endInHigher, higher->count);
+                            copyKey(parent, lower, parentIndex, lower->count);
+                        }
                         copyBranchElements<true>(higher, lower, 0, lower->count+1, count-1);
                     }
                 }
@@ -477,9 +485,9 @@ class BpTree {
                 } else {
                     if(shiftLower > 0)
                         shiftUp<isLeaf>(middleParent, lower, middle, middleParentIndex, shiftLower);
-                    if(shiftUpper < 0) // TODO: Never reached in any test!
+                    if(shiftUpper < 0) { // TODO: Never reached in any test!
                         shiftUp<isLeaf>(higherParent, middle, higher, higherParentIndex, -shiftUpper);
-                    else if(shiftUpper > 0)
+                    } else if(shiftUpper > 0)
                         shiftDown<isLeaf>(higherParent, middle, higher, higherParentIndex, shiftUpper);
                 }
                 return false;
@@ -812,9 +820,13 @@ class BpTree {
             Page::template erase1<isLeaf>(lowerInner, lowerInnerIndex, higherInnerIndex);
             if(data.layer == data.from->start) {
                 if(lowerInner->count == 0) {
-                    data.storage->releasePage(data.from->fromBegin(data.layer)->reference);
                     if(isLeaf)
                         init();
+                    else if(lowerInnerIndex == 1) {
+                        rootReference = lowerInner->getReference(0);
+                        layerCount = data.from->end-data.layer-1;
+                    }
+                    data.storage->releasePage(data.from->fromBegin(data.layer)->reference);
                 }
                 return false;
             }
