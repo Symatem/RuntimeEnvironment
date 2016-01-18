@@ -89,7 +89,6 @@ class BpTree {
 
         template<bool isLeaf>
         void debugPrint(std::ostream& stream) const {
-            stream << count << std::endl;
             for(IndexType i = 0; i < keyCount<isLeaf>(); ++i) {
                 if(i > 0) stream << " ";
                 stream << getKey(i);
@@ -261,7 +260,6 @@ class BpTree {
             else if(end < lower->count)
                 copyBranchElements<false, -1>(lower, lower, 0, end, lower->count-end);
             lower->count -= end-start;
-            assert(lower->template isValid<isLeaf>());
         }
 
         template<bool isLeaf>
@@ -282,7 +280,6 @@ class BpTree {
                     copyBranchElements<false, -1>(lower, higher, startInLower, 0, higher->count);
                 } else
                     copyBranchElements<true, -1>(lower, higher, startInLower, endInHigher, higher->count-endInHigher);
-                assert(lower->template isValid<isLeaf>());
                 return true;
             } else {
                 assert(startInLower > 0);
@@ -304,9 +301,9 @@ class BpTree {
                 } else {
                     if(count <= 0) {
                         count *= -1;
-                        if(endInHigher == 0 && count > 0) {
+                        if(endInHigher == 0) {
                             copyBranchElements<false>(lower, higher, startInLower, 0, count);
-                            swapKeyInParent(parent, lower, higher, parentIndex, startInLower-1, count);
+                            swapKeyInParent(parent, lower, higher, parentIndex, startInLower-1, count-1);
                         } else {
                             copyBranchElements<true>(lower, higher, startInLower, endInHigher, count);
                             copyKey(parent, higher, parentIndex, endInHigher+count-1);
@@ -315,27 +312,23 @@ class BpTree {
                     } else {
                         if(endInHigher == 0) {
                             copyBranchElements<false, 1>(higher, higher, count, 0, higher->count);
-                            swapKeyInParent(parent, higher, lower, parentIndex, count-1, lower->count);
+                            swapKeyInParent(parent, higher, lower, parentIndex, count-1, lower->count-1);
                         } else {
                             if(count < endInHigher)
                                 copyBranchElements<true, -1>(higher, higher, count, endInHigher, higher->count);
                             else
                                 copyBranchElements<true, 1>(higher, higher, count, endInHigher, higher->count);
-                            copyKey(parent, lower, parentIndex, lower->count);
+                            copyKey(parent, lower, parentIndex, lower->count-1);
                         }
                         copyBranchElements<false>(higher, lower, 0, lower->count, count);
                     }
                 }
-                assert(lower->template isValid<isLeaf>());
-                assert(higher->template isValid<isLeaf>());
                 return false;
             }
         }
 
         template<bool isLeaf>
         static void evacuateDown(Page* parent, Page* lower, Page* higher, IndexType parentIndex) {
-            assert(lower->template isValid<isLeaf>());
-            assert(higher->template isValid<isLeaf>());
             assert(lower->count+higher->count <= capacity<isLeaf>());
             if(isLeaf)
                 copyLeafElements(lower, higher, lower->count, 0, higher->count);
@@ -349,8 +342,6 @@ class BpTree {
 
         template<bool isLeaf>
         static void evacuateUp(Page* parent, Page* lower, Page* higher, IndexType parentIndex) {
-            assert(lower->template isValid<isLeaf>());
-            assert(higher->template isValid<isLeaf>());
             assert(lower->count+higher->count <= capacity<isLeaf>());
             if(isLeaf) {
                 copyLeafElements<+1>(higher, higher, lower->count, 0, higher->count);
@@ -423,9 +414,6 @@ class BpTree {
         static bool redistribute3(Page* middleParent, Page* higherParent,
                                   Page* lower, Page* middle, Page* higher,
                                   IndexType middleParentIndex, IndexType higherParentIndex) {
-            assert(lower->template isValid<isLeaf>());
-            assert(middle->template isValid<isLeaf>());
-            assert(higher->template isValid<isLeaf>());
             int count = lower->count+middle->count+higher->count;
             if(count <= capacity<isLeaf>()*2) {
                 count = count/2-higher->count;
@@ -448,7 +436,7 @@ class BpTree {
                 } else if(count == middle->count) {
                     copyBranchElements<false, +1>(higher, higher, count, 0, higher->count);
                     copyBranchElements<false>(higher, middle, 0, 0, middle->count);
-                    copyKey(higher, higherParent, middle->count, higherParentIndex);
+                    copyKey(higher, higherParent, middle->count-1, higherParentIndex);
                     copyKey(higherParent, middleParent, higherParentIndex, middleParentIndex);
                     higher->count += count;
                 } else {
@@ -460,7 +448,7 @@ class BpTree {
                     copyBranchElements<false>(higher, middle, count, 0, middle->count);
                     copyBranchElements<false>(higher, lower, 0, lower->count, count);
                     copyKey(higher, middleParent, count-1, middleParentIndex);
-                    copyKey(higherParent, lower, higherParentIndex, lower->count);
+                    copyKey(higherParent, lower, higherParentIndex, lower->count-1);
                 }
                 count = lower->count+higher->count;
                 assert(lower->count == (count+1)/2);
@@ -579,8 +567,9 @@ class BpTree {
         bool advance(Storage* storage, LayerType atLayer, ArchitectureType steps = 1) {
             assert(storage != 0);
             if(start >= end || atLayer < start || atLayer >= end) return steps;
-            while(steps > 0) {
-                LayerType stopLayer, layer = atLayer;
+            bool keepRunning;
+            do {
+                LayerType layer = atLayer;
                 FrameType* frame = fromBegin(layer);
                 ArchitectureType stepsToTake;
                 if(dir == 1) {
@@ -591,8 +580,8 @@ class BpTree {
                     frame->index -= stepsToTake;
                 }
                 steps -= stepsToTake;
-                if(steps > 0) {
-                    stopLayer = atLayer;
+                keepRunning = false;
+                if(steps > 0)
                     while(layer > start) {
                         frame = fromBegin(--layer);
                         if(dir == 1) {
@@ -605,30 +594,30 @@ class BpTree {
                             else continue;
                         }
                         --steps;
-                        stopLayer = end;
+                        keepRunning = true;
                         break;
                     }
-                } else
-                    stopLayer = end;
-                while(layer+1 < stopLayer) {
-                    Page* page = getPage(storage, frame->reference);
-                    ReferenceType reference = page->getReference(frame->index);
-                    page = getPage(storage, reference);
+                while(layer <= atLayer && layer+1 < end) {
+                    ReferenceType reference = getPage(storage, frame->reference)->getReference(frame->index);
                     frame = fromBegin(++layer);
                     frame->reference = reference;
-                    frame->maxIndex = page->count-1;
+                    frame->maxIndex = getPage(storage, reference)->count-1;
                     frame->index = (dir == 1) ? 0 : frame->maxIndex;
                 }
-                if(stopLayer == atLayer) break;
-            }
+            } while(keepRunning);
             return steps;
         }
 
-        void debugPrint(std::ostream& stream) {
+        void debugPrint(Storage* storage, std::ostream& stream) {
             stream << (end-start) << " (" << static_cast<uint16_t>(start) << "/" << static_cast<uint16_t>(end) << ")" << std::endl;
             for(LayerType layer = start; layer < end; ++layer) {
                 auto frame = fromBegin(layer);
                 stream << "    " << layer << ": " << frame->reference << " (" << frame->index << "/" << frame->maxIndex << ")" << std::endl;
+                auto page = getPage(storage, frame->reference);
+                if(layer == end-1)
+                    page->template debugPrint<true>(std::cout);
+                else
+                    page->template debugPrint<false>(std::cout);
             }
         }
     };
