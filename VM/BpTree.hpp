@@ -20,7 +20,7 @@ class BpTree {
         return (rootReference == 0);
     }
 
-    // TODO: Fix Key Count, Fix Insert, Review Integer Types
+    // TODO: Review Integer Types
     class Page : public BasePage {
         public:
         static const ArchitectureType
@@ -106,7 +106,8 @@ class BpTree {
 
         template<bool isLeaf>
         bool isValid() const {
-            if(count <= !isLeaf || count > capacity<isLeaf>()) return false;
+            if(count <= !isLeaf || count > capacity<isLeaf>())
+                return false;
             for(IndexType i = 1; i < keyCount<isLeaf>(); ++i)
                 if(getKey(i-1) >= getKey(i))
                     return false;
@@ -118,11 +119,8 @@ class BpTree {
             IndexType begin = 0, mid, end = keyCount<isLeaf>();
             while(begin < end) {
                 mid = (begin+end)/2;
-                KeyType keyAtMid = getKey(mid);
-                //if(key == keyAtMid)
-                //    return mid-isLeaf+1;
-                if((isLeaf && key > keyAtMid) ||
-                   (!isLeaf && key >= keyAtMid))
+                if((isLeaf && key > getKey(mid)) ||
+                   (!isLeaf && key >= getKey(mid)))
                     begin = mid+1;
                 else
                     end = mid;
@@ -134,7 +132,8 @@ class BpTree {
         static void copyBranchElements(Page* dstPage, Page* srcPage,
                                        IndexType dstIndex, IndexType srcIndex,
                                        IndexType n) {
-            if(n == 0) return;
+            if(n == 0)
+                return;
             bitwiseCopy<dir>(reinterpret_cast<ArchitectureType*>(dstPage),
                              reinterpret_cast<const ArchitectureType*>(srcPage),
                              BranchReferencesBitOffset+dstIndex*ReferenceBits,
@@ -144,8 +143,10 @@ class BpTree {
                 assert(dstIndex > 0 && srcIndex > 0);
                 --dstIndex;
                 --srcIndex;
-            } else
+            } else if(n > 1)
                 --n;
+            else
+                return;
             bitwiseCopy<dir>(reinterpret_cast<ArchitectureType*>(dstPage),
                              reinterpret_cast<const ArchitectureType*>(srcPage),
                              KeysBitOffset+dstIndex*KeyBits,
@@ -157,7 +158,8 @@ class BpTree {
         static void copyLeafElements(Page* dstPage, Page* srcPage,
                                      IndexType dstIndex, IndexType srcIndex,
                                      IndexType n) {
-            if(n == 0) return;
+            if(n == 0)
+                return;
             bitwiseCopy<dir>(reinterpret_cast<ArchitectureType*>(dstPage),
                              reinterpret_cast<const ArchitectureType*>(srcPage),
                              KeysBitOffset+dstIndex*KeyBits, KeysBitOffset+srcIndex*KeyBits,
@@ -301,7 +303,7 @@ class BpTree {
                 } else {
                     if(count <= 0) {
                         count *= -1;
-                        if(endInHigher == 0) {
+                        if(endInHigher == 0 && count > 0) {
                             copyBranchElements<false>(lower, higher, startInLower, 0, count);
                             swapKeyInParent(parent, lower, higher, parentIndex, startInLower-1, count-1);
                         } else {
@@ -370,7 +372,6 @@ class BpTree {
                 copyBranchElements<false, -1>(higher, higher, 0, count, higher->count);
             }
             assert(lower->template isValid<isLeaf>());
-            assert(higher->template isValid<isLeaf>());
         }
 
         template<bool isLeaf>
@@ -387,7 +388,6 @@ class BpTree {
                 copyBranchElements<false>(higher, lower, 0, lower->count, count);
                 swapKeyInParent(parent, higher, lower, parentIndex, count-1, lower->count-1);
             }
-            assert(lower->template isValid<isLeaf>());
             assert(higher->template isValid<isLeaf>());
         }
 
@@ -433,12 +433,6 @@ class BpTree {
                     copyLeafElements(higher, middle, count, 0, middle->count);
                     copyLeafElements(higher, lower, 0, lower->count, count);
                     copyKey(higherParent, higher, higherParentIndex, 0);
-                } else if(count == middle->count) {
-                    copyBranchElements<false, +1>(higher, higher, count, 0, higher->count);
-                    copyBranchElements<false>(higher, middle, 0, 0, middle->count);
-                    copyKey(higher, higherParent, middle->count-1, higherParentIndex);
-                    copyKey(higherParent, middleParent, higherParentIndex, middleParentIndex);
-                    higher->count += count;
                 } else {
                     copyBranchElements<false, +1>(higher, higher, count, 0, higher->count);
                     copyKey(higher, higherParent, count-1, higherParentIndex);
@@ -459,7 +453,6 @@ class BpTree {
             } else {
                 count = count/3;
                 int shiftLower = lower->count-count, shiftUpper = higher->count-count;
-                assert(shiftLower != 0 || shiftUpper != 0);
                 if(shiftLower < 0) {
                     if(shiftUpper < 0)
                         shiftUp<isLeaf>(higherParent, middle, higher, higherParentIndex, -shiftUpper);
@@ -483,11 +476,11 @@ class BpTree {
                                  Page* lower, Page* middle, Page* higher,
                                  IndexType middleParentIndex, IndexType higherParentIndex) {
             if(lower) {
-                if(higher)
+                if(higher) {
                     return redistribute3<isLeaf>(middleParent, higherParent,
                                                  lower, middle, higher,
                                                  middleParentIndex, higherParentIndex);
-                else
+                } else
                     return redistribute2<isLeaf, false>(middleParent, lower, middle, middleParentIndex);
             } else
                 return redistribute2<isLeaf, true>(higherParent, middle, higher, higherParentIndex);
@@ -536,7 +529,8 @@ class BpTree {
         }
 
         bool isValid() {
-            if(start >= end) return false;
+            if(start >= end)
+                return false;
             for(LayerType layer = start; layer < end; ++layer)
                 if(fromEnd()->index > fromEnd()->maxIndex)
                     return false;
@@ -547,7 +541,8 @@ class BpTree {
         void copy(Iterator<srcReadOnly>* src) {
             static_assert(readOnly || !srcReadOnly, "Can not copy from read only to writeable");
             assert(end-start == src->end-src->start);
-            if(start == end) return;
+            if(start == end)
+                return;
             for(LayerType layer = start; layer < end; ++layer)
                 bitwiseCopy<-1>(reinterpret_cast<ArchitectureType*>(fromBegin(layer)),
                                 reinterpret_cast<const ArchitectureType*>(src->fromBegin(layer)),
@@ -566,8 +561,9 @@ class BpTree {
         template<int dir = 1>
         bool advance(Storage* storage, LayerType atLayer, ArchitectureType steps = 1) {
             assert(storage != 0);
-            if(start >= end || atLayer < start || atLayer >= end) return steps;
-            bool keepRunning;
+            if(steps == 0 || start >= end || atLayer < start || atLayer >= end)
+                return steps;
+            bool updateLower, keepRunning;
             do {
                 LayerType layer = atLayer;
                 FrameType* frame = fromBegin(layer);
@@ -580,6 +576,7 @@ class BpTree {
                     frame->index -= stepsToTake;
                 }
                 steps -= stepsToTake;
+                updateLower = (stepsToTake > 0);
                 keepRunning = false;
                 if(steps > 0)
                     while(layer > start) {
@@ -587,22 +584,30 @@ class BpTree {
                         if(dir == 1) {
                             if(frame->index < frame->maxIndex)
                                 ++frame->index;
-                            else continue;
+                            else
+                                continue;
                         } else {
                             if(frame->index > 0)
                                 --frame->index;
-                            else continue;
+                            else
+                                continue;
                         }
                         --steps;
+                        updateLower = true;
                         keepRunning = true;
                         break;
                     }
-                while(layer <= atLayer && layer+1 < end) {
-                    ReferenceType reference = getPage(storage, frame->reference)->getReference(frame->index);
-                    frame = fromBegin(++layer);
-                    frame->reference = reference;
-                    frame->maxIndex = getPage(storage, reference)->count-1;
-                    frame->index = (dir == 1) ? 0 : frame->maxIndex;
+                if(updateLower) {
+                    LayerType endLayer = atLayer+1;
+                    if(endLayer > end-1)
+                        endLayer = end-1;
+                    while(layer < endLayer) {
+                        ReferenceType reference = getPage(storage, frame->reference)->getReference(frame->index);
+                        frame = fromBegin(++layer);
+                        frame->reference = reference;
+                        frame->maxIndex = getPage(storage, reference)->count-1;
+                        frame->index = (dir == 1) ? 0 : frame->maxIndex;
+                    }
                 }
             } while(keepRunning);
             return steps;
@@ -633,7 +638,8 @@ class BpTree {
 
     template<bool readOnly, bool border = false, bool lower = false>
 	bool at(Storage* storage, Iterator<readOnly>* iterator, KeyType key = 0) {
-		if(isEmpty()) return false;
+		if(isEmpty())
+            return false;
         LayerType layer = iterator->start;
         ReferenceType reference = rootReference; // TODO: Update reference in getPage
 	    while(true) {
@@ -663,10 +669,12 @@ class BpTree {
         Page *lower, *higher;
         auto frame = reinterpret_cast<InsertIteratorFrame*>(iter->fromBegin(layer));
         if(layer >= iter->start) {
-            if(elementCount == 0) return false;
+            if(elementCount == 0)
+                return false;
             lower = Iterator<false>::getPage(storage, frame->reference);
             elementCount += lower->count;
-        } else if(elementCount == 1) return false;
+        } else if(elementCount == 1)
+            return false;
         ArchitectureType pageCount = (elementCount+Page::template capacity<isLeaf>()-1)/Page::template capacity<isLeaf>();
         // TODO: 1048576 element case, leads to 1048576-4112*255=16 elements on first page (less than half of the capacity)
         if(apply) {
@@ -788,12 +796,14 @@ class BpTree {
     template<bool isLeaf>
     void eraseEmptyLayer(EraseData& data, Page* lowerInner) {
         if(isLeaf) {
-            if(lowerInner->count > 0) return;
+            if(lowerInner->count > 0)
+                return;
             init();
         } else if(lowerInner->count == 1) {
             rootReference = lowerInner->getReference(0);
             layerCount = data.from->end-data.layer-1;
-        } else if(lowerInner->count > 1) return;
+        } else if(lowerInner->count > 1)
+            return;
         data.storage->releasePage(data.from->fromBegin(data.layer)->reference);
         data.spareLowerInner = false;
         data.eraseHigherInner = true;
@@ -838,8 +848,8 @@ class BpTree {
             if(!lowerOuter && !higherOuter)
                 eraseEmptyLayer<isLeaf>(data, lowerInner);
             else if(Page::template redistribute<isLeaf>(lowerInnerParent, higherOuterParent,
-                                                          lowerOuter, lowerInner, higherOuter,
-                                                          lowerInnerParentIndex, higherOuterParentIndex)) {
+                                                        lowerOuter, lowerInner, higherOuter,
+                                                        lowerInnerParentIndex, higherOuterParentIndex)) {
                 data.storage->releasePage(data.from->fromBegin(data.layer)->reference);
                 data.spareLowerInner = false;
                 data.eraseHigherInner = true;
