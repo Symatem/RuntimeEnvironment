@@ -203,22 +203,25 @@ class BpTree {
         }
 
         template<bool isLeaf>
-        static void insert1(Page* lower, IndexType n, InsertIteratorFrame* frame) {
-            IndexType count = lower->count+n;
-            assert(n > 0 && count <= capacity<isLeaf>() && frame->index <= lower->count);
+        static void insert1(Page* lower, IndexType count, InsertIteratorFrame* frame) {
+            if(!isLeaf) // TODO
+                ++frame->index;
+            assert(count > lower->count && count <= capacity<isLeaf>() && frame->index <= lower->count);
+            frame->endIndex = frame->index+count-lower->count;
             if(isLeaf)
-                copyLeafElements<1>(lower, lower, frame->index+n, frame->index, lower->count-frame->index);
+                copyLeafElements<1>(lower, lower, frame->endIndex, frame->index, lower->count-frame->index);
             else {
                 assert(frame->index > 0);
-                copyBranchElements<true, 1>(lower, lower, frame->index+n, frame->index, lower->count-frame->index);
+                copyBranchElements<true, 1>(lower, lower, frame->endIndex, frame->index, lower->count-frame->index);
             }
             lower->count = count;
-            frame->endIndex = frame->index+n;
         }
 
         template<bool isLeaf>
         static bool insert2(Page* parent, Page* lower, Page* higher,
                                IndexType parentIndex, InsertIteratorFrame* frame) {
+            if(!isLeaf) // TODO
+                ++frame->index;
             bool insertKeyInParentNow;
             IndexType insertLower, insertHigher = frame->higherEndIndex-lower->count,
                       shiftLowerEnd = frame->index+insertHigher, shiftHigherEnd = lower->count-frame->index;
@@ -686,15 +689,16 @@ class BpTree {
             if(data.elementCount == 0)
                 return false;
             page = getPage<false>(data.storage, frame->reference);
+            if(!isLeaf)
+                --data.elementCount;
             data.elementCount += page->count;
         } else if(data.elementCount == 1)
             return false;
         ArchitectureType pageCount = (data.elementCount+Page::template capacity<isLeaf>()-1)/Page::template capacity<isLeaf>();
         // TODO: 1048576 element case, leads to 1048576-4112*255=16 elements on first page (less than half of the capacity)
-        if(apply)
+        if(apply) {
             frame->elementsPerPage = (data.elementCount+pageCount-1)/pageCount;
-        if(data.layer >= iter->start) {
-            if(apply) {
+            if(data.layer >= iter->start) {
                 if(pageCount == 1) {
                     frame->elementCount = 0;
                     frame->higherReference = 0;
@@ -704,16 +708,16 @@ class BpTree {
                     frame->higherReference = data.storage->aquirePage();
                     frame->higherEndIndex = data.elementCount-frame->elementCount;
                 }
+            } else {
+                frame->elementCount = (pageCount-1)*frame->elementsPerPage;
+                frame->higherReference = 0;
+                frame->reference = data.storage->aquirePage();
+                frame->index = (isLeaf) ? 0 : 1;
+                page = getPage<false>(data.storage, frame->reference);
+                page->template init<isLeaf>(data.elementCount-frame->elementCount, frame);
+                if(!isLeaf)
+                    page->setReference(iter->fromBegin(data.layer+1)->reference, 0);
             }
-        } else if(apply) {
-            frame->elementCount = (pageCount-1)*frame->elementsPerPage;
-            frame->higherReference = 0;
-            frame->reference = data.storage->aquirePage();
-            frame->index = (isLeaf) ? 0 : 1;
-            page = getPage<false>(data.storage, frame->reference);
-            page->template init<isLeaf>(data.elementCount-frame->elementCount, frame);
-            if(!isLeaf)
-                page->setReference(iter->fromBegin(data.layer+1)->reference, 0);
         }
         data.elementCount = pageCount;
         --data.layer;
