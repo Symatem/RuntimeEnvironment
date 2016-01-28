@@ -15,7 +15,7 @@ class BpTree {
     };
 
     struct InsertIteratorFrame : public IteratorFrame {
-        ReferenceType lowerInnerReference, higherOuterReference;
+        ReferenceType lowerInnerReference, higherInnerReference, higherOuterReference;
         IndexType shiftLowerInner, higherOuterEndIndex, elementsPerPage;
         ArchitectureType pageCount;
     };
@@ -686,11 +686,11 @@ class BpTree {
         if(data.layer >= data.startLayer) {
             if(!isLeaf)
                 --data.elementCount;
-            if(data.elementCount == 0) // TODO: Refactor pageCount and frame->pageCount
+            if(data.elementCount == 0)
                 return false;
             page = getPage<false>(data.storage, frame->reference);
             data.elementCount += page->count;
-        } else if(data.elementCount == 1) // TODO: Refactor pageCount and frame->pageCount
+        } else if(data.elementCount == 1)
             return false;
         ArchitectureType pageCount = (data.elementCount+Page::template capacity<isLeaf>()-1)/Page::template capacity<isLeaf>();
         // TODO: 1048576 element case, leads to 1048576-4112*255=16 elements on first page (less than half of the capacity)
@@ -698,13 +698,13 @@ class BpTree {
             frame->elementsPerPage = (data.elementCount+pageCount-1)/pageCount;
             frame->pageCount = pageCount-1;
             if(data.layer >= data.startLayer) {
-                if(pageCount == 1) { // TODO: Refactor pageCount and frame->pageCount
+                if(pageCount == 1) {
                     frame->higherOuterReference = 0;
                     Page::template insert1<isLeaf>(page, data.elementCount, frame);
                 } else {
                     frame->endIndex = data.elementCount-(pageCount-2)*frame->elementsPerPage;
-                    frame->lowerInnerReference = data.storage->aquirePage();
-                    frame->higherOuterReference = (pageCount == 2) ? frame->lowerInnerReference : data.storage->aquirePage();
+                    frame->higherOuterReference = data.storage->aquirePage();
+                    frame->lowerInnerReference = (pageCount == 2) ? frame->higherOuterReference : data.storage->aquirePage();
                 }
             } else {
                 frame->higherOuterReference = 0;
@@ -780,9 +780,23 @@ class BpTree {
                 data.lowerInnerParent = lowerInner;
                 data.lowerInnerParentIndex = frame->shiftLowerInner;
             }
+            frame->higherInnerReference = 0;
             if(frame->higherOuterEndIndex == 0) {
                 // TODO: higherInner
-                assert(false);
+                assert(frame->shiftLowerInner == 0);
+                if(frame->pageCount == 1) {
+                    data.higherOuterParent = lowerOuter;
+                    data.higherOuterParentIndex = frame->endIndex-1;
+                } else if(frame->pageCount == 2) {
+                    data.higherOuterParent = lowerInner;
+                    data.higherOuterParentIndex = frame->elementsPerPage-1;
+                } else {
+                    frame->higherInnerReference = data.storage->aquirePage();
+                    Page* higherInner = getPage<false>(data.storage, frame->higherInnerReference);
+                    higherInner->count = frame->elementsPerPage;
+                    data.higherOuterParent = higherInner;
+                    data.higherOuterParentIndex = frame->elementsPerPage-1;
+                }
             } else if(frame->higherOuterEndIndex > 1) {
                 data.higherOuterParent = higherOuter;
                 data.higherOuterParentIndex = frame->higherOuterEndIndex-1;
@@ -826,7 +840,7 @@ class BpTree {
                     break;
                 } else {
                     parentPage = insertAdvance<false>(storage, parentFrame);
-                    assert(parentFrame->endIndex != 0); // TODO
+                    // TODO: parentFrame->endIndex == 0
                     if(parentFrame->index > 1) {
                         Page::copyKey(parentPage, page, parentFrame->index-1, 0);
                         setKey = false;
