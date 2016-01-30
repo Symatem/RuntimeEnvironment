@@ -16,7 +16,7 @@ class BpTree {
 
     struct InsertIteratorFrame : public IteratorFrame {
         ReferenceType lowerInnerReference, higherInnerReference, higherOuterReference;
-        IndexType shiftLowerInner, higherOuterEndIndex, elementsPerPage;
+        IndexType lowerInnerIndex, higherInnerEndIndex, higherOuterEndIndex, elementsPerPage;
         ArchitectureType pageCount;
     };
 
@@ -215,46 +215,48 @@ class BpTree {
 
         template<bool isLeaf>
         static void insert3(Page* lowerInnerParent, Page* higherOuterParent,
-                            Page* lowerOuter, Page* lowerInner, Page* higherOuter,
+                            Page* lowerOuter, Page* lowerInner, Page* higherInner, Page* higherOuter,
                             IndexType lowerInnerParentIndex, IndexType higherOuterParentIndex,
                             InsertIteratorFrame* frame) {
             if(!isLeaf)
                 ++frame->index;
             bool insertKeyInParentNow;
-            DistributionType shiftLowerOuter = frame->index+frame->endIndex-lowerOuter->count,
+            DistributionType shiftHigherInner = frame->index+frame->endIndex-lowerOuter->count,
                              shiftHigherOuter = lowerOuter->count-frame->index, higherOuterEndIndex;
-            assert(shiftLowerOuter > 0 && frame->endIndex <= capacity<isLeaf>()*2 && frame->index <= lowerOuter->count);
-            lowerInner->count = frame->elementsPerPage;
+            assert(shiftHigherInner > 0 && frame->endIndex <= capacity<isLeaf>()*2 && frame->index <= lowerOuter->count);
+            lowerInner->count = higherInner->count = frame->elementsPerPage;
             distributeCount(lowerOuter, higherOuter, frame->endIndex);
-            if(shiftLowerOuter < lowerOuter->count) {
-                shiftLowerOuter = lowerOuter->count-shiftLowerOuter;
-                frame->shiftLowerInner = 0;
-                shiftHigherOuter -= shiftLowerOuter;
+            if(shiftHigherInner < lowerOuter->count) {
+                shiftHigherInner = lowerOuter->count-shiftHigherInner;
+                assert(shiftHigherInner < higherInner->count);
+                frame->lowerInnerIndex = 0;
+                shiftHigherOuter -= shiftHigherInner;
             } else {
-                shiftLowerOuter = 0;
-                frame->shiftLowerInner = (frame->index > lowerOuter->count) ? frame->index-lowerOuter->count : 0;
+                shiftHigherInner = 0;
+                frame->lowerInnerIndex = (frame->index > lowerOuter->count) ? frame->index-lowerOuter->count : 0;
             }
+            frame->endIndex = lowerOuter->count-shiftHigherInner;
+            frame->higherInnerEndIndex = higherInner->count-shiftHigherInner;
             frame->higherOuterEndIndex = higherOuter->count-shiftHigherOuter;
-            frame->endIndex = lowerOuter->count-shiftLowerOuter;
             if(isLeaf) {
-                copyLeafElements(lowerInner, lowerOuter, 0, lowerOuter->count, frame->shiftLowerInner);
-                copyLeafElements(higherOuter, lowerOuter, frame->higherOuterEndIndex, frame->index+shiftLowerOuter, shiftHigherOuter);
-                copyLeafElements<1>(lowerOuter, lowerOuter, frame->endIndex, frame->index, shiftLowerOuter);
-                if(frame->shiftLowerInner > 0)
+                copyLeafElements(lowerInner, lowerOuter, 0, lowerOuter->count, frame->lowerInnerIndex);
+                copyLeafElements(higherOuter, lowerOuter, frame->higherOuterEndIndex, frame->index+shiftHigherInner, shiftHigherOuter);
+                copyLeafElements<1>(higherInner, lowerOuter, frame->higherInnerEndIndex, frame->index, shiftHigherInner);
+                if(frame->lowerInnerIndex > 0)
                     copyKey(lowerInnerParent, lowerInner, lowerInnerParentIndex, 0);
                 else if(frame->higherOuterEndIndex == 0)
                     copyKey(higherOuterParent, higherOuter, higherOuterParentIndex, 0);
             } else {
-                if(frame->shiftLowerInner > 0) {
+                if(frame->lowerInnerIndex > 0) {
                     copyKey(lowerInnerParent, lowerOuter, lowerInnerParentIndex, lowerOuter->count-1);
-                    copyBranchElements<false>(lowerInner, lowerOuter, 0, lowerOuter->count, frame->shiftLowerInner);
-                    copyBranchElements<true>(higherOuter, lowerOuter, frame->higherOuterEndIndex, frame->index+shiftLowerOuter, shiftHigherOuter);
+                    copyBranchElements<false>(lowerInner, lowerOuter, 0, lowerOuter->count, frame->lowerInnerIndex);
+                    copyBranchElements<true>(higherOuter, lowerOuter, frame->higherOuterEndIndex, frame->index+shiftHigherInner, shiftHigherOuter);
                 } else if(frame->higherOuterEndIndex == 0) {
-                    copyKey(higherOuterParent, lowerOuter, higherOuterParentIndex, frame->index+shiftLowerOuter-1);
-                    copyBranchElements<false>(higherOuter, lowerOuter, 0, frame->index+shiftLowerOuter, shiftHigherOuter);
+                    copyKey(higherOuterParent, lowerOuter, higherOuterParentIndex, frame->index+shiftHigherInner-1);
+                    copyBranchElements<false>(higherOuter, lowerOuter, 0, frame->index+shiftHigherInner, shiftHigherOuter);
                 } else
-                    copyBranchElements<true>(higherOuter, lowerOuter, frame->higherOuterEndIndex, frame->index+shiftLowerOuter, shiftHigherOuter);
-                copyBranchElements<true, 1>(lowerOuter, lowerOuter, frame->endIndex, frame->index, shiftLowerOuter);
+                    copyBranchElements<true>(higherOuter, lowerOuter, frame->higherOuterEndIndex, frame->index+shiftHigherInner, shiftHigherOuter);
+                copyBranchElements<true, 1>(higherInner, lowerOuter, frame->higherInnerEndIndex, frame->index, shiftHigherInner);
             }
         }
 
@@ -705,6 +707,7 @@ class BpTree {
                     frame->endIndex = data.elementCount-(pageCount-2)*frame->elementsPerPage;
                     frame->higherOuterReference = data.storage->aquirePage();
                     frame->lowerInnerReference = (pageCount == 2) ? frame->higherOuterReference : data.storage->aquirePage();
+                    // TODO: frame->higherInnerReference = data.storage->aquirePage();
                 }
             } else {
                 frame->higherOuterReference = 0;
@@ -736,14 +739,14 @@ class BpTree {
         if(frame->lowerInnerReference) {
             frame->reference = frame->lowerInnerReference;
             page = getPage<false>(storage, frame->reference);
-            frame->index = frame->shiftLowerInner;
+            frame->index = frame->lowerInnerIndex;
             frame->endIndex = (frame->lowerInnerReference == frame->higherOuterReference) ? frame->higherOuterEndIndex : frame->elementsPerPage;
             frame->lowerInnerReference = 0;
-        } else if(frame->higherOuterReference && frame->higherInnerReference && frame->pageCount == 2) {
+        } else if(frame->higherOuterReference && frame->higherInnerReference && frame->pageCount == 2) { // TODO
             frame->reference = frame->higherInnerReference;
             page = getPage<false>(storage, frame->reference);
             frame->index = 0;
-            frame->endIndex = frame->elementsPerPage;
+            frame->endIndex = frame->higherInnerEndIndex;
         } else if(frame->higherOuterReference && frame->pageCount == 1) {
             frame->reference = frame->higherOuterReference;
             page = getPage<false>(storage, frame->reference);
@@ -774,20 +777,21 @@ class BpTree {
             }
             Page *lowerOuter = getPage<false>(data.storage, frame->reference),
                  *lowerInner = getPage<false>(data.storage, frame->lowerInnerReference),
+                 *higherInner = getPage<false>(data.storage, frame->higherInnerReference),
                  *higherOuter = getPage<false>(data.storage, frame->higherOuterReference);
             Page::template insert3<isLeaf>(data.lowerInnerParent, data.higherOuterParent,
-                    lowerOuter, lowerInner, higherOuter, data.lowerInnerParentIndex-1, data.higherOuterParentIndex-1, frame);
+                    lowerOuter, lowerInner, higherInner, higherOuter, data.lowerInnerParentIndex-1, data.higherOuterParentIndex-1, frame);
             frame->higherInnerReference = 0;
             if(isLeaf) return;
             if(frame->index < frame->endIndex) {
                 data.lowerInnerParent = lowerOuter;
                 data.lowerInnerParentIndex = frame->index;
-            } else if(frame->shiftLowerInner > 0) {
+            } else if(frame->lowerInnerIndex > 0) {
                 data.lowerInnerParent = lowerInner;
-                data.lowerInnerParentIndex = frame->shiftLowerInner;
+                data.lowerInnerParentIndex = frame->lowerInnerIndex;
             }
             if(frame->higherOuterEndIndex == 0) {
-                assert(frame->shiftLowerInner == 0);
+                assert(frame->lowerInnerIndex == 0);
                 if(frame->pageCount == 1) {
                     data.higherOuterParent = lowerOuter;
                     data.higherOuterParentIndex = frame->endIndex-1;
@@ -795,9 +799,6 @@ class BpTree {
                     data.higherOuterParent = lowerInner;
                     data.higherOuterParentIndex = frame->elementsPerPage-1;
                 } else {
-                    frame->higherInnerReference = data.storage->aquirePage();
-                    Page* higherInner = getPage<false>(data.storage, frame->higherInnerReference);
-                    higherInner->count = frame->elementsPerPage;
                     data.higherOuterParent = higherInner;
                     data.higherOuterParentIndex = frame->elementsPerPage-1;
                 }
@@ -817,7 +818,7 @@ class BpTree {
         data.startLayer = (data.startLayer < 0) ? -data.startLayer : 0;
         auto iter = createIterator<false, InsertIteratorFrame>(data.startLayer );
         iter->copy(at);
-        LayerType layer, endLayer = data.layer = insertAux<InsertIteratorFrame>(data, iter, elementCount);
+        data.layer = data.startLayer = insertAux<InsertIteratorFrame>(data, iter, elementCount);
         while(data.layer < iter->end-1)
             insertSplitLayer<false>(data, iter);
         if(data.layer < iter->end)
@@ -830,11 +831,12 @@ class BpTree {
             aquireData(page, frame->index, frame->endIndex);
         while(frame->pageCount > 0) {
             page = insertAdvance<true>(storage, frame);
-            aquireData(page, frame->index, frame->endIndex);
+            if(frame->index < frame->endIndex)
+                aquireData(page, frame->index, frame->endIndex);
             bool setKey = true;
-            layer = iter->end-1;
+            LayerType layer = iter->end-1;
             ReferenceType childReference = frame->reference;
-            while(layer > endLayer) {
+            while(layer > data.startLayer) {
                 parentFrame = iter->fromBegin(--layer);
                 if(parentFrame->index < parentFrame->endIndex) {
                     parentPage = getPage<false>(storage, parentFrame->reference);
@@ -853,7 +855,7 @@ class BpTree {
                 }
             }
         }
-        for(layer = iter->end-2; layer > endLayer; --layer) {
+        for(LayerType layer = iter->end-2; layer > data.startLayer; --layer) {
             frame = iter->fromBegin(layer);
             if(frame->pageCount == 0)
                 continue;

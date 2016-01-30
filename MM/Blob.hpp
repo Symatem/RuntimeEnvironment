@@ -1,4 +1,24 @@
-#include "Definition.hpp"
+#include <iostream>
+#include <iomanip>
+#include <fstream>
+#include <sstream>
+#include <limits>
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <assert.h>
+#include <dirent.h>
+#include <math.h>
+#include <queue>
+#include <stack>
+#include <map>
+#include <set>
+
+typedef uint64_t ArchitectureType;
+const ArchitectureType ArchitectureSize = sizeof(ArchitectureType)*8;
+constexpr ArchitectureType architecturePadding(ArchitectureType bits) {
+    return (bits+ArchitectureSize-1)/ArchitectureSize*ArchitectureSize;
+}
+const char* HRLRawBegin = "raw:";
 
 template<typename type>
 struct BitMask {
