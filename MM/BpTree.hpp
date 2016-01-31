@@ -235,9 +235,11 @@ class BpTree {
                 shiftHigherInner = 0;
                 frame->lowerInnerIndex = (frame->index > lowerOuter->count) ? frame->index-lowerOuter->count : 0;
             }
-            frame->endIndex = lowerOuter->count-shiftHigherInner;
+            frame->endIndex = lowerOuter->count;
             frame->higherInnerEndIndex = higherInner->count-shiftHigherInner;
             frame->higherOuterEndIndex = higherOuter->count-shiftHigherOuter;
+            if(lowerOuter == higherInner)
+                frame->endIndex = frame->higherInnerEndIndex;
             if(isLeaf) {
                 copyLeafElements(lowerInner, lowerOuter, 0, lowerOuter->count, frame->lowerInnerIndex);
                 copyLeafElements(higherOuter, lowerOuter, frame->higherOuterEndIndex, frame->index+shiftHigherInner, shiftHigherOuter);
@@ -706,15 +708,27 @@ class BpTree {
                 } else {
                     frame->endIndex = data.elementCount-(pageCount-2)*frame->elementsPerPage;
                     frame->higherOuterReference = data.storage->aquirePage();
-                    frame->lowerInnerReference = (pageCount == 2) ? frame->higherOuterReference : data.storage->aquirePage();
-                    // TODO: frame->higherInnerReference = data.storage->aquirePage();
+                    switch(frame->pageCount) {
+                        case 1:
+                            frame->lowerInnerReference = frame->higherOuterReference;
+                            frame->higherInnerReference = frame->reference;
+                        break;
+                        case 2:
+                            frame->lowerInnerReference = data.storage->aquirePage();
+                            frame->higherInnerReference = frame->lowerInnerReference;
+                        break;
+                        default:
+                            frame->lowerInnerReference = data.storage->aquirePage();
+                            frame->higherInnerReference = data.storage->aquirePage();
+                        break;
+                    }
                 }
             } else {
                 frame->higherOuterReference = 0;
                 frame->reference = data.storage->aquirePage();
                 frame->index = (isLeaf) ? 0 : 1;
                 page = getPage<false>(data.storage, frame->reference);
-                page->template init<isLeaf>(data.elementCount-(pageCount-1)*frame->elementsPerPage, frame);
+                page->template init<isLeaf>(data.elementCount-frame->pageCount*frame->elementsPerPage, frame);
                 if(!isLeaf)
                     page->setReference(0, iter->fromBegin(data.layer+1)->reference);
             }
@@ -742,7 +756,7 @@ class BpTree {
             frame->index = frame->lowerInnerIndex;
             frame->endIndex = (frame->lowerInnerReference == frame->higherOuterReference) ? frame->higherOuterEndIndex : frame->elementsPerPage;
             frame->lowerInnerReference = 0;
-        } else if(frame->higherOuterReference && frame->higherInnerReference && frame->pageCount == 2) { // TODO
+        } else if(frame->higherOuterReference && frame->pageCount == 2) {
             frame->reference = frame->higherInnerReference;
             page = getPage<false>(storage, frame->reference);
             frame->index = 0;
@@ -781,8 +795,8 @@ class BpTree {
                  *higherOuter = getPage<false>(data.storage, frame->higherOuterReference);
             Page::template insert3<isLeaf>(data.lowerInnerParent, data.higherOuterParent,
                     lowerOuter, lowerInner, higherInner, higherOuter, data.lowerInnerParentIndex-1, data.higherOuterParentIndex-1, frame);
-            frame->higherInnerReference = 0;
-            if(isLeaf) return;
+            if(isLeaf)
+                return;
             if(frame->index < frame->endIndex) {
                 data.lowerInnerParent = lowerOuter;
                 data.lowerInnerParentIndex = frame->index;
@@ -792,15 +806,19 @@ class BpTree {
             }
             if(frame->higherOuterEndIndex == 0) {
                 assert(frame->lowerInnerIndex == 0);
-                if(frame->pageCount == 1) {
-                    data.higherOuterParent = lowerOuter;
-                    data.higherOuterParentIndex = frame->endIndex-1;
-                } else if(frame->pageCount == 2) {
-                    data.higherOuterParent = lowerInner;
-                    data.higherOuterParentIndex = frame->elementsPerPage-1;
-                } else {
-                    data.higherOuterParent = higherInner;
-                    data.higherOuterParentIndex = frame->elementsPerPage-1;
+                switch(frame->pageCount) {
+                    case 1:
+                        data.higherOuterParent = lowerOuter;
+                        data.higherOuterParentIndex = frame->endIndex-1;
+                    break;
+                    case 2:
+                        data.higherOuterParent = lowerInner;
+                        data.higherOuterParentIndex = frame->elementsPerPage-1;
+                    break;
+                    default:
+                        data.higherOuterParent = higherInner;
+                        data.higherOuterParentIndex = frame->higherInnerEndIndex-1;
+                    break;
                 }
             } else if(frame->higherOuterEndIndex > 1) {
                 data.higherOuterParent = higherOuter;
