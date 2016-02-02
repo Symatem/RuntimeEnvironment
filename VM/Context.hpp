@@ -1,4 +1,4 @@
-#include "../MM/BpTree.hpp"
+#include "../MM/Blob.hpp"
 
 typedef ArchitectureType Symbol;
 struct Exception {};
@@ -66,8 +66,7 @@ if(task.query(1, {Name##Symbol, PreDef_BlobType, expectedType}) == 0) \
         Name##Value = DefaultValue;
 
 
-
-class Context {
+class Context { // TODO: : public Storage {
     struct SearchIndexEntry {
         Blob blob;
         std::map<Symbol, std::set<Symbol>> subIndices[6];
