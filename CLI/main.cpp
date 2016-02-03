@@ -15,7 +15,7 @@ void loadFromPath(Symbol parentPackage, bool execute, std::string path) {
 
         auto slashIndex = path.rfind('/');
         std::string name = (slashIndex != std::string::npos) ? path.substr(slashIndex+1) : path;
-        Symbol package = task.symbolFor(name);
+        Symbol package = task.context->createFromData(name.c_str());
         if(parentPackage == PreDef_Void) parentPackage = package;
         task.link({package, PreDef_Holds, parentPackage});
 
@@ -34,7 +34,7 @@ void loadFromPath(Symbol parentPackage, bool execute, std::string path) {
             return;
         }
 
-        task.deserializationTask(task.symbolFor(file), parentPackage);
+        task.deserializationTask(task.context->createFromStream(file), parentPackage);
         if(task.uncaughtException()) {
             interfaceBuffer = "Exception occurred while deserializing file ";
             interfaceBuffer += path;

@@ -1,4 +1,4 @@
-#include "../MM/Blob.hpp"
+#include "../MM/BpTree.hpp"
 
 typedef ArchitectureType Symbol;
 struct Exception {};
@@ -49,27 +49,81 @@ const char* PreDefSymbols[] = {
 #define getSymbolByName(Name) \
     Symbol Name##Symbol = task.getGuaranteed(task.block, PreDef_##Name);
 
-#define getSymbolAndBlobByName(Name) \
+#define getSymbolObjectByName(Name) \
     getSymbolByName(Name) \
-    Blob* Name##Blob = task.context->getBlob(Name##Symbol);
+    auto Name##SymbolObject = task.context->getSymbolObject(Name##Symbol);
 
 #define checkBlobType(Name, expectedType) \
 if(task.query(1, {Name##Symbol, PreDef_BlobType, expectedType}) == 0) \
     task.throwException("Invalid Blob Type");
 
-#define getUncertainSymbolAndBlobByName(Name, DefaultValue) \
+#define getUncertainSymbolObjectByName(Name, DefaultValue) \
     Symbol Name##Symbol; ArchitectureType Name##Value; \
     if(task.getUncertain(task.block, PreDef_##Name, Name##Symbol)) { \
         checkBlobType(Name, PreDef_Natural) \
-        Name##Value = task.get<ArchitectureType>(task.context->getBlob(Name##Symbol)); \
+        Name##Value = task.accessBlobData<ArchitectureType>(task.context->getSymbolObject(Name##Symbol)); \
     } else \
         Name##Value = DefaultValue;
 
 
-class Context { // TODO: : public Storage {
-    struct SearchIndexEntry {
-        Blob blob;
+struct Context { // TODO: : public Storage {
+    struct SymbolObject {
+        ArchitectureType blobSize;
+        std::unique_ptr<ArchitectureType> blobData;
         std::map<Symbol, std::set<Symbol>> subIndices[6];
+
+        void allocate(ArchitectureType _size, ArchitectureType preserve = 0) {
+            if(blobSize == _size)
+                return;
+
+            ArchitectureType* _data;
+            if(_size) {
+                _data = new ArchitectureType[(_size+ArchitectureSize-1)/ArchitectureSize];
+                if(_size%ArchitectureSize > 0)
+                    _data[blobSize/ArchitectureSize] &= BitMask<ArchitectureType>::fillLSBs(_size%ArchitectureSize);
+            } else
+                _data = NULL;
+
+            ArchitectureType length = std::min(std::min(blobSize, _size), preserve);
+            if(length > 0)
+                bitwiseCopy<-1>(_data, blobData.get(), 0, 0, length);
+            blobSize = _size;
+            blobData.reset(_data);
+        }
+
+        void reallocate(ArchitectureType _size) {
+            allocate(_size, _size);
+        }
+
+        bool replacePartial(const SymbolObject& other, ArchitectureType length, ArchitectureType dstOffset, ArchitectureType srcOffset) {
+            auto end = dstOffset+length;
+            if(end <= dstOffset || end > blobSize)
+                return false;
+            end = srcOffset+length;
+            if(end <= srcOffset || end > other.blobSize)
+                return false;
+            bitwiseCopy(blobData.get(), other.blobData.get(), dstOffset, srcOffset, length);
+            return true;
+        }
+
+        template<typename DataType>
+        void overwrite(DataType data) {
+            allocate(sizeof(data)*8);
+            *reinterpret_cast<DataType*>(blobData.get()) = data;
+        }
+
+        void overwrite(const SymbolObject& original) {
+            allocate(original.blobSize);
+            replacePartial(original, original.blobSize, 0, 0);
+        }
+
+        int compareBlob(const SymbolObject& other) const {
+            if(blobSize < other.blobSize)
+                return -1;
+            if(blobSize > other.blobSize)
+                return 1;
+            return memcmp(blobData.get(), other.blobData.get(), (blobSize+7)/8);
+        }
 
         bool link(bool reverseIndex, ArchitectureType index, Symbol beta, Symbol gamma) {
             auto& forward = subIndices[index];
@@ -79,7 +133,8 @@ class Context { // TODO: : public Storage {
                 forward.insert(std::make_pair(beta, std::set<Symbol>{gamma}));
             else if(outerIter->second.find(gamma) == outerIter->second.end())
                 outerIter->second.insert(gamma);
-            else return false;
+            else
+                return false;
 
             if(reverseIndex) {
                 auto& reverse = subIndices[index+3];
@@ -96,9 +151,11 @@ class Context { // TODO: : public Storage {
         bool unlink(bool reverseIndex, ArchitectureType index, Symbol beta, Symbol gamma) {
             auto& forward = subIndices[index];
             auto outerIter = forward.find(beta);
-            if(outerIter == forward.end()) return false;
+            if(outerIter == forward.end())
+                return false;
             auto innerIter = outerIter->second.find(gamma);
-            if(innerIter == outerIter->second.end()) return false;
+            if(innerIter == outerIter->second.end())
+                return false;
             outerIter->second.erase(innerIter);
             if(outerIter->second.empty())
                 forward.erase(outerIter);
@@ -116,25 +173,29 @@ class Context { // TODO: : public Storage {
         };
     };
 
-    struct BlobIndexCompare {
-        bool operator()(const Blob* a, const Blob* b) const {
-            return a->compare(*b) < 0;
-        }
-    };
-
-    public:
     enum IndexMode {
         MonoIndex = 1,
         TriIndex = 3,
         HexaIndex = 6
     } indexMode;
     Symbol nextSymbol;
-    typedef std::map<Symbol, std::unique_ptr<SearchIndexEntry>>::iterator TopIter;
-    std::map<Symbol, std::unique_ptr<SearchIndexEntry>> topIndex;
-    std::map<Blob*, Symbol, BlobIndexCompare> textIndex;
+    typedef std::map<Symbol, std::unique_ptr<SymbolObject>>::iterator TopIter;
+    std::map<Symbol, std::unique_ptr<SymbolObject>> topIndex;
+    struct BlobIndexCompare {
+        bool operator()(const SymbolObject* a, const SymbolObject* b) const {
+            return a->compareBlob(*b) < 0;
+        }
+    };
+    std::map<SymbolObject*, Symbol, BlobIndexCompare> textIndex;
+
+    SymbolObject* getSymbolObject(Symbol symbol) {
+        auto topIter = topIndex.find(symbol);
+        assert(topIter != topIndex.end());
+        return topIter->second.get();
+    }
 
     TopIter SymbolFactory(Symbol symbol) {
-        return topIndex.insert(std::make_pair(symbol, std::unique_ptr<SearchIndexEntry>(new SearchIndexEntry()))).first;
+        return topIndex.insert(std::make_pair(symbol, std::unique_ptr<SymbolObject>(new SymbolObject()))).first;
     }
 
     bool link(Triple triple) {
@@ -147,11 +208,12 @@ class Context { // TODO: : public Storage {
             if(!topIter->second->link(reverseIndex, i, triple.pos[(i+1)%3], triple.pos[(i+2)%3]))
                 return false;
         }
+        /* TODO: Blob merge index
         if(triple.pos[1] == PreDef_BlobType && triple.pos[2] == PreDef_Text) {
-            Blob* blob = getBlob(triple.pos[0]);
-            if(blob->size > 0)
-                textIndex.insert(std::make_pair(blob, triple.pos[0]));
-        }
+            SymbolObject* symbolObject = getSymbolObject(triple.pos[0]);
+            if(symbolObject->blobSize > 0)
+                textIndex.insert(std::make_pair(symbolObject, triple.pos[0]));
+        }*/
         return true;
     }
 
@@ -163,16 +225,18 @@ class Context { // TODO: : public Storage {
         for(auto& triple : triples)
             for(ArchitectureType i = 0; i < indexCount; ++i) {
                 dirty.insert(triple.pos[i]);
-                if(skip && skipSymbols.find(triple.pos[i]) != skipSymbols.end()) continue;
+                if(skip && skipSymbols.find(triple.pos[i]) != skipSymbols.end())
+                    continue;
                 auto topIter = topIndex.find(triple.pos[i]);
                 if(topIter == topIndex.end() ||
                    !topIter->second->unlink(reverseIndex, i, triple.pos[(i+1)%3], triple.pos[(i+2)%3]))
                     return false;
+                /* TODO: Blob merge index
                 if(triple.pos[1] == PreDef_BlobType && triple.pos[2] == PreDef_Text) {
-                    Blob* blob = getBlob(triple.pos[0]);
-                    if(blob->size > 0)
-                        textIndex.erase(blob);
-                }
+                    SymbolObject* symbolObject = getSymbolObject(triple.pos[0]);
+                    if(symbolObject->blobSize > 0)
+                        textIndex.erase(symbolObject);
+                }*/
             }
         for(auto alpha : dirty) {
             auto topIter = topIndex.find(alpha);
@@ -196,39 +260,58 @@ class Context { // TODO: : public Storage {
         return symbol;
     }
 
-    Blob* getBlob(Symbol symbol) {
-        return &topIndex.find(symbol)->second->blob;
+    // TODO: Remove useage of C++ StdLib
+    Symbol createFromStream(std::istream& stream) {
+        stream.seekg(0, std::ios::end);
+        ArchitectureType len = stream.tellg();
+        stream.seekg(0, std::ios::beg);
+        Symbol symbol = create({{PreDef_BlobType, PreDef_Text}});
+        SymbolObject* symbolObject = getSymbolObject(symbol);
+        symbolObject->allocate(len*8);
+        stream.read(reinterpret_cast<char*>(symbolObject->blobData.get()), len);
+        return symbol;
     }
 
-    template<Symbol type>
-    Symbol symbolFor(Blob&& blob) {
-        if(type == PreDef_Text) {
-            auto iter = textIndex.find(&blob);
-            if(iter != textIndex.end())
-                return iter->second;
-        }
+    Symbol createFromData(const char* src) {
+        ArchitectureType len = 0;
+        while(src[len])
+            ++len;
+        Symbol symbol = create({{PreDef_BlobType, PreDef_Text}});
+        SymbolObject* symbolObject = getSymbolObject(symbol);
+        symbolObject->allocate(len*8);
+        auto dst = reinterpret_cast<uint8_t*>(symbolObject->blobData.get());
+        for(ArchitectureType i = 0; i < len; ++i)
+            dst[i] = src[i];
+        return symbol;
+    }
 
-        Symbol symbol = nextSymbol++;
-        auto pair = std::make_pair(&SymbolFactory(symbol)->second->blob, symbol);
-        *pair.first = std::move(blob);
-        if(type != PreDef_Void)
-            link({pair.second, PreDef_BlobType, type});
+    template<typename DataType>
+    Symbol createFromData(DataType src) {
+        Symbol blobType;
+        if(typeid(DataType) == typeid(uint64_t))
+            blobType = PreDef_Natural;
+        else if(typeid(DataType) == typeid(int64_t))
+            blobType = PreDef_Integer;
+        else if(typeid(DataType) == typeid(double))
+            blobType = PreDef_Float;
+        else
+            abort();
+        Symbol symbol = create({{PreDef_BlobType, blobType}});
+        getSymbolObject(symbol)->overwrite(src);
+        return symbol;
+    }
+
+    Symbol mergeBlob(Symbol type, Symbol symbol) {
+        // TODO: Blob merge index
 
         return symbol;
     }
 
-    template<Symbol type, typename T>
-    Symbol symbolFor(T value) {
-        Blob blob;
-        blob.overwrite(value);
-        return symbolFor<type>(std::move(blob));
-    }
-
     Context() :nextSymbol(0), indexMode(HexaIndex) {
         while(nextSymbol < sizeof(PreDefSymbols)/sizeof(void*))
-            link({PreDef_RunTimeEnvironment, PreDef_Holds, symbolFor<PreDef_Text>(PreDefSymbols[nextSymbol])});
+            link({PreDef_RunTimeEnvironment, PreDef_Holds, createFromData(PreDefSymbols[nextSymbol])});
 
-        Symbol ArchitectureSizeSymbol = symbolFor<PreDef_Natural>(ArchitectureSize);
+        Symbol ArchitectureSizeSymbol = createFromData(ArchitectureSize);
         link({PreDef_RunTimeEnvironment, PreDef_Holds, ArchitectureSizeSymbol});
         link({PreDef_RunTimeEnvironment, PreDef_ArchitectureSize, ArchitectureSizeSymbol});
     }
@@ -239,9 +322,11 @@ class Context { // TODO: : public Storage {
         if(topIter == topIndex.end()) abort();
         auto& subIndex = topIter->second->subIndices[0];
         auto betaIter = subIndex.find(triple.pos[1]);
-        if(betaIter == subIndex.end()) return 0;
+        if(betaIter == subIndex.end())
+            return 0;
         auto gammaIter = betaIter->second.find(triple.pos[2]);
-        if(gammaIter == betaIter->second.end()) return 0;
+        if(gammaIter == betaIter->second.end())
+            return 0;
         if(callback) callback();
         return 1;
     }
@@ -251,7 +336,8 @@ class Context { // TODO: : public Storage {
         assert(topIter != topIndex.end());
         auto& subIndex = topIter->second->subIndices[index];
         auto betaIter = subIndex.find(triple.pos[1]);
-        if(betaIter == subIndex.end()) return 0;
+        if(betaIter == subIndex.end())
+            return 0;
         if(callback)
             for(auto gamma : betaIter->second) {
                 triple.pos[2] = gamma;

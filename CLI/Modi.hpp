@@ -18,7 +18,7 @@
     topIter = context.topIndex.find(history[historyTop]);
 
 #define historyTop2() \
-    auto& subIndex = topIter->second->subIndices[history[historyTop+1]-1]; \
+    auto& subIndex = symbolObject->subIndices[history[historyTop+1]-1]; \
     auto subIter = subIndex.find(history[historyTop+2]); \
     if(subIter == subIndex.end()) { \
         history.pop_back(); \
@@ -56,7 +56,7 @@ void render() {
         history.push_back(task.task);
         return;
     }
-    blob = &topIter->second->blob;
+    symbolObject = topIter->second.get();
 
     std::cout << "Stats: ";
     std::cout << context.topIndex.size();
@@ -66,7 +66,7 @@ void render() {
     stream << "History: ";
     if(history.size() > 4)
         for(ArchitectureType i = historyTop-4; true; i -= 4) {
-            task.serializeBlob(stream, history[i]);
+            serializeBlob(task, stream, history[i]);
             if(i > 0)
                 stream << " / ";
             else
@@ -75,19 +75,19 @@ void render() {
     printStreamLimited();
 
     stream << history[historyTop] << ": ";
-    task.serializeBlob(stream, history[historyTop]);
+    serializeBlob(task, stream, history[historyTop]);
     printStreamLimited(historySub == 0);
 
-    stream << "Blob " << blob->size;
+    stream << "Blob " << symbolObject->blobSize;
     printStreamLimited(historySub == 1 && history[historyTop+1] == 0, 2);
     if(historySub == 2 && history[historyTop+1] == 0) {
-        task.serializeBlob(stream, history[historyTop]);
+        serializeBlob(task, stream, history[historyTop]);
         linesLeft -= printStreamLimited(1, 4, linesLeft, history[historyTop+2]);
     }
 
     const char* indexName[] = { "EAV", "AVE", "VEA", "EVA", "AEV", "VAE" };
     for(ArchitectureType i = 0; i < context.indexMode; ++i) {
-        auto& subIndex = topIter->second->subIndices[i];
+        auto& subIndex = symbolObject->subIndices[i];
         stream << indexName[i] << " " << subIndex.size();
         printStreamLimited(historySub == 1 && i+1 == history[historyTop+1], 2);
         if(historySub < 2 || i+1 != history[historyTop+1]) continue;
@@ -97,14 +97,14 @@ void render() {
             maxSize = (size <= maxSize-3) ? maxSize-size : 3;
         }
         clippedForEachInContainer(j, subIndex, history[historyTop+2]) {
-            task.serializeBlob(stream, j->first);
+            serializeBlob(task, stream, j->first);
             stream << " " << j->second.size();
             printStreamLimited(historySub == 2 && j->first == history[historyTop+2], 4);
             if(historySub < 3 || j->first != history[historyTop+2]) continue;
             maxSize = linesLeft;
             auto& set = subIndex.find(j->first)->second;
             clippedForEachInContainer(k, set, history[historyTop+3]) {
-                task.serializeBlob(stream, *k);
+                serializeBlob(task, stream, *k);
                 printStreamLimited(historySub == 3 && *k == history[historyTop+3], 6);
             }
         }
@@ -246,7 +246,7 @@ uint64_t ModeBrowse(bool special, uint64_t size, const char* buffer) {
                 break;
                 case 2: {
                     if(history[historyTop+1] == 0) {
-                        task.serializeBlob(stream, history[historyTop]);
+                        serializeBlob(task, stream, history[historyTop]);
                         auto lines = printStreamLimited(2, 0, 0, 0);
                         if(lines > linesForBlob && *history.rbegin() < lines-linesForBlob)
                             *history.rbegin() += 1;
@@ -270,10 +270,10 @@ uint64_t ModeBrowse(bool special, uint64_t size, const char* buffer) {
                 break;
                 case 1: {
                     if(history[historyTop+1] == 0) {
-                        if(blob->size > 0)
+                        if(symbolObject->blobSize > 0)
                             history.push_back(0);
                     } else {
-                        auto& subIndex = topIter->second->subIndices[history[historyTop+1]-1];
+                        auto& subIndex = symbolObject->subIndices[history[historyTop+1]-1];
                         if(subIndex.size() > 0)
                             history.push_back(subIndex.begin()->first);
                     }
@@ -325,7 +325,7 @@ uint64_t ModeInput(bool special, uint64_t size, const char* buffer) {
                 history.clear();
                 history.push_back(task.task);
                 if(interfaceBuffer.empty()) break;
-                task.deserializationTask(task.Task::symbolFor(interfaceBuffer));
+                task.deserializationTask(task.context->createFromData(interfaceBuffer.c_str()));
                 history[0] = task.task;
                 if(task.uncaughtException()) {
                     interfaceBuffer = "Exception occurred while deserializing input";

@@ -5,10 +5,10 @@ struct Task {
     Symbol task, status, frame, block;
 
     template <typename T>
-    T& get(Blob* blob) {
-        if(blob->size != sizeof(T)*8)
+    T& accessBlobData(Context::SymbolObject* symbolObject) {
+        if(symbolObject->blobSize != sizeof(T)*8)
             throwException("Invalid Blob Size");
-        return *reinterpret_cast<T*>(blob->data.get());
+        return *reinterpret_cast<T*>(symbolObject->blobData.get());
     }
 
     ArchitectureType query(ArchitectureType mode, Triple triple, std::function<void(Triple, ArchitectureType)> callback = nullptr) {
@@ -119,10 +119,6 @@ struct Task {
         auto topIter = context->topIndex.find(alpha);
         if(topIter == context->topIndex.end())
             throwException("Already destroyed");
-        if(topIter->second->blob.size > 0) {
-            Symbol type = PreDef_Void;
-            getUncertain(alpha, PreDef_BlobType, type);
-        }
         for(ArchitectureType i = EAV; i <= VEA; ++i)
             for(auto& beta : topIter->second->subIndices[i])
                 for(auto gamma : beta.second)
@@ -177,115 +173,15 @@ struct Task {
         return value;
     }
 
-    Symbol symbolFor(uint64_t value) {
-        return context->symbolFor<PreDef_Natural>(value);
-    }
-
-    Symbol symbolFor(int64_t value) {
-        return context->symbolFor<PreDef_Integer>(value);
-    }
-
-    Symbol symbolFor(double value) {
-        return context->symbolFor<PreDef_Float>(value);
-    }
-
-    Symbol symbolFor(const char* value) {
-        return context->symbolFor<PreDef_Text>(value);
-    }
-
-    Symbol symbolFor(const std::string& value) {
-        return context->symbolFor<PreDef_Text>(value.c_str());
-    }
-
-    Symbol symbolFor(std::istream& stream) {
-        Blob blob;
-        blob.overwrite(stream);
-        return context->symbolFor<PreDef_Text>(std::move(blob));
-    }
-
-    void updateBlobIndexFor(Symbol entity, Blob* blob) {
-        if(blob->size == 0) return;
+    void updateBlobIndexFor(Symbol entity) {
+        /* TODO: Blob merge index
+        Context::SymbolObject* symbolObject = context->getSymbolObject(entity);
+        if(symbolObject->blobSize == 0) return;
         Symbol type = PreDef_Void;
         if(getUncertain(entity, PreDef_BlobType, type) && type == PreDef_Text) {
-            context->textIndex.erase(blob);
-            context->textIndex.insert(std::make_pair(blob, entity));
-        }
-    }
-
-    void serializeBlob(std::ostream& stream, Symbol entity) {
-        auto topIter = context->topIndex.find(entity);
-        assert(topIter != context->topIndex.end());
-        Blob* blob = &topIter->second->blob;
-        if(blob->size) {
-            Symbol type = PreDef_Void;
-            getUncertain(entity, PreDef_BlobType, type);
-            switch(type) {
-                case PreDef_Text: {
-                    std::string str((const char*)blob->data.get(), (blob->size+7)/8);
-                    if(std::find_if(str.begin(), str.end(), ::isspace) == str.end())
-                        stream << str;
-                    else
-                        stream << '"' << str << '"';
-                } break;
-                case PreDef_Natural:
-                    stream << get<uint64_t>(blob);
-                break;
-                case PreDef_Integer:
-                    stream << get<int64_t>(blob);
-                break;
-                case PreDef_Float:
-                    stream << get<double>(blob);
-                break;
-                default:
-                    blob->serializeRaw(stream);
-                break;
-            }
-        } else
-            stream << "#" << topIter->first;
-    }
-
-    void serializeEntity(std::ostream& stream, Symbol entity, std::function<Symbol(Symbol)> followCallback = nullptr) {
-        Symbol followAttribute;
-        while(true) {
-            auto topIter = context->topIndex.find(entity);
-            assert(topIter != context->topIndex.end());
-
-            if(followCallback)
-                followAttribute = followCallback(entity);
-
-            stream << "(\n    ";
-            serializeBlob(stream, entity);
-            stream << ";\n";
-
-            std::set<Symbol>* lastAttribute = nullptr;
-            for(auto& j : topIter->second->subIndices[EAV]) {
-                if(followCallback && j.first == followAttribute) {
-                    lastAttribute = &j.second;
-                    continue;
-                }
-                stream << "    ";
-                serializeBlob(stream, j.first);
-                for(auto& k : j.second) {
-                    stream << " ";
-                    serializeBlob(stream, k);
-                }
-                stream << ";" << std::endl;
-            }
-            if(!followCallback || !lastAttribute) {
-                stream << ")";
-                return;
-            }
-
-            stream << "    ";
-            serializeBlob(stream, followAttribute);
-            for(auto iter = lastAttribute->begin(); iter != --lastAttribute->end(); ++iter) {
-                stream << " ";
-                serializeBlob(stream, *iter);
-            }
-            entity = *lastAttribute->rbegin();
-            stream << std::endl;
-            stream << ") ";
-        }
+            context->textIndex.erase(symbolObject);
+            context->textIndex.insert(std::make_pair(symbolObject, entity));
+        }*/
     }
 
     void setStatus(Symbol _status) {
@@ -313,7 +209,7 @@ struct Task {
 
     void throwException(const char* message, std::set<std::pair<Symbol, Symbol>> links = {}) {
         assert(task != PreDef_Void && frame != PreDef_Void);
-        links.insert(std::make_pair(PreDef_Message, symbolFor(message)));
+        links.insert(std::make_pair(PreDef_Message, context->createFromData(message)));
         Symbol parentFrame = frame;
         block = context->create(links);
         setFrame<true, false>(context->create({

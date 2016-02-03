@@ -1,15 +1,17 @@
 #include "Task.hpp"
 
+const char* HRLRawBegin = "raw:";
+
 class Deserialize {
     Task& task;
     uint64_t row, column;
-    std::string token;
+    std::string token; // TODO: Remove useage of C++ StdLib
     Symbol package;
 
     void throwException(const char* message) {
         task.throwException(message, {
-            {PreDef_Row, task.symbolFor(row)},
-            {PreDef_Column, task.symbolFor(column)}
+            {PreDef_Row, task.context->createFromData(row)},
+            {PreDef_Column, task.context->createFromData(column)}
         });
     }
 
@@ -47,7 +49,7 @@ class Deserialize {
 
         Symbol symbol;
         if(isText)
-            symbol = task.symbolFor(token);
+            symbol = task.context->createFromData(token.c_str());
         else if(token[0] == '#') {
             auto iter = locals.find(token);
             if(iter == locals.end()) {
@@ -59,11 +61,14 @@ class Deserialize {
             ArchitectureType nibbleCount = token.size()-strlen(HRLRawBegin);
             if(nibbleCount == 0)
                 throwException("Empty raw data");
-            Blob blob;
-            blob.allocate(nibbleCount*4);
-            uint8_t *dst = reinterpret_cast<uint8_t*>(blob.data.get()), odd = 0, nibble;
+
+            symbol = task.context->create({{PreDef_BlobType, PreDef_Text}});
+            Context::SymbolObject* symbolObject = task.context->getSymbolObject(symbol);
+            symbolObject->allocate(nibbleCount*4);
+            uint8_t *dst = reinterpret_cast<uint8_t*>(symbolObject->blobData.get()), odd = 0, nibble;
             const uint8_t *src = reinterpret_cast<const uint8_t*>(token.c_str())+strlen(HRLRawBegin),
                           *end = src+nibbleCount;
+
             while(src < end) {
                 if(*src >= '0' && *src <= '9')
                     nibble = *src-'0';
@@ -80,19 +85,18 @@ class Deserialize {
                 }
                 ++src;
             }
-            symbol = task.context->symbolFor<PreDef_Void>(std::move(blob));
         } else {
             uint64_t uintValue;
             int64_t intValue;
             double floatValue;
             if(parseNumericToken(uintValue))
-                symbol = task.symbolFor(uintValue);
+                symbol = task.context->createFromData(uintValue);
             else if(parseNumericToken(intValue))
-                symbol = task.symbolFor(intValue);
+                symbol = task.context->createFromData(intValue);
             else if(parseNumericToken(floatValue))
-                symbol = task.symbolFor(floatValue);
+                symbol = task.context->createFromData(floatValue);
             else
-                symbol = task.symbolFor(token);
+                symbol = task.context->createFromData(token.c_str());
         }
 
         task.context->link({package, PreDef_Holds, symbol});
@@ -156,9 +160,10 @@ class Deserialize {
         stack.push_back(std::unique_ptr<StackEntry>(currentEntry));
 
         package = task.getGuaranteed(task.block, PreDef_Package);
-        getSymbolAndBlobByName(Input)
+        getSymbolObjectByName(Input)
         checkBlobType(Input, PreDef_Text)
-        const char *pos = reinterpret_cast<const char*>(InputBlob->data.get()), *end = pos+InputBlob->size/8;
+        const char *pos = reinterpret_cast<const char*>(InputSymbolObject->blobData.get()),
+                   *end = pos+InputSymbolObject->blobSize/8;
         while(pos < end) {
             if(std::isspace(*pos)) {
                 parseToken(currentEntry);

@@ -19,7 +19,20 @@ ArchitectureType historyTop, historySub, linesForBlob;
 Context context;
 struct Task task = {&context, PreDef_Void};
 decltype(context.topIndex)::iterator topIter;
-Blob* blob;
+Context::SymbolObject* symbolObject;
+
+bool stringEndsWith(std::string const& value, std::string const& ending) {
+    if(ending.size() > value.size()) return false;
+    return std::equal(ending.rbegin(), ending.rend(), value.rbegin());
+}
+
+void replaceAllInString(std::string& str, const std::string& oldStr, const std::string& newStr) {
+    auto pos = str.find(oldStr, 0);
+    while(pos != std::string::npos) {
+         str.replace(pos, oldStr.length(), newStr);
+        pos = str.find(oldStr, pos+newStr.length());
+    }
+}
 
 void pollKeyboard(std::function<uint64_t(bool, uint64_t, const char*)> callback) {
     fd_set readset;
@@ -78,14 +91,6 @@ void init() {
     setCursorHidden(true);
 }
 
-void replaceAllInString(std::string& str, const std::string& oldStr, const std::string& newStr) {
-    auto pos = str.find(oldStr, 0);
-    while(pos != std::string::npos) {
-         str.replace(pos, oldStr.length(), newStr);
-        pos = str.find(oldStr, pos+newStr.length());
-    }
-}
-
 ArchitectureType printStreamLimited(ArchitectureType mode = 0,
                                     ArchitectureType leadingSpace = 0,
                                     ArchitectureType maxLines = 1,
@@ -121,7 +126,11 @@ ArchitectureType printStreamLimited(ArchitectureType mode = 0,
     return row;
 }
 
-bool stringEndsWith(std::string const& value, std::string const& ending) {
-    if(ending.size() > value.size()) return false;
-    return std::equal(ending.rbegin(), ending.rend(), value.rbegin());
+void serializeBlob(Task& task, std::ostream& stream, Symbol symbol) {
+    Serialize serialize(task);
+    serialize.serializeBlob(symbol);
+    symbol = serialize.getResult();
+    Context::SymbolObject* symbolObject = task.context->getSymbolObject(symbol);
+    stream.write(reinterpret_cast<const char*>(symbolObject->blobData.get()), symbolObject->blobSize/8);
+    task.destroy(symbol);
 }
