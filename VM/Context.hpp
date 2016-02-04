@@ -72,49 +72,47 @@ struct Context { // TODO: : public Storage {
         std::unique_ptr<ArchitectureType> blobData;
         std::map<Symbol, std::set<Symbol>> subIndices[6];
 
-        void allocate(ArchitectureType _size, ArchitectureType preserve = 0) {
-            if(blobSize == _size)
+        void allocateBlob(ArchitectureType size, ArchitectureType preserve = 0) {
+            if(blobSize == size)
                 return;
-
-            ArchitectureType* _data;
-            if(_size) {
-                _data = new ArchitectureType[(_size+ArchitectureSize-1)/ArchitectureSize];
-                if(_size%ArchitectureSize > 0)
-                    _data[blobSize/ArchitectureSize] &= BitMask<ArchitectureType>::fillLSBs(_size%ArchitectureSize);
+            ArchitectureType* data;
+            if(size) {
+                data = new ArchitectureType[(size+ArchitectureSize-1)/ArchitectureSize];
+                if(size%ArchitectureSize > 0)
+                    data[blobSize/ArchitectureSize] &= BitMask<ArchitectureType>::fillLSBs(size%ArchitectureSize);
             } else
-                _data = NULL;
-
-            ArchitectureType length = std::min(std::min(blobSize, _size), preserve);
+                data = NULL;
+            ArchitectureType length = std::min(std::min(blobSize, size), preserve);
             if(length > 0)
-                bitwiseCopy<-1>(_data, blobData.get(), 0, 0, length);
-            blobSize = _size;
-            blobData.reset(_data);
+                bitwiseCopy<-1>(data, blobData.get(), 0, 0, length);
+            blobSize = size;
+            blobData.reset(data);
         }
 
-        void reallocate(ArchitectureType _size) {
-            allocate(_size, _size);
+        void reallocateBlob(ArchitectureType _size) {
+            allocateBlob(_size, _size);
         }
 
-        bool replacePartial(const SymbolObject& other, ArchitectureType length, ArchitectureType dstOffset, ArchitectureType srcOffset) {
+        bool overwriteBlobPartial(const SymbolObject& src, ArchitectureType length, ArchitectureType dstOffset, ArchitectureType srcOffset) {
             auto end = dstOffset+length;
             if(end <= dstOffset || end > blobSize)
                 return false;
             end = srcOffset+length;
-            if(end <= srcOffset || end > other.blobSize)
+            if(end <= srcOffset || end > src.blobSize)
                 return false;
-            bitwiseCopy(blobData.get(), other.blobData.get(), dstOffset, srcOffset, length);
+            bitwiseCopy(blobData.get(), src.blobData.get(), dstOffset, srcOffset, length);
             return true;
         }
 
-        template<typename DataType>
-        void overwrite(DataType data) {
-            allocate(sizeof(data)*8);
-            *reinterpret_cast<DataType*>(blobData.get()) = data;
+        void overwriteBlob(const SymbolObject& src) {
+            allocateBlob(src.blobSize);
+            overwriteBlobPartial(src, src.blobSize, 0, 0);
         }
 
-        void overwrite(const SymbolObject& original) {
-            allocate(original.blobSize);
-            replacePartial(original, original.blobSize, 0, 0);
+        template<typename DataType>
+        void overwriteBlob(DataType src) {
+            allocateBlob(sizeof(src)*8);
+            *reinterpret_cast<DataType*>(blobData.get()) = src;
         }
 
         int compareBlob(const SymbolObject& other) const {
@@ -186,12 +184,20 @@ struct Context { // TODO: : public Storage {
             return a->compareBlob(*b) < 0;
         }
     };
-    std::map<SymbolObject*, Symbol, BlobIndexCompare> textIndex;
+    std::map<SymbolObject*, Symbol, BlobIndexCompare> blobIndex;
 
     SymbolObject* getSymbolObject(Symbol symbol) {
         auto topIter = topIndex.find(symbol);
         assert(topIter != topIndex.end());
         return topIter->second.get();
+    }
+
+    bool unindexBlob(Symbol symbol) {
+        auto iter = blobIndex.find(getSymbolObject(symbol));
+        if(iter == blobIndex.end())
+            return false;
+        blobIndex.erase(iter);
+        return true;
     }
 
     TopIter SymbolFactory(Symbol symbol) {
@@ -208,12 +214,6 @@ struct Context { // TODO: : public Storage {
             if(!topIter->second->link(reverseIndex, i, triple.pos[(i+1)%3], triple.pos[(i+2)%3]))
                 return false;
         }
-        /* TODO: Blob merge index
-        if(triple.pos[1] == PreDef_BlobType && triple.pos[2] == PreDef_Text) {
-            SymbolObject* symbolObject = getSymbolObject(triple.pos[0]);
-            if(symbolObject->blobSize > 0)
-                textIndex.insert(std::make_pair(symbolObject, triple.pos[0]));
-        }*/
         return true;
     }
 
@@ -231,12 +231,8 @@ struct Context { // TODO: : public Storage {
                 if(topIter == topIndex.end() ||
                    !topIter->second->unlink(reverseIndex, i, triple.pos[(i+1)%3], triple.pos[(i+2)%3]))
                     return false;
-                /* TODO: Blob merge index
-                if(triple.pos[1] == PreDef_BlobType && triple.pos[2] == PreDef_Text) {
-                    SymbolObject* symbolObject = getSymbolObject(triple.pos[0]);
-                    if(symbolObject->blobSize > 0)
-                        textIndex.erase(symbolObject);
-                }*/
+                if(triple.pos[1] == PreDef_BlobType)
+                    unindexBlob(triple.pos[0]);
             }
         for(auto alpha : dirty) {
             auto topIter = topIndex.find(alpha);
@@ -267,7 +263,7 @@ struct Context { // TODO: : public Storage {
         stream.seekg(0, std::ios::beg);
         Symbol symbol = create({{PreDef_BlobType, PreDef_Text}});
         SymbolObject* symbolObject = getSymbolObject(symbol);
-        symbolObject->allocate(len*8);
+        symbolObject->allocateBlob(len*8);
         stream.read(reinterpret_cast<char*>(symbolObject->blobData.get()), len);
         return symbol;
     }
@@ -278,7 +274,7 @@ struct Context { // TODO: : public Storage {
             ++len;
         Symbol symbol = create({{PreDef_BlobType, PreDef_Text}});
         SymbolObject* symbolObject = getSymbolObject(symbol);
-        symbolObject->allocate(len*8);
+        symbolObject->allocateBlob(len*8);
         auto dst = reinterpret_cast<uint8_t*>(symbolObject->blobData.get());
         for(ArchitectureType i = 0; i < len; ++i)
             dst[i] = src[i];
@@ -297,13 +293,7 @@ struct Context { // TODO: : public Storage {
         else
             abort();
         Symbol symbol = create({{PreDef_BlobType, blobType}});
-        getSymbolObject(symbol)->overwrite(src);
-        return symbol;
-    }
-
-    Symbol mergeBlob(Symbol type, Symbol symbol) {
-        // TODO: Blob merge index
-
+        getSymbolObject(symbol)->overwriteBlob(src);
         return symbol;
     }
 

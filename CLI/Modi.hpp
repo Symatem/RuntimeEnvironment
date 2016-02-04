@@ -114,10 +114,10 @@ void render() {
     switch(mode) {
         case Mode_Browse:
             stream << interfaceBuffer;
-        break;
+            break;
         case Mode_Input:
             stream << "> " << interfaceBuffer;
-        break;
+            break;
     }
     printStreamLimited();
 
@@ -133,60 +133,60 @@ uint64_t ModeBrowse(bool special, uint64_t size, const char* buffer) {
         switch(*buffer) {
             case 'A':
                 com = Up;
-            break;
+                break;
             case 'B':
                 com = Down;
-            break;
+                break;
             case 'C':
                 com = Right;
-            break;
+                break;
             case 'D':
                 com = Left;
-            break;
+                break;
             default:
-            return 1;
+                return 1;
         }
     } else {
         switch(*buffer) {
             case 'a':
                 task.clear();
-            return 1;
+                return 1;
             case 'n':
                 task.executeFinite(1);
                 if(!task.uncaughtException())
                     return 1;
-            break;
+                break;
             case 'c':
                 task.executeInfinite();
                 if(!task.uncaughtException())
                     return 1;
-            break;
+                break;
             case 'h':
                 com = Left;
-            break;
+                break;
             case 'j':
                 com = Down;
-            break;
+                break;
             case 'k':
                 com = Up;
-            break;
+                break;
             case 'l':
                 com = Right;
-            break;
+                break;
             case ' ':
                 mode = Mode_Input;
                 interfaceBuffer.clear();
                 setCursorHidden(false);
-            return 1;
+                return 1;
             case 27:
                 clearScreen();
                 terminate();
-            return 1;
+                return 1;
             case 9:
                 switch(historySub) {
                     case 0:
                     case 1:
-                    return 1;
+                        return 1;
                     case 2: {
                         if(history[historyTop+1] == 0) return 1;
                         historyTop2()
@@ -196,14 +196,14 @@ uint64_t ModeBrowse(bool special, uint64_t size, const char* buffer) {
                         if(history.size() > historyLimit*4)
                             history.erase(history.begin(), history.begin()+4);
                         history.push_back(history[historyTop+2]);
-                    } return 1;
+                    }   return 1;
                     case 3:
                         com = Right;
-                    break;
+                        break;
                 }
-            break;
+                break;
             default:
-            return 1;
+                return 1;
         }
     }
 
@@ -213,10 +213,10 @@ uint64_t ModeBrowse(bool special, uint64_t size, const char* buffer) {
                 case 0:
                     if(topIter != context.topIndex.begin())
                         history[historyTop] = (--topIter)->first;
-                break;
+                    break;
                 case 1:
                     if(*history.rbegin() > 0) *history.rbegin() -= 1;
-                break;
+                    break;
                 case 2: {
                     if(history[historyTop+1] == 0) {
                         if(*history.rbegin() > 0) *history.rbegin() -= 1;
@@ -225,25 +225,25 @@ uint64_t ModeBrowse(bool special, uint64_t size, const char* buffer) {
                         if(subIter != subIndex.begin())
                             history[historyTop+2] = (--subIter)->first;
                     }
-                } break;
+                }   break;
                 case 3: {
                     historyTop3()
                     if(iter != set.begin())
                         history[historyTop+3] = *(--iter);
-                } break;
+                }   break;
             }
-        break;
+            break;
         case Down:
             switch(historySub) {
                 case 0:
                     ++topIter;
                     if(topIter != context.topIndex.end())
                         history[historyTop] = topIter->first;
-                break;
+                        break;
                 case 1:
                     if(*history.rbegin() < context.indexMode)
                         *history.rbegin() += 1;
-                break;
+                        break;
                 case 2: {
                     if(history[historyTop+1] == 0) {
                         serializeBlob(task, stream, history[historyTop]);
@@ -255,19 +255,19 @@ uint64_t ModeBrowse(bool special, uint64_t size, const char* buffer) {
                         if(++subIter != subIndex.end())
                             history[historyTop+2] = subIter->first;
                     }
-                } break;
+                }   break;
                 case 3: {
                     historyTop3()
                     if(++iter != set.end())
                         history[historyTop+3] = *iter;
-                } break;
+                }   break;
             }
-        break;
+            break;
         case Right:
             switch(historySub) {
                 case 0:
                     history.push_back(1);
-                break;
+                    break;
                 case 1: {
                     if(history[historyTop+1] == 0) {
                         if(symbolObject->blobSize > 0)
@@ -277,21 +277,21 @@ uint64_t ModeBrowse(bool special, uint64_t size, const char* buffer) {
                         if(subIndex.size() > 0)
                             history.push_back(subIndex.begin()->first);
                     }
-                } break;
+                }   break;
                 case 2: {
                     if(history[historyTop+1] == 0) break;
                     historyTop2()
                     auto& set = subIter->second;
                     if(set.size() > 0)
                         history.push_back(*set.begin());
-                } break;
+                }   break;
                 case 3:
                     if(history.size() > historyLimit*4)
                         history.erase(history.begin(), history.begin()+4);
                     history.push_back(history[historyTop+3]);
                 break;
             }
-        break;
+            break;
         case Left:
             if(history.size() > 1) {
                 history.pop_back();
@@ -299,13 +299,13 @@ uint64_t ModeBrowse(bool special, uint64_t size, const char* buffer) {
                 switch(historySub) {
                     case 2: {
                         historyTop2()
-                    } break;
+                    }   break;
                     case 3: {
                         historyTop3()
-                    } break;
+                    }   break;
                 }
             }
-        break;
+            break;
     }
 
     return 1;
@@ -318,7 +318,7 @@ uint64_t ModeInput(bool special, uint64_t size, const char* buffer) {
                 interfaceBuffer.clear();
                 setCursorHidden(true);
                 mode = Mode_Browse;
-            break;
+                break;
             case 10: {
                 setCursorHidden(true);
                 mode = Mode_Browse;
@@ -340,14 +340,14 @@ uint64_t ModeInput(bool special, uint64_t size, const char* buffer) {
                 }
                 if(task.executeDeserialized() && task.uncaughtException())
                     interfaceBuffer = "Exception occurred while executing input";
-            } break;
+            }   break;
             case 127:
                 if(interfaceBuffer.size())
                     interfaceBuffer.erase(interfaceBuffer.size()-1);
-            break;
+                break;
             default:
                 interfaceBuffer += *buffer;
-            break;
+                break;
         }
     }
     return 1;

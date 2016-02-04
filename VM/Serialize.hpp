@@ -1,17 +1,48 @@
-#include "Deserialize.hpp"
+#include "Task.hpp"
 
-class Serialize {
+const char* HRLRawBegin = "raw:";
+
+struct Serialize {
     Task& task;
     Symbol symbol;
-    ArchitectureType blobSize;
     Context::SymbolObject* symbolObject;
+    ArchitectureType blobSize;
+
+    bool isEmpty() const {
+        return (blobSize == 0);
+    }
+
+    void reset() {
+        symbolObject->allocateBlob(0);
+        blobSize = 0;
+    }
+
+    Symbol getSymbol(bool decouple = false) {
+        Symbol returnValue = symbol;
+        symbolObject->reallocateBlob(blobSize);
+        if(decouple) {
+            symbol = task.context->create();
+            symbolObject = task.context->getSymbolObject(symbol);
+            blobSize = 0;
+        }
+        return returnValue;
+    }
 
     void put(uint8_t data) {
         ArchitectureType nextBlobSize = blobSize+8;
         if(nextBlobSize > symbolObject->blobSize)
-            symbolObject->reallocate(std::max(nextBlobSize, symbolObject->blobSize*2));
+            symbolObject->reallocateBlob(std::max(nextBlobSize, symbolObject->blobSize*2));
         reinterpret_cast<uint8_t*>(symbolObject->blobData.get())[blobSize/8] = data;
         blobSize = nextBlobSize;
+    }
+
+    char* charPtr() {
+        return reinterpret_cast<char*>(symbolObject->blobData.get());
+    }
+
+    bool beginsWith(const char* str) {
+        // TODO: Remove useage of C StdLib
+        return strncmp(charPtr(), str, std::min(blobSize/8, (ArchitectureType)strlen(str))) == 0;
     }
 
     template<typename NumberType>
@@ -19,6 +50,10 @@ class Serialize {
         // TODO Last digits of float numbers are incorrect (rounding error)
 
         const NumberType base = 10;
+        if(number == 0) {
+            put('0');
+            return;
+        }
         if(number < 0) {
             put('-');
             number *= -1;
@@ -39,18 +74,12 @@ class Serialize {
         }
     }
 
-    public:
     Serialize(Task& _task, Symbol _symbol) :task(_task), symbol(_symbol), blobSize(0) {
         symbolObject = task.context->getSymbolObject(_symbol);
     }
 
     Serialize(Task& _task) :Serialize(_task, _task.context->create()) {
 
-    }
-
-    Symbol getResult() {
-        symbolObject->reallocate(blobSize);
-        return symbol;
     }
 
     void serializeBlob(Symbol symbol) {
@@ -74,16 +103,16 @@ class Serialize {
                         put(src[i]);
                     if(spaces)
                         put('"');
-                } break;
+                }   break;
                 case PreDef_Natural:
                     serializeNumber(task.template accessBlobData<uint64_t>(srcSymbolObject));
-                break;
+                    break;
                 case PreDef_Integer:
                     serializeNumber(task.template accessBlobData<int64_t>(srcSymbolObject));
-                break;
+                    break;
                 case PreDef_Float:
                     serializeNumber(task.template accessBlobData<double>(srcSymbolObject));
-                break;
+                    break;
                 default: {
                     for(ArchitectureType i = 0; i < strlen(HRLRawBegin); ++i)
                         put(HRLRawBegin[i]);
@@ -92,7 +121,7 @@ class Serialize {
                         uint8_t nibble = (src[i/2]>>((i%2)*4))&0x0F;
                         put(nibble+((nibble < 0xA)?'0':'A'));
                     }
-                } break;
+                }   break;
             }
         } else {
             put('#');

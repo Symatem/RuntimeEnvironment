@@ -129,7 +129,7 @@ ArchitectureType printStreamLimited(ArchitectureType mode = 0,
 void serializeBlob(Task& task, std::ostream& stream, Symbol symbol) {
     Serialize serialize(task);
     serialize.serializeBlob(symbol);
-    symbol = serialize.getResult();
+    symbol = serialize.getSymbol(false);
     Context::SymbolObject* symbolObject = task.context->getSymbolObject(symbol);
     stream.write(reinterpret_cast<const char*>(symbolObject->blobData.get()), symbolObject->blobSize/8);
     task.destroy(symbol);

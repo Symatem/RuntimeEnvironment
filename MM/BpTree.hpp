@@ -705,15 +705,15 @@ class BpTree {
                         case 1:
                             frame->lowerInnerPageRef = frame->higherOuterPageRef;
                             frame->higherInnerPageRef = frame->pageRef;
-                        break;
+                            break;
                         case 2:
                             frame->lowerInnerPageRef = data.storage->aquirePage();
                             frame->higherInnerPageRef = frame->lowerInnerPageRef;
-                        break;
+                            break;
                         default:
                             frame->lowerInnerPageRef = data.storage->aquirePage();
                             frame->higherInnerPageRef = data.storage->aquirePage();
-                        break;
+                            break;
                     }
                 }
             } else {
@@ -773,16 +773,16 @@ class BpTree {
                     case 1:
                         data.higherOuterParent = lowerOuter;
                         data.higherOuterParentIndex = frame->endIndex-1;
-                    break;
+                        break;
                     case 2:
                         data.higherOuterParent = lowerInner;
                         data.higherOuterParentIndex = frame->elementsPerPage-1;
-                    break;
+                        break;
                     default: // TODO: Testing
                         printf("TTP\n");
                         data.higherOuterParent = higherInner;
                         data.higherOuterParentIndex = frame->higherInnerEndIndex-1;
-                    break;
+                        break;
                 }
             } else if(frame->higherOuterEndIndex > 1) {
                 data.higherOuterParent = higherOuter;

@@ -93,10 +93,10 @@ int main(int argc, const char** argv) {
         switch(mode) {
             case Mode_Browse:
                 pollKeyboard(ModeBrowse);
-            break;
+                break;
             case Mode_Input:
                 pollKeyboard(ModeInput);
-            break;
+                break;
         }
     }
 
