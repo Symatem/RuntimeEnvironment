@@ -19,7 +19,7 @@ class Deserialize {
         StackEntry() :entity(PreDef_Void), unnestEntity(PreDef_Void) {}
     };
     std::vector<std::unique_ptr<StackEntry>> stack;
-    std::map<Context::SymbolObject*, Symbol, Context::BlobIndexCompare> locals; // TODO
+    std::map<Context::SymbolObject*, Symbol, Context::BlobIndexCompare> locals;
 
     void nextSymbol(StackEntry* stackEntry, Symbol symbol) {
         if(stackEntry->unnestEntity == PreDef_Void)
@@ -96,16 +96,16 @@ class Deserialize {
                 symbol = task.context->createFromData(floatValue);
             else
                 symbol = token.getSymbol(true);
+            symbol = task.indexBlob(symbol);
         }
 
-        symbol = task.indexBlob(symbol);
         task.context->link({package, PreDef_Holds, symbol});
         nextSymbol(currentEntry, symbol);
         token.reset();
-        printf("parseToken %llu\n", symbol);
     }
 
     void fillInAnonymous(StackEntry* parentEntry, StackEntry* currentEntry) {
+        // TODO: Fix error
         if(currentEntry->entity != PreDef_Void)
             return;
         currentEntry->entity = task.context->create();
@@ -138,8 +138,7 @@ class Deserialize {
             }
 
             fillInAnonymous(parentEntry, currentEntry);
-
-            parentEntry->unnestEntity = currentEntry->entity;
+            parentEntry->unnestEntity = (semicolon) ? PreDef_Void : currentEntry->entity;
             parentEntry->unnestAttribute = currentEntry->queue.front();
             currentEntry->queue.pop();
             while(currentEntry->queue.size()) {
@@ -203,27 +202,23 @@ class Deserialize {
                     if(stack.size() == 1)
                         throwException("Semicolon outside of any brackets");
                     seperateTokens<true>(parentEntry, currentEntry);
-                    if(currentEntry->unnestEntity != PreDef_Void)
-                        throwException("Unnesting failed");
-                    parentEntry->unnestEntity = PreDef_Void;
+                    // TODO: throwException("Unnesting failed");
                     break;
                 case ')': {
                     if(stack.size() == 1)
                         throwException("Unmatched closing bracket");
                     seperateTokens<false>(parentEntry, currentEntry);
+                    // TODO: throwException("Unnesting failed");
                     if(stack.size() == 2 && parentEntry->unnestEntity == PreDef_Void) {
                         locals.clear();
                         auto topIter = task.context->topIndex.find(currentEntry->entity);
                         if(topIter != task.context->topIndex.end() && topIter->second->subIndices[EAV].empty())
                             throwException("Nothing declared");
                     }
-                    if(currentEntry->unnestEntity != PreDef_Void)
-                        throwException("Unnesting failed");
-                    if(currentEntry->entity == PreDef_Void)
-                        fillInAnonymous(parentEntry, currentEntry);
                     stack.pop_back();
+                    assert(!stack.empty());
                     currentEntry = parentEntry;
-                    parentEntry = (++stack.rbegin())->get();
+                    parentEntry = stack.rbegin()->get();
                 }   break;
                 default:
                     token.put(*pos);

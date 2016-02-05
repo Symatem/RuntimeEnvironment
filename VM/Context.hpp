@@ -192,7 +192,7 @@ struct Context { // TODO: : public Storage {
         return topIter->second.get();
     }
 
-    bool unindexBlob(Symbol symbol) {
+    bool unindexBlob(Symbol symbol) { // TODO: Needs to be called at every blob mutation
         auto iter = blobIndex.find(getSymbolObject(symbol));
         if(iter == blobIndex.end())
             return false;
@@ -298,9 +298,11 @@ struct Context { // TODO: : public Storage {
     }
 
     Context() :nextSymbol(0), indexMode(HexaIndex) {
-        while(nextSymbol < sizeof(PreDefSymbols)/sizeof(void*))
-            link({PreDef_RunTimeEnvironment, PreDef_Holds, createFromData(PreDefSymbols[nextSymbol])});
-
+        while(nextSymbol < sizeof(PreDefSymbols)/sizeof(void*)) {
+            Symbol symbol = createFromData(PreDefSymbols[nextSymbol]);
+            link({PreDef_RunTimeEnvironment, PreDef_Holds, symbol});
+            blobIndex.insert(std::make_pair(getSymbolObject(symbol), symbol));
+        }
         Symbol ArchitectureSizeSymbol = createFromData(ArchitectureSize);
         link({PreDef_RunTimeEnvironment, PreDef_Holds, ArchitectureSizeSymbol});
         link({PreDef_RunTimeEnvironment, PreDef_ArchitectureSize, ArchitectureSizeSymbol});

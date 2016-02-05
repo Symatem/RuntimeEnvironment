@@ -174,18 +174,13 @@ struct Task {
     }
 
     Symbol indexBlob(Symbol symbol) {
-        printf("indexBlobA\n");
         Context::SymbolObject* symbolObject = context->getSymbolObject(symbol);
         auto iter = context->blobIndex.find(symbolObject);
         if(iter != context->blobIndex.end()) {
-            printf("indexBlobB\n");
-            Symbol returnValue = iter->second;
             destroy(symbol);
-            return returnValue;
+            return iter->second;
         } else {
-            printf("indexBlobC\n");
             context->blobIndex.insert(std::make_pair(symbolObject, symbol));
-            printf("indexBlobD\n");
             return symbol;
         }
     }
