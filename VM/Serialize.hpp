@@ -21,7 +21,7 @@ struct Serialize {
         Symbol returnValue = symbol;
         symbolObject->reallocateBlob(blobSize);
         if(decouple) {
-            symbol = task.context->create();
+            symbol = task.context->create({{PreDef_BlobType, PreDef_Text}});
             symbolObject = task.context->getSymbolObject(symbol);
             blobSize = 0;
         }
@@ -78,7 +78,7 @@ struct Serialize {
         symbolObject = task.context->getSymbolObject(_symbol);
     }
 
-    Serialize(Task& _task) :Serialize(_task, _task.context->create()) {
+    Serialize(Task& _task) :Serialize(_task, _task.context->create({{PreDef_BlobType, PreDef_Text}})) {
 
     }
 
@@ -119,7 +119,10 @@ struct Serialize {
                     ArchitectureType len = (srcSymbolObject->blobSize+3)/4;
                     for(ArchitectureType i = 0; i < len; ++i) {
                         uint8_t nibble = (src[i/2]>>((i%2)*4))&0x0F;
-                        put(nibble+((nibble < 0xA)?'0':'A'));
+                        if(nibble < 0xA)
+                            put('0'+nibble);
+                        else
+                            put('A'+nibble-0xA);
                     }
                 }   break;
             }

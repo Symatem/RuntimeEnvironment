@@ -107,7 +107,8 @@ struct Task {
         query(9, {alpha, beta, PreDef_Void}, [&](Triple result, ArchitectureType) {
             triples.insert({alpha, beta, result.pos[0]});
         });
-        unlink(triples);
+        if(!triples.empty())
+            unlink(triples);
     }
 
     void unlink(Triple triple) {
@@ -153,7 +154,8 @@ struct Task {
         });
         if(toLink)
             link(triple);
-        unlink(triples);
+        if(!triples.empty())
+            unlink(triples);
     }
 
     bool getUncertain(Symbol alpha, Symbol beta, Symbol& gamma) {

@@ -79,7 +79,7 @@ struct Context { // TODO: : public Storage {
             if(size) {
                 data = new ArchitectureType[(size+ArchitectureSize-1)/ArchitectureSize];
                 if(size%ArchitectureSize > 0)
-                    data[blobSize/ArchitectureSize] &= BitMask<ArchitectureType>::fillLSBs(size%ArchitectureSize);
+                    data[size/ArchitectureSize] &= BitMask<ArchitectureType>::fillLSBs(size%ArchitectureSize);
             } else
                 data = NULL;
             ArchitectureType length = std::min(std::min(blobSize, size), preserve);
@@ -194,7 +194,7 @@ struct Context { // TODO: : public Storage {
 
     bool unindexBlob(Symbol symbol) { // TODO: Needs to be called at every blob mutation
         auto iter = blobIndex.find(getSymbolObject(symbol));
-        if(iter == blobIndex.end())
+        if(iter == blobIndex.end() || iter->second != symbol)
             return false;
         blobIndex.erase(iter);
         return true;
@@ -219,10 +219,11 @@ struct Context { // TODO: : public Storage {
 
     template<bool skip = false>
     bool unlink(std::set<Triple> triples, std::set<Symbol> skipSymbols = {}) {
+        assert(!triples.empty());
         std::set<Symbol> dirty;
         ArchitectureType indexCount = (indexMode == MonoIndex) ? 1 : 3;
         bool reverseIndex = (indexMode == HexaIndex);
-        for(auto& triple : triples)
+        for(auto& triple : triples) {
             for(ArchitectureType i = 0; i < indexCount; ++i) {
                 dirty.insert(triple.pos[i]);
                 if(skip && skipSymbols.find(triple.pos[i]) != skipSymbols.end())
@@ -231,9 +232,10 @@ struct Context { // TODO: : public Storage {
                 if(topIter == topIndex.end() ||
                    !topIter->second->unlink(reverseIndex, i, triple.pos[(i+1)%3], triple.pos[(i+2)%3]))
                     return false;
-                if(triple.pos[1] == PreDef_BlobType)
-                    unindexBlob(triple.pos[0]);
             }
+            if(triple.pos[1] == PreDef_BlobType)
+                unindexBlob(triple.pos[0]);
+        }
         for(auto alpha : dirty) {
             auto topIter = topIndex.find(alpha);
             bool empty = true;

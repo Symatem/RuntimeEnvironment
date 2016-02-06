@@ -17,11 +17,12 @@ class Deserialize {
         Symbol entity, unnestEntity, unnestAttribute;
         std::queue<Symbol> queue;
         StackEntry() :entity(PreDef_Void), unnestEntity(PreDef_Void) {}
-    };
+    } *parentEntry, *currentEntry;
     std::vector<std::unique_ptr<StackEntry>> stack;
     std::map<Context::SymbolObject*, Symbol, Context::BlobIndexCompare> locals;
 
     void nextSymbol(StackEntry* stackEntry, Symbol symbol) {
+        assert(stackEntry);
         if(stackEntry->unnestEntity == PreDef_Void)
             stackEntry->queue.push(symbol);
         else {
@@ -44,7 +45,7 @@ class Deserialize {
     }
 
     template<bool isText = false>
-    void parseToken(StackEntry* currentEntry) {
+    void parseToken() {
         if(token.isEmpty())
             return;
 
@@ -52,9 +53,11 @@ class Deserialize {
         if(isText)
             symbol = token.getSymbol(true);
         else if(token.beginsWith("#")) {
+            token.getSymbol(); // TODO: Refactor token reset
+
             auto iter = locals.find(token.symbolObject);
             if(iter == locals.end()) {
-                symbol = token.getSymbol(true);
+                symbol = token.getSymbol(true); // TODO: Refactor token reset
                 locals.insert(std::make_pair(task.context->getSymbolObject(symbol), symbol));
             } else
                 symbol = (*iter).second;
@@ -62,7 +65,7 @@ class Deserialize {
             ArchitectureType nibbleCount = token.blobSize/8-strlen(HRLRawBegin);
             if(nibbleCount == 0)
                 throwException("Empty raw data");
-            symbol = task.context->create({{PreDef_BlobType, PreDef_Text}});
+            symbol = task.context->create();
             Context::SymbolObject* symbolObject = task.context->getSymbolObject(symbol);
             symbolObject->allocateBlob(nibbleCount*4);
             uint8_t *dst = reinterpret_cast<uint8_t*>(symbolObject->blobData.get()), odd = 0, nibble;
@@ -95,17 +98,16 @@ class Deserialize {
             else if(parseNumericToken(floatValue))
                 symbol = task.context->createFromData(floatValue);
             else
-                symbol = token.getSymbol(true);
+                symbol = token.getSymbol(true); // TODO: Refactor token reset
             symbol = task.indexBlob(symbol);
         }
 
         task.context->link({package, PreDef_Holds, symbol});
         nextSymbol(currentEntry, symbol);
-        token.reset();
+        token.reset(); // TODO: Refactor token reset
     }
 
-    void fillInAnonymous(StackEntry* parentEntry, StackEntry* currentEntry) {
-        // TODO: Fix error
+    void fillInAnonymous() {
         if(currentEntry->entity != PreDef_Void)
             return;
         currentEntry->entity = task.context->create();
@@ -114,14 +116,14 @@ class Deserialize {
     }
 
     template<bool semicolon>
-    void seperateTokens(StackEntry* parentEntry, StackEntry* currentEntry) {
-        parseToken(currentEntry);
+    void seperateTokens() {
+        parseToken();
 
         if(currentEntry->queue.size() == 0) {
             if(semicolon) {
                 if(currentEntry->entity != PreDef_Void)
                     throwException("Pointless semicolon");
-                fillInAnonymous(parentEntry, currentEntry);
+                fillInAnonymous();
             }
             return;
         }
@@ -137,7 +139,7 @@ class Deserialize {
                 return;
             }
 
-            fillInAnonymous(parentEntry, currentEntry);
+            fillInAnonymous();
             parentEntry->unnestEntity = (semicolon) ? PreDef_Void : currentEntry->entity;
             parentEntry->unnestAttribute = currentEntry->queue.front();
             currentEntry->queue.pop();
@@ -155,10 +157,8 @@ class Deserialize {
         row = column = 1;
         stack.clear();
         locals.clear();
-
-        StackEntry *parentEntry, *currentEntry = new StackEntry();
+        currentEntry = new StackEntry();
         stack.push_back(std::unique_ptr<StackEntry>(currentEntry));
-
         package = task.getGuaranteed(task.block, PreDef_Package);
         getSymbolObjectByName(Input)
         checkBlobType(Input, PreDef_Text)
@@ -167,14 +167,14 @@ class Deserialize {
         while(pos < end) {
             switch(*pos) {
                 case '\n':
-                    parseToken(currentEntry);
+                    parseToken();
                     column = 0;
                     ++row;
                     break;
                 case '\t':
                     column += 3;
                 case ' ':
-                    parseToken(currentEntry);
+                    parseToken();
                     break;
                 case '"':
                     while(true) {
@@ -190,10 +190,10 @@ class Deserialize {
                         }
                         token.put(*pos);
                     }
-                    parseToken<true>(currentEntry);
+                    parseToken<true>();
                     break;
                 case '(':
-                    parseToken(currentEntry);
+                    parseToken();
                     parentEntry = currentEntry;
                     currentEntry = new StackEntry();
                     stack.push_back(std::unique_ptr<StackEntry>(currentEntry));
@@ -201,24 +201,25 @@ class Deserialize {
                 case ';':
                     if(stack.size() == 1)
                         throwException("Semicolon outside of any brackets");
-                    seperateTokens<true>(parentEntry, currentEntry);
-                    // TODO: throwException("Unnesting failed");
+                    seperateTokens<true>();
+                    if(currentEntry->unnestEntity != PreDef_Void)
+                        throwException("Unnesting failed");
                     break;
                 case ')': {
                     if(stack.size() == 1)
                         throwException("Unmatched closing bracket");
-                    seperateTokens<false>(parentEntry, currentEntry);
-                    // TODO: throwException("Unnesting failed");
+                    seperateTokens<false>();
                     if(stack.size() == 2 && parentEntry->unnestEntity == PreDef_Void) {
                         locals.clear();
                         auto topIter = task.context->topIndex.find(currentEntry->entity);
                         if(topIter != task.context->topIndex.end() && topIter->second->subIndices[EAV].empty())
                             throwException("Nothing declared");
                     }
+                    if(currentEntry->unnestEntity != PreDef_Void)
+                        throwException("Unnesting failed");
                     stack.pop_back();
-                    assert(!stack.empty());
                     currentEntry = parentEntry;
-                    parentEntry = stack.rbegin()->get();
+                    parentEntry = (stack.size() == 1) ? NULL : (++stack.rbegin())->get();
                 }   break;
                 default:
                     token.put(*pos);
@@ -227,7 +228,7 @@ class Deserialize {
             ++column;
             ++pos;
         }
-        parseToken(currentEntry);
+        parseToken();
 
         if(stack.size() > 1)
             throwException("Missing closing bracket");
