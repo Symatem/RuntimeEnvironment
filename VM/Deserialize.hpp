@@ -2,8 +2,8 @@
 
 class Deserialize {
     Task& task;
-    uint64_t row, column;
-    Serialize token;
+    const char *pos, *end, *tokenBegin;
+    ArchitectureType row, column;
     Symbol package;
 
     void throwException(const char* message) {
@@ -38,7 +38,7 @@ class Deserialize {
     template<typename T>
     bool parseNumericToken(T& value) {
         // TODO: Remove useage of C++ StdLib
-        std::string str(token.charPtr(), token.symbolObject->blobSize/8);
+        std::string str(tokenBegin, pos-tokenBegin);
         std::istringstream stream(str);
         stream >> value;
         return stream.eof() && !stream.fail();
@@ -46,65 +46,63 @@ class Deserialize {
 
     template<bool isText = false>
     void parseToken() {
-        if(token.isEmpty())
-            return;
-
-        Symbol symbol;
-        if(isText)
-            symbol = token.getSymbol(true);
-        else if(token.beginsWith("#")) {
-            token.getSymbol(); // TODO: Refactor token reset
-
-            auto iter = locals.find(token.symbolObject);
-            if(iter == locals.end()) {
-                symbol = token.getSymbol(true); // TODO: Refactor token reset
-                locals.insert(std::make_pair(task.context->getSymbolObject(symbol), symbol));
-            } else
-                symbol = (*iter).second;
-        } else if(token.beginsWith(HRLRawBegin)) {
-            ArchitectureType nibbleCount = token.blobSize/8-strlen(HRLRawBegin);
-            if(nibbleCount == 0)
-                throwException("Empty raw data");
-            symbol = task.context->create();
-            Context::SymbolObject* symbolObject = task.context->getSymbolObject(symbol);
-            symbolObject->allocateBlob(nibbleCount*4);
-            uint8_t *dst = reinterpret_cast<uint8_t*>(symbolObject->blobData.get()), odd = 0, nibble;
-            const uint8_t *src = reinterpret_cast<const uint8_t*>(token.symbolObject->blobData.get())+strlen(HRLRawBegin),
-                          *end = src+nibbleCount;
-            while(src < end) {
-                if(*src >= '0' && *src <= '9')
-                    nibble = *src-'0';
-                else if(*src >= 'A' && *src <= 'F')
-                    nibble = *src-'A'+0xA;
-                else
-                    throwException("Non hex characters");
-                if(odd == 0) {
-                    *dst = nibble;
-                    odd = 1;
-                } else {
-                    *(dst++) |= nibble<<4;
-                    odd = 0;
+        if(pos > tokenBegin) {
+            Symbol symbol;
+            if(isText)
+                symbol = task.context->createFromData(tokenBegin, pos-tokenBegin);
+            else if(*tokenBegin == '#') {
+                symbol = task.context->createFromData(tokenBegin+1, pos-tokenBegin-1);
+                Context::SymbolObject* symbolObject = task.context->getSymbolObject(symbol);
+                auto iter = locals.find(symbolObject);
+                if(iter == locals.end())
+                    locals.insert(std::make_pair(symbolObject, symbol));
+                else {
+                    task.destroy(symbol);
+                    symbol = (*iter).second;
                 }
-                ++src;
+            } else if(pos-tokenBegin > strlen(HRLRawBegin) && strcmp(tokenBegin, HRLRawBegin) == 0) {
+                const char* src = tokenBegin+strlen(HRLRawBegin);
+                ArchitectureType nibbleCount = src-pos;
+                if(nibbleCount == 0)
+                    throwException("Empty raw data");
+                symbol = task.context->create();
+                Context::SymbolObject* symbolObject = task.context->getSymbolObject(symbol);
+                symbolObject->allocateBlob(nibbleCount*4);
+                char* dst = reinterpret_cast<char*>(symbolObject->blobData.get()), odd = 0, nibble;
+                while(src < pos) {
+                    if(*src >= '0' && *src <= '9')
+                        nibble = *src-'0';
+                    else if(*src >= 'A' && *src <= 'F')
+                        nibble = *src-'A'+0xA;
+                    else
+                        throwException("Non hex characters");
+                    if(odd == 0) {
+                        *dst = nibble;
+                        odd = 1;
+                    } else {
+                        *(dst++) |= nibble<<4;
+                        odd = 0;
+                    }
+                    ++src;
+                }
+            } else {
+                uint64_t uintValue;
+                int64_t intValue;
+                double floatValue;
+                if(parseNumericToken(uintValue))
+                    symbol = task.context->createFromData(uintValue);
+                else if(parseNumericToken(intValue))
+                    symbol = task.context->createFromData(intValue);
+                else if(parseNumericToken(floatValue))
+                    symbol = task.context->createFromData(floatValue);
+                else
+                    symbol = task.context->createFromData(tokenBegin, pos-tokenBegin);
+                symbol = task.indexBlob(symbol);
             }
-        } else {
-            uint64_t uintValue;
-            int64_t intValue;
-            double floatValue;
-            if(parseNumericToken(uintValue))
-                symbol = task.context->createFromData(uintValue);
-            else if(parseNumericToken(intValue))
-                symbol = task.context->createFromData(intValue);
-            else if(parseNumericToken(floatValue))
-                symbol = task.context->createFromData(floatValue);
-            else
-                symbol = token.getSymbol(true); // TODO: Refactor token reset
-            symbol = task.indexBlob(symbol);
+            task.context->link({package, PreDef_Holds, symbol});
+            nextSymbol(currentEntry, symbol);
         }
-
-        task.context->link({package, PreDef_Holds, symbol});
-        nextSymbol(currentEntry, symbol);
-        token.reset(); // TODO: Refactor token reset
+        tokenBegin = pos+1;
     }
 
     void fillInAnonymous() {
@@ -153,7 +151,7 @@ class Deserialize {
     }
 
     public:
-    Deserialize(Task& _task) :task(_task), token(_task) {
+    Deserialize(Task& _task) :task(_task) {
         row = column = 1;
         stack.clear();
         locals.clear();
@@ -162,8 +160,8 @@ class Deserialize {
         package = task.getGuaranteed(task.block, PreDef_Package);
         getSymbolObjectByName(Input)
         checkBlobType(Input, PreDef_Text)
-        const char *pos = reinterpret_cast<const char*>(InputSymbolObject->blobData.get()),
-                   *end = pos+InputSymbolObject->blobSize/8;
+        tokenBegin = pos = reinterpret_cast<const char*>(InputSymbolObject->blobData.get());
+        end = pos+InputSymbolObject->blobSize/8;
         while(pos < end) {
             switch(*pos) {
                 case '\n':
@@ -177,6 +175,7 @@ class Deserialize {
                     parseToken();
                     break;
                 case '"':
+                    tokenBegin = pos+1;
                     while(true) {
                         if(pos == end)
                             throwException("Unterminated text");
@@ -188,7 +187,6 @@ class Deserialize {
                             if(*pos == '"')
                                 break;
                         }
-                        token.put(*pos);
                     }
                     parseToken<true>();
                     break;
@@ -221,9 +219,6 @@ class Deserialize {
                     currentEntry = parentEntry;
                     parentEntry = (stack.size() == 1) ? NULL : (++stack.rbegin())->get();
                 }   break;
-                default:
-                    token.put(*pos);
-                    break;
             }
             ++column;
             ++pos;
@@ -247,9 +242,5 @@ class Deserialize {
             }
         } else
             task.popCallStack();
-    }
-
-    ~Deserialize() {
-        task.destroy(token.symbol);
     }
 };

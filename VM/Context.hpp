@@ -270,10 +270,7 @@ struct Context { // TODO: : public Storage {
         return symbol;
     }
 
-    Symbol createFromData(const char* src) {
-        ArchitectureType len = 0;
-        while(src[len])
-            ++len;
+    Symbol createFromData(const char* src, ArchitectureType len) {
         Symbol symbol = create({{PreDef_BlobType, PreDef_Text}});
         SymbolObject* symbolObject = getSymbolObject(symbol);
         symbolObject->allocateBlob(len*8);
@@ -281,6 +278,13 @@ struct Context { // TODO: : public Storage {
         for(ArchitectureType i = 0; i < len; ++i)
             dst[i] = src[i];
         return symbol;
+    }
+
+    Symbol createFromData(const char* src) {
+        ArchitectureType len = 0;
+        while(src[len])
+            ++len;
+        return createFromData(src, len);
     }
 
     template<typename DataType>

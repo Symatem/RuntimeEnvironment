@@ -12,20 +12,9 @@ struct Serialize {
         return (blobSize == 0);
     }
 
-    void reset() {
-        symbolObject->allocateBlob(0);
-        blobSize = 0;
-    }
-
-    Symbol getSymbol(bool decouple = false) {
-        Symbol returnValue = symbol;
+    Symbol finalizeSymbol() {
         symbolObject->reallocateBlob(blobSize);
-        if(decouple) {
-            symbol = task.context->create({{PreDef_BlobType, PreDef_Text}});
-            symbolObject = task.context->getSymbolObject(symbol);
-            blobSize = 0;
-        }
-        return returnValue;
+        return symbol;
     }
 
     void put(uint8_t data) {
@@ -34,15 +23,6 @@ struct Serialize {
             symbolObject->reallocateBlob(std::max(nextBlobSize, symbolObject->blobSize*2));
         reinterpret_cast<uint8_t*>(symbolObject->blobData.get())[blobSize/8] = data;
         blobSize = nextBlobSize;
-    }
-
-    char* charPtr() {
-        return reinterpret_cast<char*>(symbolObject->blobData.get());
-    }
-
-    bool beginsWith(const char* str) {
-        // TODO: Remove useage of C StdLib
-        return strncmp(charPtr(), str, std::min(blobSize/8, (ArchitectureType)strlen(str))) == 0;
     }
 
     template<typename NumberType>

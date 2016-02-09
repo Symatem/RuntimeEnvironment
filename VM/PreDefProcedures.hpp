@@ -178,7 +178,7 @@ PreDefProcedure(Serialize) {
     task.context->unindexBlob(OutputSymbol);
     Serialize serialize(task, OutputSymbol);
     serialize.serializeBlob(InputSymbol);
-    serialize.getSymbol(false);
+    serialize.finalizeSymbol();
     task.popCallStack();
 }
 
@@ -641,11 +641,13 @@ bool Task::step() {
 
     try {
         block = context->create();
+        procedure = getGuaranteed(execute, PreDef_Procedure);
         setFrame<true, false>(context->create({
             {PreDef_Holds, parentFrame},
             {PreDef_Parent, parentFrame},
             {PreDef_Holds, block},
-            {PreDef_Block, block}
+            {PreDef_Block, block},
+            {PreDef_Procedure, procedure} // TODO: debugging
         }));
 
         if(getUncertain(execute, PreDef_Static, staticParams))
@@ -659,9 +661,6 @@ bool Task::step() {
                     link({block, result.pos[0], resultB.pos[0]});
                 });
             });
-
-        procedure = getGuaranteed(execute, PreDef_Procedure);
-        link({frame, PreDef_Procedure, procedure}); // TODO: debugging
 
         if(getUncertain(execute, PreDef_Next, next))
             setSolitary({parentFrame, PreDef_Execute, next});
