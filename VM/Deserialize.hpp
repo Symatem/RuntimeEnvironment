@@ -35,15 +35,6 @@ class Deserialize {
         }
     }
 
-    template<typename T>
-    bool parseNumericToken(T& value) {
-        // TODO: Remove useage of C++ StdLib
-        std::string str(tokenBegin, pos-tokenBegin);
-        std::istringstream stream(str);
-        stream >> value;
-        return stream.eof() && !stream.fail();
-    }
-
     template<bool isText = false>
     void parseToken() {
         if(pos > tokenBegin) {
@@ -51,7 +42,7 @@ class Deserialize {
             if(isText)
                 symbol = task.context->createFromData(tokenBegin, pos-tokenBegin);
             else if(*tokenBegin == '#') {
-                symbol = task.context->createFromData(tokenBegin+1, pos-tokenBegin-1);
+                symbol = task.context->createFromData(tokenBegin, pos-tokenBegin);
                 Context::SymbolObject* symbolObject = task.context->getSymbolObject(symbol);
                 auto iter = locals.find(symbolObject);
                 if(iter == locals.end())
@@ -86,16 +77,38 @@ class Deserialize {
                     ++src;
                 }
             } else {
-                uint64_t uintValue;
-                int64_t intValue;
-                double floatValue;
-                if(parseNumericToken(uintValue))
-                    symbol = task.context->createFromData(uintValue);
-                else if(parseNumericToken(intValue))
-                    symbol = task.context->createFromData(intValue);
-                else if(parseNumericToken(floatValue))
-                    symbol = task.context->createFromData(floatValue);
-                else
+                ArchitectureType mantissa = 0, devisor = 0;
+                bool isNumber = true, negative = (*tokenBegin == '-');
+                const char* src = tokenBegin+negative;
+                // TODO What if too long, precision loss?
+                while(src < pos) {
+                    devisor *= 10;
+                    if(*src >= '0' && *src <= '9') {
+                        mantissa *= 10;
+                        mantissa += *src-'0';
+                    } else if(*src == '.') {
+                        if(devisor > 0) {
+                            isNumber = false;
+                            break;
+                        }
+                        devisor = 1;
+                    } else {
+                        isNumber = false;
+                        break;
+                    }
+                    ++src;
+                }
+                if(isNumber && devisor != 1) {
+                    if(devisor > 0) {
+                        double value = mantissa;
+                        value /= devisor;
+                        if(negative) value *= -1;
+                        symbol = task.context->createFromData(value);
+                    } else if(negative)
+                        symbol = task.context->createFromData(-static_cast<int64_t>(mantissa));
+                    else
+                        symbol = task.context->createFromData(mantissa);
+                } else
                     symbol = task.context->createFromData(tokenBegin, pos-tokenBegin);
                 symbol = task.indexBlob(symbol);
             }
