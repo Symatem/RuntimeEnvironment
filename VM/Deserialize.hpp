@@ -20,13 +20,17 @@ class Deserialize {
     std::vector<std::unique_ptr<StackEntry>> stack;
     std::map<Context::SymbolObject*, Symbol, Context::BlobIndexCompare> locals;
 
+    bool isStackSize(ArchitectureType size) {
+        return stack.size() == size;
+    }
+
     Symbol popQueue() {
         assert(currentEntry->queue != PreDef_Void);
-        Symbol oldElement = currentEntry->queue, result = task.getGuaranteed(currentEntry->queue, PreDef_Value);
+        Symbol oldElement = currentEntry->queue, symbol = task.getGuaranteed(currentEntry->queue, PreDef_Value);
         if(!task.getUncertain(currentEntry->queue, PreDef_Next, currentEntry->queue))
             currentEntry->queue = PreDef_Void;
         task.destroy(oldElement);
-        return result;
+        return symbol;
     }
 
     void nextSymbol(StackEntry* stackEntry, Symbol symbol) {
@@ -62,9 +66,9 @@ class Deserialize {
                     task.destroy(symbol);
                     symbol = (*iter).second;
                 }
-            } else if(pos-tokenBegin > strlen(HRLRawBegin) && strcmp(tokenBegin, HRLRawBegin) == 0) {
+            } else if(pos-tokenBegin > strlen(HRLRawBegin) && memcmp(tokenBegin, HRLRawBegin, 4) == 0) {
                 const char* src = tokenBegin+strlen(HRLRawBegin);
-                ArchitectureType nibbleCount = src-pos;
+                ArchitectureType nibbleCount = pos-src;
                 if(nibbleCount == 0)
                     throwException("Empty raw data");
                 symbol = task.context->create();
@@ -170,8 +174,6 @@ class Deserialize {
     public:
     Deserialize(Task& _task) :task(_task) {
         row = column = 1;
-        stack.clear();
-        locals.clear();
         currentEntry = new StackEntry();
         stack.push_back(std::unique_ptr<StackEntry>(currentEntry));
         package = task.getGuaranteed(task.block, PreDef_Package);
@@ -214,17 +216,17 @@ class Deserialize {
                     stack.push_back(std::unique_ptr<StackEntry>(currentEntry));
                     break;
                 case ';':
-                    if(stack.size() == 1)
+                    if(isStackSize(1))
                         throwException("Semicolon outside of any brackets");
                     seperateTokens<true>();
                     if(currentEntry->unnestEntity != PreDef_Void)
                         throwException("Unnesting failed");
                     break;
                 case ')': {
-                    if(stack.size() == 1)
+                    if(isStackSize(1))
                         throwException("Unmatched closing bracket");
                     seperateTokens<false>();
-                    if(stack.size() == 2 && parentEntry->unnestEntity == PreDef_Void) {
+                    if(isStackSize(2) && parentEntry->unnestEntity == PreDef_Void) {
                         locals.clear();
                         auto topIter = task.context->topIndex.find(currentEntry->entity);
                         if(topIter != task.context->topIndex.end() && topIter->second->subIndices[EAV].empty())
@@ -234,7 +236,7 @@ class Deserialize {
                         throwException("Unnesting failed");
                     stack.pop_back();
                     currentEntry = parentEntry;
-                    parentEntry = (stack.size() == 1) ? NULL : (++stack.rbegin())->get();
+                    parentEntry = (isStackSize(1)) ? NULL : (++stack.rbegin())->get();
                 }   break;
             }
             ++column;
@@ -242,7 +244,7 @@ class Deserialize {
         }
         parseToken();
 
-        if(stack.size() > 1)
+        if(!isStackSize(1))
             throwException("Missing closing bracket");
         if(currentEntry->unnestEntity != PreDef_Void)
             throwException("Unnesting failed");
