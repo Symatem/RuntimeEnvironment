@@ -13,11 +13,8 @@ class Deserialize {
         });
     }
 
-    struct StackEntry {
-        Symbol entity, unnestEntity, unnestAttribute, queue;
-        StackEntry() :entity(PreDef_Void), unnestEntity(PreDef_Void), queue(PreDef_Void) {}
-    } *parentEntry, *currentEntry;
-    std::vector<std::unique_ptr<StackEntry>> stack;
+    std::vector<Symbol> stack;
+    Symbol parentEntry, currentEntry;
     std::map<Context::SymbolObject*, Symbol, Context::BlobIndexCompare> locals;
 
     bool isStackSize(ArchitectureType size) {
@@ -25,28 +22,33 @@ class Deserialize {
     }
 
     Symbol popQueue() {
-        assert(currentEntry->queue != PreDef_Void);
-        Symbol oldElement = currentEntry->queue, symbol = task.getGuaranteed(currentEntry->queue, PreDef_Value);
-        if(!task.getUncertain(currentEntry->queue, PreDef_Next, currentEntry->queue))
-            currentEntry->queue = PreDef_Void;
+        Symbol oldElement = task.getGuaranteed(currentEntry, PreDef_Queue),
+               symbol = task.getGuaranteed(oldElement, PreDef_Value),
+               queueBegin = oldElement;
+        if(task.getUncertain(queueBegin, PreDef_Next, queueBegin))
+            task.setSolitary({currentEntry, PreDef_Queue, queueBegin});
+        else
+            task.unlink(currentEntry, PreDef_Queue);
         task.destroy(oldElement);
         return symbol;
     }
 
-    void nextSymbol(StackEntry* stackEntry, Symbol symbol) {
-        assert(stackEntry);
-        if(stackEntry->unnestEntity == PreDef_Void) {
-            Symbol queueEnd = stackEntry->queue, newElement = task.context->create({{PreDef_Value, symbol}});
+    void nextSymbol(Symbol stackEntry, Symbol symbol) {
+        if(task.query(9, {stackEntry, PreDef_UnnestEntity, PreDef_Void}) == 0) {
+            Symbol queueEnd = task.getGuaranteed(currentEntry, PreDef_Queue),
+                   newElement = task.context->create({{PreDef_Value, symbol}});
             if(queueEnd == PreDef_Void)
-                stackEntry->queue = newElement;
+                task.link({stackEntry, PreDef_Queue, newElement});
             else {
                 while(task.getUncertain(queueEnd, PreDef_Next, queueEnd));
                 task.link({queueEnd, PreDef_Next, newElement});
             }
         } else {
-            if(!task.context->link({stackEntry->unnestEntity, stackEntry->unnestAttribute, symbol}))
+            Symbol entity = task.getGuaranteed(stackEntry, PreDef_UnnestEntity),
+                   attribute = task.getGuaranteed(stackEntry, PreDef_UnnestAttribute);
+            if(!task.context->link({entity, attribute, symbol}))
                 throwException("Triple defined twice via unnesting");
-            stackEntry->unnestEntity = PreDef_Void;
+            task.unlink(stackEntry, PreDef_UnnestEntity);
         }
     }
 
@@ -134,48 +136,60 @@ class Deserialize {
     }
 
     void fillInAnonymous() {
-        if(currentEntry->entity != PreDef_Void)
+        if(task.query(9, {currentEntry, PreDef_Entity, PreDef_Void}) != 0)
             return;
-        currentEntry->entity = task.context->create();
-        task.link({package, PreDef_Holds, currentEntry->entity});
-        nextSymbol(parentEntry, currentEntry->entity);
+        Symbol entity = task.context->create();
+        task.setSolitary({currentEntry, PreDef_Entity, entity});
+        task.link({package, PreDef_Holds, entity});
+        nextSymbol(parentEntry, entity);
     }
 
     template<bool semicolon>
     void seperateTokens() {
         parseToken();
 
-        if(currentEntry->queue == PreDef_Void) {
+        Symbol entity, queue;
+        if(!task.getUncertain(currentEntry, PreDef_Entity, entity))
+            entity = PreDef_Void;
+        if(!task.getUncertain(currentEntry, PreDef_Queue, queue))
+            queue = PreDef_Void;
+
+        if(queue == PreDef_Void) {
             if(semicolon) {
-                if(currentEntry->entity != PreDef_Void)
+                if(entity != PreDef_Void)
                     throwException("Pointless semicolon");
                 fillInAnonymous();
             }
             return;
         }
 
-        if(semicolon && currentEntry->queue != PreDef_Void && task.query(9, {currentEntry->queue, PreDef_Next, PreDef_Void}) == 0) {
-            if(currentEntry->entity == PreDef_Void) {
-                currentEntry->entity = popQueue();
-                nextSymbol(parentEntry, currentEntry->entity);
-            } else if(!task.context->link({currentEntry->entity, popQueue(), currentEntry->entity}))
+        if(semicolon && queue != PreDef_Void && task.query(9, {queue, PreDef_Next, PreDef_Void}) == 0) {
+            if(entity == PreDef_Void) {
+                entity = popQueue();
+                nextSymbol(parentEntry, entity);
+            } else if(!task.context->link({entity, popQueue(), entity}))
                 throwException("Triple defined twice via self reference");
             return;
         }
 
         fillInAnonymous();
-        parentEntry->unnestEntity = (semicolon) ? PreDef_Void : currentEntry->entity;
-        parentEntry->unnestAttribute = popQueue();
-        while(currentEntry->queue != PreDef_Void)
-            if(!task.context->link({currentEntry->entity, parentEntry->unnestAttribute, popQueue()}))
+        if(semicolon)
+            task.unlink(parentEntry, PreDef_UnnestEntity);
+        else
+            task.setSolitary({parentEntry, PreDef_UnnestEntity, task.getGuaranteed(currentEntry, PreDef_Entity)});
+        Symbol attribute = popQueue();
+        task.setSolitary({parentEntry, PreDef_UnnestAttribute, attribute});
+
+        while(task.query(9, {currentEntry, PreDef_Queue, PreDef_Void}) != 0)
+            if(!task.context->link({entity, attribute, popQueue()}))
                 throwException("Triple defined twice");
     }
 
     public:
     Deserialize(Task& _task) :task(_task) {
         row = column = 1;
-        currentEntry = new StackEntry();
-        stack.push_back(std::unique_ptr<StackEntry>(currentEntry));
+        currentEntry = task.context->create();
+        stack.push_back(currentEntry);
         package = task.getGuaranteed(task.block, PreDef_Package);
         getSymbolObjectByName(Input)
         checkBlobType(Input, PreDef_Text)
@@ -212,31 +226,31 @@ class Deserialize {
                 case '(':
                     parseToken();
                     parentEntry = currentEntry;
-                    currentEntry = new StackEntry();
-                    stack.push_back(std::unique_ptr<StackEntry>(currentEntry));
+                    currentEntry = task.context->create();
+                    stack.push_back(currentEntry);
                     break;
                 case ';':
                     if(isStackSize(1))
                         throwException("Semicolon outside of any brackets");
                     seperateTokens<true>();
-                    if(currentEntry->unnestEntity != PreDef_Void)
+                    if(task.query(9, {currentEntry, PreDef_UnnestEntity, PreDef_Void}) != 0)
                         throwException("Unnesting failed");
                     break;
                 case ')': {
                     if(isStackSize(1))
                         throwException("Unmatched closing bracket");
                     seperateTokens<false>();
-                    if(isStackSize(2) && parentEntry->unnestEntity == PreDef_Void) {
+                    if(isStackSize(2) && task.query(9, {parentEntry, PreDef_UnnestEntity, PreDef_Void}) == 0) {
                         locals.clear();
-                        auto topIter = task.context->topIndex.find(currentEntry->entity);
+                        auto topIter = task.context->topIndex.find(task.getGuaranteed(currentEntry, PreDef_Entity));
                         if(topIter != task.context->topIndex.end() && topIter->second->subIndices[EAV].empty())
                             throwException("Nothing declared");
                     }
-                    if(currentEntry->unnestEntity != PreDef_Void)
+                    if(task.query(9, {currentEntry, PreDef_UnnestEntity, PreDef_Void}) != 0)
                         throwException("Unnesting failed");
                     stack.pop_back();
                     currentEntry = parentEntry;
-                    parentEntry = (isStackSize(1)) ? NULL : (++stack.rbegin())->get();
+                    parentEntry = (isStackSize(1)) ? PreDef_Void : *(++stack.rbegin());
                 }   break;
             }
             ++column;
@@ -246,16 +260,16 @@ class Deserialize {
 
         if(!isStackSize(1))
             throwException("Missing closing bracket");
-        if(currentEntry->unnestEntity != PreDef_Void)
+        if(task.query(9, {currentEntry, PreDef_UnnestEntity, PreDef_Void}) != 0)
             throwException("Unnesting failed");
-        if(currentEntry->queue == PreDef_Void)
+        if(task.query(9, {currentEntry, PreDef_Queue, PreDef_Void}) == 0)
             throwException("Empty Input");
 
         Symbol OutputSymbol;
         if(task.getUncertain(task.block, PreDef_Output, OutputSymbol)) {
             Symbol TargetSymbol = task.popCallStackTargetSymbol();
             task.unlink(TargetSymbol, OutputSymbol);
-            while(currentEntry->queue != PreDef_Void)
+            while(task.query(9, {currentEntry, PreDef_Queue, PreDef_Void}) != 0)
                 task.link({TargetSymbol, OutputSymbol, popQueue()});
         } else
             task.popCallStack();
