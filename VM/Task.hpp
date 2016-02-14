@@ -87,6 +87,10 @@ struct Task {
         return (context->*method.function)(method.index, triple, handleNext);
     }
 
+    bool valueSetCountIs(Symbol entity, Symbol attribute, ArchitectureType size) {
+        return query(9, {entity, attribute, PreDef_Void}) == size;
+    }
+
     void link(Triple triple) {
         if(!context->link(triple))
             throwException("Already linked", {
