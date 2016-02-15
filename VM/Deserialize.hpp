@@ -50,8 +50,7 @@ class Deserialize {
         }
     }
 
-    template<bool isText = false>
-    void parseToken() {
+    void parseToken(bool isText = false) {
         if(pos > tokenBegin) {
             Symbol symbol;
             if(isText)
@@ -142,8 +141,7 @@ class Deserialize {
         nextSymbol(parentEntry, entity);
     }
 
-    template<bool semicolon>
-    void seperateTokens() {
+    void seperateTokens(bool semicolon) {
         parseToken();
 
         Symbol entity, queue;
@@ -223,7 +221,7 @@ class Deserialize {
                                 break;
                         }
                     }
-                    parseToken<true>();
+                    parseToken(true);
                     break;
                 case '(':
                     parseToken();
@@ -235,14 +233,14 @@ class Deserialize {
                 case ';':
                     if(isStackSize(1))
                         throwException("Semicolon outside of any brackets");
-                    seperateTokens<true>();
+                    seperateTokens(true);
                     if(!task.valueSetCountIs(currentEntry, PreDef_UnnestEntity, 0))
                         throwException("Unnesting failed");
                     break;
                 case ')': {
                     if(isStackSize(1))
                         throwException("Unmatched closing bracket");
-                    seperateTokens<false>();
+                    seperateTokens(false);
                     if(isStackSize(2) && task.valueSetCountIs(parentEntry, PreDef_UnnestEntity, 0)) {
                         locals.clear();
                         auto topIter = task.context->topIndex.find(task.getGuaranteed(currentEntry, PreDef_Entity));

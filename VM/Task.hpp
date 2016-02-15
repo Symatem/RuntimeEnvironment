@@ -133,15 +133,16 @@ struct Task {
     }
 
     void scrutinizeExistence(Symbol symbol) {
-        std::queue<Symbol> symbols;
-        symbols.push(symbol);
+        std::set<Symbol> symbols;
+        symbols.insert(symbol);
         while(!symbols.empty()) {
-            symbol = symbols.front();
-            symbols.pop();
+            symbol = *symbols.begin();
+            symbols.erase(symbols.begin());
             if(context->topIndex.find(symbol) == context->topIndex.end() ||
-               query(1, {PreDef_Void, PreDef_Holds, symbol}) > 0) continue;
+               query(1, {PreDef_Void, PreDef_Holds, symbol}) > 0)
+                continue;
             query(9, {symbol, PreDef_Holds, PreDef_Void}, [&](Triple result, ArchitectureType) {
-                symbols.push(result.pos[0]);
+                symbols.insert(result.pos[0]);
             });
             destroy(symbol);
         }
@@ -165,7 +166,8 @@ struct Task {
     bool getUncertain(Symbol alpha, Symbol beta, Symbol& gamma) {
         if(query(9, {alpha, beta, PreDef_Void}, [&](Triple result, ArchitectureType) {
             gamma = result.pos[0];
-        }) != 1) return false;
+        }) != 1)
+            return false;
         return true;
     }
 
@@ -231,7 +233,8 @@ struct Task {
 
     bool popCallStack() {
         assert(task != PreDef_Void);
-        if(frame == PreDef_Void) return false;
+        if(frame == PreDef_Void)
+            return false;
         assert(context->topIndex.find(frame) != context->topIndex.end());
         Symbol parentFrame;
         bool parentExists = getUncertain(frame, PreDef_Parent, parentFrame);
@@ -253,7 +256,8 @@ struct Task {
     }
 
     void clear() {
-        if(task == PreDef_Void) return;
+        if(task == PreDef_Void)
+            return;
         while(popCallStack());
         destroy(task);
         task = status = frame = block = PreDef_Void;
@@ -272,13 +276,15 @@ struct Task {
     }
 
     void executeFinite(ArchitectureType n) {
-        if(task == PreDef_Void) return;
+        if(task == PreDef_Void)
+            return;
         setStatus(PreDef_Run);
         for(ArchitectureType i = 0; i < n && step(); ++i);
     }
 
     void executeInfinite() {
-        if(task == PreDef_Void) return;
+        if(task == PreDef_Void)
+            return;
         setStatus(PreDef_Run);
         while(step());
     }
@@ -322,7 +328,8 @@ struct Task {
             else
                 link({prev, PreDef_Next, next});
             prev = next;
-        }) == 0) return false;
+        }) == 0)
+            return false;
 
         executeInfinite();
         return true;
