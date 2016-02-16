@@ -1,11 +1,14 @@
 #include "Context.hpp"
 
+struct Task;
+bool executePreDefProcedure(Task& task, Symbol procedure);
+
 struct Task {
     Context* context;
     Symbol task, status, frame, block;
 
     template <typename T>
-    T& accessBlobData(Context::SymbolObject* symbolObject) {
+    T& accessBlobData(SymbolObject* symbolObject) {
         if(symbolObject->blobSize != sizeof(T)*8)
             throwException("Invalid Blob Size");
         return *reinterpret_cast<T*>(symbolObject->blobData.get());
@@ -181,8 +184,10 @@ struct Task {
         return value;
     }
 
+    // TODO: Refactor move everything until here into Context
+
     Symbol indexBlob(Symbol symbol) {
-        Context::SymbolObject* symbolObject = context->getSymbolObject(symbol);
+        SymbolObject* symbolObject = context->getSymbolObject(symbol);
         auto iter = context->blobIndex.find(symbolObject);
         if(iter != context->blobIndex.end()) {
             destroy(symbol);
@@ -263,7 +268,56 @@ struct Task {
         task = status = frame = block = PreDef_Void;
     }
 
-    bool step();
+    bool step() {
+        if(!running())
+            return false;
+
+        Symbol parentBlock = block, parentFrame = frame, execute,
+               procedure, next, catcher, staticParams, dynamicParams;
+        if(!getUncertain(parentFrame, PreDef_Execute, execute)) {
+            popCallStack();
+            return true;
+        }
+
+        try {
+            block = context->create();
+            procedure = getGuaranteed(execute, PreDef_Procedure);
+            setFrame<true, false>(context->create({
+                {PreDef_Holds, parentFrame},
+                {PreDef_Parent, parentFrame},
+                {PreDef_Holds, block},
+                {PreDef_Block, block},
+                {PreDef_Procedure, procedure} // TODO: debugging
+            }));
+
+            if(getUncertain(execute, PreDef_Static, staticParams))
+                query(12, {staticParams, PreDef_Void, PreDef_Void}, [&](Triple result, ArchitectureType) {
+                    link({block, result.pos[0], result.pos[1]});
+                });
+
+            if(getUncertain(execute, PreDef_Dynamic, dynamicParams))
+                query(12, {dynamicParams, PreDef_Void, PreDef_Void}, [&](Triple result, ArchitectureType) {
+                    query(9, {parentBlock, result.pos[1], PreDef_Void}, [&](Triple resultB, ArchitectureType) {
+                        link({block, result.pos[0], resultB.pos[0]});
+                    });
+                });
+
+            if(getUncertain(execute, PreDef_Next, next))
+                setSolitary({parentFrame, PreDef_Execute, next});
+            else
+                unlink(parentFrame, PreDef_Execute);
+
+            if(getUncertain(execute, PreDef_Catch, catcher))
+                link({frame, PreDef_Catch, catcher});
+
+            if(!executePreDefProcedure(*this, procedure))
+                link({frame, PreDef_Execute, getGuaranteed(procedure, PreDef_Execute)});
+        } catch(Exception) {
+            executePreDefProcedure(*this, PreDef_Exception);
+        }
+
+        return true;
+    }
 
     bool uncaughtException() {
         assert(task != PreDef_Void);

@@ -229,7 +229,7 @@ PreDefProcedure(GetBlobLength) {
 }
 
 template<typename T>
-void PreDefProcedure_NumericCastTo(Task& task, Symbol type, Context::SymbolObject* OutputSymbolObject, Context::SymbolObject* InputSymbolObject) {
+void PreDefProcedure_NumericCastTo(Task& task, Symbol type, SymbolObject* OutputSymbolObject, SymbolObject* InputSymbolObject) {
     switch(type) {
         case PreDef_Natural:
             OutputSymbolObject->overwriteBlob(static_cast<T>(task.accessBlobData<uint64_t>(InputSymbolObject)));
@@ -272,7 +272,7 @@ PreDefProcedure(NumericCast) {
 
 PreDefProcedure(Equal) {
     Symbol type;
-    Context::SymbolObject* FirstSymbolObject;
+    SymbolObject* FirstSymbolObject;
     uint64_t OutputValue = 1;
     bool first = true;
 
@@ -286,7 +286,7 @@ PreDefProcedure(Equal) {
             type = _type;
             FirstSymbolObject = task.context->getSymbolObject(result.pos[0]);
         } else if(type == _type) {
-            Context::SymbolObject* InputSymbolObject = task.context->getSymbolObject(result.pos[0]);
+            SymbolObject* InputSymbolObject = task.context->getSymbolObject(result.pos[0]);
             if(type == PreDef_Float) {
                 if(task.accessBlobData<double>(InputSymbolObject) != task.accessBlobData<double>(FirstSymbolObject))
                     OutputValue = 0;
@@ -307,14 +307,14 @@ struct PreDefProcedure_LessThan {
     static bool n(uint64_t i, uint64_t c) { return i < c; };
     static bool i(int64_t i, int64_t c) { return i < c; };
     static bool f(double i, double c) { return i < c; };
-    static bool s(const Context::SymbolObject& i, const Context::SymbolObject& c) { return i.compareBlob(c) < 0; };
+    static bool s(const SymbolObject& i, const SymbolObject& c) { return i.compareBlob(c) < 0; };
 };
 
 struct PreDefProcedure_LessEqual {
     static bool n(uint64_t i, uint64_t c) { return i <= c; };
     static bool i(int64_t i, int64_t c) { return i <= c; };
     static bool f(double i, double c) { return i <= c; };
-    static bool s(const Context::SymbolObject& i, const Context::SymbolObject& c) { return i.compareBlob(c) <= 0; };
+    static bool s(const SymbolObject& i, const SymbolObject& c) { return i.compareBlob(c) <= 0; };
 };
 
 template<class op>
@@ -430,7 +430,7 @@ PreDefProcedure(AssociativeCommutativeBitwise) {
     bool first = true;
 
     if(task.query(9, {task.block, PreDef_Input, PreDef_Void}, [&](Triple result, ArchitectureType) {
-        Context::SymbolObject* InputSymbolObject = task.context->getSymbolObject(result.pos[0]);
+        SymbolObject* InputSymbolObject = task.context->getSymbolObject(result.pos[0]);
         if(first) {
             first = false;
             OutputValue = task.accessBlobData<uint64_t>(InputSymbolObject);
@@ -469,7 +469,7 @@ PreDefProcedure(AssociativeCommutativeArithmetic) {
 
     if(task.query(9, {task.block, PreDef_Input, PreDef_Void}, [&](Triple result, ArchitectureType) {
         Symbol _type = task.getGuaranteed(result.pos[0], PreDef_BlobType);
-        Context::SymbolObject* InputSymbolObject = task.context->getSymbolObject(result.pos[0]);
+        SymbolObject* InputSymbolObject = task.context->getSymbolObject(result.pos[0]);
         if(first) {
             first = false;
             type = _type;
@@ -546,7 +546,7 @@ PreDefProcedure(Divide) {
         task.throwException("Dividend and Divisor have different types");
 
     Symbol RestSymbol, QuotientSymbol;
-    Context::SymbolObject *RestSymbolObject, *QuotientSymbolObject;
+    SymbolObject *RestSymbolObject, *QuotientSymbolObject;
     bool rest = task.getUncertain(task.block, PreDef_Rest, RestSymbol),
          quotient = task.getUncertain(task.block, PreDef_Quotient, QuotientSymbol);
     if(rest) {
@@ -594,91 +594,49 @@ PreDefProcedure(Divide) {
     task.popCallStack();
 }
 
-std::map<Symbol, void(*)(Task&)> PreDefProcedures = {
-    {PreDef_Search, PreDefProcedure_Search},
-    {PreDef_Link, PreDefProcedure_Triple<PreDefProcedure_Link>},
-    {PreDef_Unlink, PreDefProcedure_Triple<PreDefProcedure_Unlink>},
-    {PreDef_Create, PreDefProcedure_Create},
-    {PreDef_Destroy, PreDefProcedure_Destroy},
-    {PreDef_GetEnv, PreDefProcedure_GetEnv},
-    {PreDef_Push, PreDefProcedure_Push},
-    {PreDef_Pop, PreDefProcedure_Pop},
-    {PreDef_Branch, PreDefProcedure_Branch},
-    {PreDef_Exception, PreDefProcedure_Exception},
-    {PreDef_Serialize, PreDefProcedure_Serialize},
-    {PreDef_Deserialize, PreDefProcedure_Deserialize},
-    {PreDef_SliceBlob, PreDefProcedure_SliceBlob},
-    {PreDef_AllocateBlob, PreDefProcedure_AllocateBlob},
-    {PreDef_CloneBlob, PreDefProcedure_CloneBlob},
-    {PreDef_GetBlobLength, PreDefProcedure_GetBlobLength},
-    {PreDef_NumericCast, PreDefProcedure_NumericCast},
-    {PreDef_Equal, PreDefProcedure_Equal},
-    {PreDef_LessThan, PreDefProcedure_CompareLogic<PreDefProcedure_LessThan>},
-    {PreDef_LessEqual, PreDefProcedure_CompareLogic<PreDefProcedure_LessEqual>},
-    {PreDef_BitShiftEmpty, PreDefProcedure_BitShift<PreDefProcedure_BitShiftEmpty>},
-    {PreDef_BitShiftReplicate, PreDefProcedure_BitShift<PreDefProcedure_BitShiftReplicate>},
-    {PreDef_BitShiftBarrel, PreDefProcedure_BitShift<PreDefProcedure_BitShiftBarrel>},
-    {PreDef_BitwiseComplement, PreDefProcedure_BitwiseComplement},
-    {PreDef_BitwiseAnd, PreDefProcedure_AssociativeCommutativeBitwise<PreDefProcedure_BitwiseAnd>},
-    {PreDef_BitwiseOr, PreDefProcedure_AssociativeCommutativeBitwise<PreDefProcedure_BitwiseOr>},
-    {PreDef_BitwiseXor, PreDefProcedure_AssociativeCommutativeBitwise<PreDefProcedure_BitwiseXor>},
-    {PreDef_Add, PreDefProcedure_AssociativeCommutativeArithmetic<PreDefProcedure_Add>},
-    {PreDef_Multiply, PreDefProcedure_AssociativeCommutativeArithmetic<PreDefProcedure_Multiply>},
-    {PreDef_Subtract, PreDefProcedure_Subtract},
-    {PreDef_Divide, PreDefProcedure_Divide}
-};
-
-bool Task::step() {
-    if(!running())
-        return false;
-
-    Symbol parentBlock = block, parentFrame = frame, execute,
-           procedure, next, catcher, staticParams, dynamicParams;
-    if(!getUncertain(parentFrame, PreDef_Execute, execute)) {
-        popCallStack();
+#define PreDefProcedureEntry(Name) \
+    case PreDef_##Name: \
+        PreDefProcedure_##Name(task); \
         return true;
+
+#define PreDefProcedureGroup(GroupName, Name) \
+    case PreDef_##Name: \
+        PreDefProcedure_##GroupName<PreDefProcedure_##Name>(task); \
+        return true;
+
+bool executePreDefProcedure(Task& task, Symbol procedure) {
+    switch(procedure) {
+        PreDefProcedureEntry(Search)
+        PreDefProcedureGroup(Triple, Link)
+        PreDefProcedureGroup(Triple, Unlink)
+        PreDefProcedureEntry(Create)
+        PreDefProcedureEntry(Destroy)
+        PreDefProcedureEntry(GetEnv)
+        PreDefProcedureEntry(Push)
+        PreDefProcedureEntry(Pop)
+        PreDefProcedureEntry(Branch)
+        PreDefProcedureEntry(Exception)
+        PreDefProcedureEntry(Serialize)
+        PreDefProcedureEntry(Deserialize)
+        PreDefProcedureEntry(SliceBlob)
+        PreDefProcedureEntry(AllocateBlob)
+        PreDefProcedureEntry(CloneBlob)
+        PreDefProcedureEntry(GetBlobLength)
+        PreDefProcedureEntry(NumericCast)
+        PreDefProcedureEntry(Equal)
+        PreDefProcedureGroup(CompareLogic, LessThan)
+        PreDefProcedureGroup(CompareLogic, LessEqual)
+        PreDefProcedureGroup(BitShift, BitShiftEmpty)
+        PreDefProcedureGroup(BitShift, BitShiftReplicate)
+        PreDefProcedureGroup(BitShift, BitShiftBarrel)
+        PreDefProcedureEntry(BitwiseComplement)
+        PreDefProcedureGroup(AssociativeCommutativeBitwise, BitwiseAnd)
+        PreDefProcedureGroup(AssociativeCommutativeBitwise, BitwiseOr)
+        PreDefProcedureGroup(AssociativeCommutativeBitwise, BitwiseXor)
+        PreDefProcedureGroup(AssociativeCommutativeArithmetic, Add)
+        PreDefProcedureGroup(AssociativeCommutativeArithmetic, Multiply)
+        PreDefProcedureEntry(Subtract)
+        PreDefProcedureEntry(Divide)
     }
-
-    try {
-        block = context->create();
-        procedure = getGuaranteed(execute, PreDef_Procedure);
-        setFrame<true, false>(context->create({
-            {PreDef_Holds, parentFrame},
-            {PreDef_Parent, parentFrame},
-            {PreDef_Holds, block},
-            {PreDef_Block, block},
-            {PreDef_Procedure, procedure} // TODO: debugging
-        }));
-
-        if(getUncertain(execute, PreDef_Static, staticParams))
-            query(12, {staticParams, PreDef_Void, PreDef_Void}, [&](Triple result, ArchitectureType) {
-                link({block, result.pos[0], result.pos[1]});
-            });
-
-        if(getUncertain(execute, PreDef_Dynamic, dynamicParams))
-            query(12, {dynamicParams, PreDef_Void, PreDef_Void}, [&](Triple result, ArchitectureType) {
-                query(9, {parentBlock, result.pos[1], PreDef_Void}, [&](Triple resultB, ArchitectureType) {
-                    link({block, result.pos[0], resultB.pos[0]});
-                });
-            });
-
-        if(getUncertain(execute, PreDef_Next, next))
-            setSolitary({parentFrame, PreDef_Execute, next});
-        else
-            unlink(parentFrame, PreDef_Execute);
-
-        if(getUncertain(execute, PreDef_Catch, catcher))
-            link({frame, PreDef_Catch, catcher});
-
-        auto iter = PreDefProcedures.find(procedure);
-        if(iter == PreDefProcedures.end()) {
-            execute = getGuaranteed(procedure, PreDef_Execute);
-            link({frame, PreDef_Execute, execute});
-        } else
-            iter->second(*this);
-    } catch(Exception) {
-        PreDefProcedure_Exception(*this);
-    }
-
-    return true;
+    return false;
 }

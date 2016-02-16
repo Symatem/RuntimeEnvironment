@@ -5,7 +5,7 @@ const char* HRLRawBegin = "raw:";
 struct Serialize {
     Task& task;
     Symbol symbol;
-    Context::SymbolObject* symbolObject;
+    SymbolObject* symbolObject;
     ArchitectureType blobSize;
 
     bool isEmpty() const {

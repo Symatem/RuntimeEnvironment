@@ -19,7 +19,7 @@ ArchitectureType historyTop, historySub, linesForBlob;
 Context context;
 struct Task task = {&context, PreDef_Void};
 decltype(context.topIndex)::iterator topIter;
-Context::SymbolObject* symbolObject;
+SymbolObject* symbolObject;
 
 bool stringEndsWith(std::string const& value, std::string const& ending) {
     if(ending.size() > value.size()) return false;
@@ -130,7 +130,7 @@ void serializeBlob(Task& task, std::ostream& stream, Symbol symbol) {
     Serialize serialize(task);
     serialize.serializeBlob(symbol);
     symbol = serialize.finalizeSymbol();
-    Context::SymbolObject* symbolObject = task.context->getSymbolObject(symbol);
+    SymbolObject* symbolObject = task.context->getSymbolObject(symbol);
     stream.write(reinterpret_cast<const char*>(symbolObject->blobData.get()), symbolObject->blobSize/8);
     task.destroy(symbol);
 }

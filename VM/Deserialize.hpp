@@ -1,5 +1,26 @@
 #include "Serialize.hpp"
 
+#define getSymbolByName(Name) \
+    Symbol Name##Symbol = task.getGuaranteed(task.block, PreDef_##Name);
+
+#define getSymbolObjectByName(Name) \
+    getSymbolByName(Name) \
+    auto Name##SymbolObject = task.context->getSymbolObject(Name##Symbol);
+
+#define checkBlobType(Name, expectedType) \
+if(task.query(1, {Name##Symbol, PreDef_BlobType, expectedType}) == 0) \
+    task.throwException("Invalid Blob Type");
+
+#define getUncertainSymbolObjectByName(Name, DefaultValue) \
+    Symbol Name##Symbol; ArchitectureType Name##Value; \
+    if(task.getUncertain(task.block, PreDef_##Name, Name##Symbol)) { \
+        checkBlobType(Name, PreDef_Natural) \
+        Name##Value = task.accessBlobData<ArchitectureType>(task.context->getSymbolObject(Name##Symbol)); \
+    } else \
+        Name##Value = DefaultValue;
+
+
+
 class Deserialize {
     Task& task;
     const char *pos, *end, *tokenBegin;
@@ -15,12 +36,13 @@ class Deserialize {
 
     std::vector<Symbol> stack;
     Symbol parentEntry, currentEntry;
-    std::map<Context::SymbolObject*, Symbol, Context::BlobIndexCompare> locals;
+    std::map<SymbolObject*, Symbol, Context::BlobIndexCompare> locals;
 
     bool isStackSize(ArchitectureType size) {
         return stack.size() == size;
     }
 
+    // TODO: Refactor to be a blob based vector
     Symbol popQueue() {
         Symbol oldElement = task.getGuaranteed(currentEntry, PreDef_Queue),
                symbol = task.getGuaranteed(oldElement, PreDef_Value),
@@ -57,7 +79,7 @@ class Deserialize {
                 symbol = task.context->createFromData(tokenBegin, pos-tokenBegin);
             else if(*tokenBegin == '#') {
                 symbol = task.context->createFromData(tokenBegin, pos-tokenBegin);
-                Context::SymbolObject* symbolObject = task.context->getSymbolObject(symbol);
+                SymbolObject* symbolObject = task.context->getSymbolObject(symbol);
                 auto iter = locals.find(symbolObject);
                 if(iter == locals.end())
                     locals.insert(std::make_pair(symbolObject, symbol));
@@ -71,7 +93,7 @@ class Deserialize {
                 if(nibbleCount == 0)
                     throwException("Empty raw data");
                 symbol = task.context->create();
-                Context::SymbolObject* symbolObject = task.context->getSymbolObject(symbol);
+                SymbolObject* symbolObject = task.context->getSymbolObject(symbol);
                 symbolObject->allocateBlob(nibbleCount*4);
                 char* dst = reinterpret_cast<char*>(symbolObject->blobData.get()), odd = 0, nibble;
                 while(src < pos) {
