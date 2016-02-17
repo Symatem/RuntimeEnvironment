@@ -1,4 +1,4 @@
-#include "../VM/PreDefProcedures.hpp"
+#include "../Interpreter/PreDefProcedures.hpp"
 #include <sys/ioctl.h>
 #include <sys/types.h>
 #include <sys/stat.h>

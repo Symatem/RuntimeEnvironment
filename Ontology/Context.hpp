@@ -1,4 +1,4 @@
-#include "Symbol.hpp"
+#include "Ontology.hpp"
 
 struct Context { // TODO: : public Storage {
     enum IndexMode {
@@ -28,7 +28,8 @@ struct Context { // TODO: : public Storage {
         stream.write(reinterpret_cast<const char*>(symbolObject->blobData.get()), symbolObject->blobSize/8);
     }
 
-    bool unindexBlob(Symbol symbol) { // TODO: Needs to be called at every blob mutation
+    // TODO: Needs to be called at every blob mutation
+    bool unindexBlob(Symbol symbol) {
         auto iter = blobIndex.find(getSymbolObject(symbol));
         if(iter == blobIndex.end() || iter->second != symbol)
             return false;
@@ -54,7 +55,7 @@ struct Context { // TODO: : public Storage {
     }
 
     template<bool skip = false>
-    bool unlink(std::set<Triple> triples, std::set<Symbol> skipSymbols = {}) {
+    bool unlink(std::set<Triple> triples, std::set<Symbol> symbols = {}) {
         assert(!triples.empty());
         std::set<Symbol> dirty;
         ArchitectureType indexCount = (indexMode == MonoIndex) ? 1 : 3;
@@ -62,7 +63,7 @@ struct Context { // TODO: : public Storage {
         for(auto& triple : triples) {
             for(ArchitectureType i = 0; i < indexCount; ++i) {
                 dirty.insert(triple.pos[i]);
-                if(skip && skipSymbols.find(triple.pos[i]) != skipSymbols.end())
+                if(skip && symbols.find(triple.pos[i]) != symbols.end())
                     continue;
                 auto topIter = topIndex.find(triple.pos[i]);
                 if(topIter == topIndex.end() ||
@@ -83,6 +84,8 @@ struct Context { // TODO: : public Storage {
             if(empty)
                 topIndex.erase(topIter);
         }
+        for(auto alpha : symbols)
+            topIndex.erase(alpha);
         return true;
     }
 

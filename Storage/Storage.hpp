@@ -2,16 +2,15 @@
 #include <iomanip>
 #include <fstream>
 #include <sstream>
+#include <vector>
+#include <map>
+#include <set>
 #include <limits>
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <assert.h>
 #include <dirent.h>
 #include <math.h>
-#include <queue>
-#include <stack>
-#include <map>
-#include <set>
 
 typedef uint64_t ArchitectureType;
 const ArchitectureType ArchitectureSize = sizeof(ArchitectureType)*8;

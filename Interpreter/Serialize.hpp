@@ -39,7 +39,7 @@ struct Serialize {
             number *= -1;
         }
         NumberType mask = 1;
-        while(mask < number)
+        while(mask <= number)
             mask *= base;
         while(number > 0 && mask > 0.001) {
             if(mask == 1) // TODO

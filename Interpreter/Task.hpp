@@ -1,4 +1,4 @@
-#include "Context.hpp"
+#include "../Ontology/Context.hpp"
 
 struct Task;
 bool executePreDefProcedure(Task& task, Symbol procedure);
@@ -94,6 +94,10 @@ struct Task {
         return query(9, {entity, attribute, PreDef_Void}) == size;
     }
 
+    bool tripleExists(Triple triple) {
+        return query(0, triple) == 1;
+    }
+
     void link(Triple triple) {
         if(!context->link(triple))
             throwException("Already linked", {
@@ -132,7 +136,6 @@ struct Task {
                 for(auto gamma : beta.second)
                     triples.insert(Triple(alpha, beta.first, gamma).normalized(i));
         unlink<true>(triples, {alpha});
-        context->topIndex.erase(topIter);
     }
 
     void scrutinizeExistence(Symbol symbol) {
@@ -321,12 +324,12 @@ struct Task {
 
     bool uncaughtException() {
         assert(task != PreDef_Void);
-        return query(0, {task, PreDef_Status, PreDef_Exception}) == 1;
+        return tripleExists({task, PreDef_Status, PreDef_Exception});
     }
 
     bool running() {
         assert(task != PreDef_Void);
-        return query(0, {task, PreDef_Status, PreDef_Run}) == 1;
+        return tripleExists({task, PreDef_Status, PreDef_Run});
     }
 
     void executeFinite(ArchitectureType n) {
