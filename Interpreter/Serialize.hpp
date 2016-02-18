@@ -55,19 +55,19 @@ struct Serialize {
     }
 
     Serialize(Task& _task, Symbol _symbol) :task(_task), symbol(_symbol), blobSize(0) {
-        symbolObject = task.context->getSymbolObject(_symbol);
+        symbolObject = task.context.getSymbolObject(_symbol);
     }
 
-    Serialize(Task& _task) :Serialize(_task, _task.context->create({{PreDef_BlobType, PreDef_Text}})) {
+    Serialize(Task& _task) :Serialize(_task, _task.context.create({{PreDef_BlobType, PreDef_Text}})) {
 
     }
 
     void serializeBlob(Symbol symbol) {
-        auto srcSymbolObject = task.context->getSymbolObject(symbol);
+        auto srcSymbolObject = task.context.getSymbolObject(symbol);
         auto src = reinterpret_cast<const uint8_t*>(srcSymbolObject->blobData.get());
         if(srcSymbolObject->blobSize) {
             Symbol type = PreDef_Void;
-            task.getUncertain(symbol, PreDef_BlobType, type);
+            task.context.getUncertain(symbol, PreDef_BlobType, type);
             switch(type) {
                 case PreDef_Text: {
                     ArchitectureType len = srcSymbolObject->blobSize/8;
@@ -85,13 +85,13 @@ struct Serialize {
                         put('"');
                 }   break;
                 case PreDef_Natural:
-                    serializeNumber(task.template accessBlobData<uint64_t>(srcSymbolObject));
+                    serializeNumber(task.context.accessBlobData<uint64_t>(srcSymbolObject));
                     break;
                 case PreDef_Integer:
-                    serializeNumber(task.template accessBlobData<int64_t>(srcSymbolObject));
+                    serializeNumber(task.context.accessBlobData<int64_t>(srcSymbolObject));
                     break;
                 case PreDef_Float:
-                    serializeNumber(task.template accessBlobData<double>(srcSymbolObject));
+                    serializeNumber(task.context.accessBlobData<double>(srcSymbolObject));
                     break;
                 default: {
                     for(ArchitectureType i = 0; i < strlen(HRLRawBegin); ++i)
@@ -115,8 +115,8 @@ struct Serialize {
     void serializeEntity(Symbol entity, std::function<Symbol(Symbol)> followCallback = nullptr) {
         Symbol followAttribute;
         while(true) {
-            auto topIter = task.context->topIndex.find(entity);
-            assert(topIter != task.context->topIndex.end());
+            auto topIter = task.context.topIndex.find(entity);
+            assert(topIter != task.context.topIndex.end());
 
             if(followCallback)
                 followAttribute = followCallback(entity);

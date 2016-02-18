@@ -13,7 +13,6 @@ const char* PreDefSymbols[] = {
 #undef PreDefWrapper
 
 typedef ArchitectureType Symbol;
-struct Exception {};
 enum IndexType {
     EAV = 0, AVE = 1, VEA = 2,
     EVA = 3, AEV = 4, VAE = 5
