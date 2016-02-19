@@ -1,12 +1,5 @@
 #include "Ontology.hpp"
 
-struct Exception {
-    const char* message;
-    std::set<std::pair<Symbol, Symbol>> links;
-    Exception(const char* _message, std::set<std::pair<Symbol, Symbol>> _links = {})
-        :message(_message), links(_links) { }
-};
-
 struct Context { // TODO: : public Storage {
     enum IndexMode {
         MonoIndex = 1,
@@ -78,7 +71,7 @@ struct Context { // TODO: : public Storage {
         if(topIter == topIndex.end())
             throw Exception("Symbol is Nonexistent");
         auto& subIndex = topIter->second->subIndices[index];
-        std::set<Symbol> result;
+        std::set<Symbol> result; // TODO: Replace me!
         for(auto& beta : subIndex)
             result.insert(beta.second.begin(), beta.second.end());
         if(callback)
@@ -250,7 +243,7 @@ struct Context { // TODO: : public Storage {
     }
 
     bool unlink(std::set<Triple> triples, bool allowFailure = false, std::set<Symbol> symbols = {}) {
-        std::set<Symbol> dirty;
+        std::set<Symbol> dirty; // TODO: Replace me!
         ArchitectureType indexCount = (indexMode == MonoIndex) ? 1 : 3;
         bool reverseIndex = (indexMode == HexaIndex);
         for(auto& triple : triples) {
@@ -290,7 +283,7 @@ struct Context { // TODO: : public Storage {
     }
 
     bool unlink(Symbol alpha, Symbol beta, bool allowFailure = false) {
-        std::set<Triple> triples;
+        std::set<Triple> triples; // TODO: Replace me!
         query(9, {alpha, beta, PreDef_Void}, [&](Triple result, ArchitectureType) {
             triples.insert({alpha, beta, result.pos[0]});
         });
@@ -304,7 +297,7 @@ struct Context { // TODO: : public Storage {
     }
 
     bool destroy(Symbol alpha, bool allowFailure = false) {
-        std::set<Triple> triples;
+        std::set<Triple> triples; // TODO: Replace me!
         auto topIter = topIndex.find(alpha);
         if(topIter == topIndex.end()) {
             if(allowFailure)
@@ -322,7 +315,7 @@ struct Context { // TODO: : public Storage {
     }
 
     void scrutinizeExistence(Symbol symbol) {
-        std::set<Symbol> symbols;
+        std::set<Symbol> symbols; // TODO: Replace me!
         symbols.insert(symbol);
         while(!symbols.empty()) {
             symbol = *symbols.begin();
@@ -339,7 +332,7 @@ struct Context { // TODO: : public Storage {
 
     void setSolitary(Triple triple) {
         bool toLink = true;
-        std::set<Triple> triples;
+        std::set<Triple> triples; // TODO: Replace me!
         query(9, triple, [&](Triple result, ArchitectureType) {
             if(triple.pos[2] == result.pos[0])
                 toLink = false;
@@ -375,13 +368,6 @@ struct Context { // TODO: : public Storage {
         if(topIter == topIndex.end())
             throw Exception("Symbol is Nonexistent");
         return topIter->second.get();
-    }
-
-    template <typename T>
-    T& accessBlobData(SymbolObject* symbolObject) {
-        if(symbolObject->blobSize != sizeof(T)*8)
-            throw Exception("Invalid Blob Size");
-        return *reinterpret_cast<T*>(symbolObject->blobData.get());
     }
 
     // TODO: Remove useage of C++ StdLib

@@ -1,4 +1,4 @@
-#include "../Ontology/Context.hpp"
+#include "../Ontology/Containers.hpp"
 
 struct Task;
 bool executePreDefProcedure(Task& task, Symbol procedure);
@@ -56,13 +56,12 @@ struct Task {
         return parentExists;
     }
 
+    // TODO: Refactor to unify popCallStack() calls at the ends of PreDefProcedures
     Symbol popCallStackTargetSymbol() {
         Symbol TargetSymbol;
         bool target = context.getUncertain(block, PreDef_Target, TargetSymbol);
         assert(popCallStack());
-        if(target)
-            return TargetSymbol;
-        return block;
+        return (target) ? TargetSymbol : block;
     }
 
     void clear() {

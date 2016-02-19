@@ -69,9 +69,9 @@ PreDefProcedure(Create) {
     Symbol InputSymbol, ValueSymbol;
     bool input = task.context.getUncertain(task.block, PreDef_Input, InputSymbol);
     if(input)
-        ValueSymbol = task.context.accessBlobData<ArchitectureType>(task.context.getSymbolObject(InputSymbol));
+        ValueSymbol = task.context.getSymbolObject(InputSymbol)->accessBlobAt<ArchitectureType>();
 
-    std::set<Symbol> OutputSymbols;
+    std::set<Symbol> OutputSymbols; // TODO: Replace me!
     auto count = task.context.query(9, {task.block, PreDef_Output, PreDef_Void}, [&](Triple result, ArchitectureType) {
         OutputSymbols.insert(result.pos[0]);
     });
@@ -88,7 +88,7 @@ PreDefProcedure(Create) {
 }
 
 PreDefProcedure(Destroy) {
-    std::set<Symbol> toDestroy;
+    std::set<Symbol> toDestroy; // TODO: Replace me!
     if(task.context.query(9, {task.block, PreDef_Input, PreDef_Void}, [&](Triple result, ArchitectureType) {
         toDestroy.insert(result.pos[0]);
     }) == 0)
@@ -134,7 +134,7 @@ PreDefProcedure(Push) {
 PreDefProcedure(Pop) {
     getSymbolObjectByName(Count)
     checkBlobType(Count, PreDef_Natural)
-    auto CountValue = task.context.accessBlobData<uint64_t>(CountSymbolObject);
+    auto CountValue = CountSymbolObject->accessBlobAt<uint64_t>();
     if(CountValue < 2)
         throw Exception("Invalid Count Value");
     for(; CountValue > 0 && task.popCallStack(); --CountValue);
@@ -193,7 +193,7 @@ PreDefProcedure(SliceBlob) {
     getUncertainSymbolObjectByName(Destination, 0)
     getUncertainSymbolObjectByName(Source, 0)
     task.context.unindexBlob(TargetSymbol);
-    if(!TargetSymbolObject->overwriteBlobPartial(*InputSymbolObject, CountValue, DestinationValue, SourceValue))
+    if(!TargetSymbolObject->overwriteBlobPartial(*InputSymbolObject, DestinationValue, SourceValue, CountValue))
         throw Exception("Invalid Count, Destination or SrcOffset Value");
     task.popCallStack();
 }
@@ -204,7 +204,7 @@ PreDefProcedure(AllocateBlob) {
     getSymbolObjectByName(Target)
     checkBlobType(Input, PreDef_Natural)
     task.context.unindexBlob(TargetSymbol);
-    TargetSymbolObject->allocateBlob(task.context.accessBlobData<ArchitectureType>(InputSymbolObject), PreserveValue);
+    TargetSymbolObject->allocateBlob(InputSymbolObject->accessBlobAt<ArchitectureType>(), PreserveValue);
     task.popCallStack();
 }
 
@@ -232,13 +232,13 @@ template<typename T>
 void PreDefProcedure_NumericCastTo(Task& task, Symbol type, SymbolObject* OutputSymbolObject, SymbolObject* InputSymbolObject) {
     switch(type) {
         case PreDef_Natural:
-            OutputSymbolObject->overwriteBlob(static_cast<T>(task.context.accessBlobData<uint64_t>(InputSymbolObject)));
+            OutputSymbolObject->overwriteBlob(static_cast<T>(InputSymbolObject->accessBlobAt<uint64_t>()));
             break;
         case PreDef_Integer:
-            OutputSymbolObject->overwriteBlob(static_cast<T>(task.context.accessBlobData<int64_t>(InputSymbolObject)));
+            OutputSymbolObject->overwriteBlob(static_cast<T>(InputSymbolObject->accessBlobAt<int64_t>()));
             break;
         case PreDef_Float:
-            OutputSymbolObject->overwriteBlob(static_cast<T>(task.context.accessBlobData<double>(InputSymbolObject)));
+            OutputSymbolObject->overwriteBlob(static_cast<T>(InputSymbolObject->accessBlobAt<double>()));
             break;
         default:
             throw Exception("Invalid Input SymbolObject");
@@ -288,7 +288,7 @@ PreDefProcedure(Equal) {
         } else if(type == _type) {
             SymbolObject* InputSymbolObject = task.context.getSymbolObject(result.pos[0]);
             if(type == PreDef_Float) {
-                if(task.context.accessBlobData<double>(InputSymbolObject) != task.context.accessBlobData<double>(FirstSymbolObject))
+                if(InputSymbolObject->accessBlobAt<double>() != FirstSymbolObject->accessBlobAt<double>())
                     OutputValue = 0;
             } else if(InputSymbolObject->compareBlob(*FirstSymbolObject) != 0)
                 OutputValue = 0;
@@ -332,13 +332,13 @@ PreDefProcedure(CompareLogic) {
     uint64_t result;
     switch(type) {
         case PreDef_Natural:
-            result = op::n(task.context.accessBlobData<uint64_t>(InputSymbolObject), task.context.accessBlobData<uint64_t>(ComparandumSymbolObject));
+            result = op::n(InputSymbolObject->accessBlobAt<uint64_t>(), ComparandumSymbolObject->accessBlobAt<uint64_t>());
             break;
         case PreDef_Integer:
-            result = op::i(task.context.accessBlobData<int64_t>(InputSymbolObject), task.context.accessBlobData<int64_t>(ComparandumSymbolObject));
+            result = op::i(InputSymbolObject->accessBlobAt<int64_t>(), ComparandumSymbolObject->accessBlobAt<int64_t>());
             break;
         case PreDef_Float:
-            result = op::f(task.context.accessBlobData<double>(InputSymbolObject), task.context.accessBlobData<double>(ComparandumSymbolObject));
+            result = op::f(InputSymbolObject->accessBlobAt<double>(), ComparandumSymbolObject->accessBlobAt<double>());
             break;
         default:
             result = op::s(*InputSymbolObject, *ComparandumSymbolObject);
@@ -385,8 +385,8 @@ PreDefProcedure(BitShift) {
     getSymbolObjectByName(Output)
     checkBlobType(Count, PreDef_Natural)
 
-    auto result = task.context.accessBlobData<uint64_t>(InputSymbolObject);
-    auto CountValue = task.context.accessBlobData<uint64_t>(CountSymbolObject);
+    auto result = InputSymbolObject->accessBlobAt<uint64_t>();
+    auto CountValue = CountSymbolObject->accessBlobAt<uint64_t>();
     switch(task.context.getGuaranteed(task.block, PreDef_Direction)) {
         case PreDef_Divide:
             op::d(result, CountValue);
@@ -408,7 +408,7 @@ PreDefProcedure(BitwiseComplement) {
     getSymbolObjectByName(Output)
 
     task.context.unlink(OutputSymbol, PreDef_BlobType);
-    OutputSymbolObject->overwriteBlob(~task.context.accessBlobData<uint64_t>(InputSymbolObject));
+    OutputSymbolObject->overwriteBlob(~InputSymbolObject->accessBlobAt<uint64_t>());
     task.popCallStack();
 }
 
@@ -433,9 +433,9 @@ PreDefProcedure(AssociativeCommutativeBitwise) {
         SymbolObject* InputSymbolObject = task.context.getSymbolObject(result.pos[0]);
         if(first) {
             first = false;
-            OutputValue = task.context.accessBlobData<uint64_t>(InputSymbolObject);
+            OutputValue = InputSymbolObject->accessBlobAt<uint64_t>();
         } else
-            op::n(OutputValue, task.context.accessBlobData<uint64_t>(InputSymbolObject));
+            op::n(OutputValue, InputSymbolObject->accessBlobAt<uint64_t>());
     }) < 2)
         throw Exception("Expected more Input");
 
@@ -475,13 +475,13 @@ PreDefProcedure(AssociativeCommutativeArithmetic) {
             type = _type;
             switch(type) {
                 case PreDef_Natural:
-                    aux.n = task.context.accessBlobData<uint64_t>(InputSymbolObject);
+                    aux.n = InputSymbolObject->accessBlobAt<uint64_t>();
                     break;
                 case PreDef_Integer:
-                    aux.i = task.context.accessBlobData<int64_t>(InputSymbolObject);
+                    aux.i = InputSymbolObject->accessBlobAt<int64_t>();
                     break;
                 case PreDef_Float:
-                    aux.f = task.context.accessBlobData<double>(InputSymbolObject);
+                    aux.f = InputSymbolObject->accessBlobAt<double>();
                     break;
                 default:
                     throw Exception("Invalid Input SymbolObject");
@@ -489,13 +489,13 @@ PreDefProcedure(AssociativeCommutativeArithmetic) {
         } else if(type == _type) {
             switch(type) {
                 case PreDef_Natural:
-                    op::n(aux.n, task.context.accessBlobData<uint64_t>(InputSymbolObject));
+                    op::n(aux.n, InputSymbolObject->accessBlobAt<uint64_t>());
                     break;
                 case PreDef_Integer:
-                    op::i(aux.i, task.context.accessBlobData<int64_t>(InputSymbolObject));
+                    op::i(aux.i, InputSymbolObject->accessBlobAt<int64_t>());
                     break;
                 case PreDef_Float:
-                    op::f(aux.f, task.context.accessBlobData<double>(InputSymbolObject));
+                    op::f(aux.f, InputSymbolObject->accessBlobAt<double>());
                     break;
             }
         } else
@@ -522,13 +522,13 @@ PreDefProcedure(Subtract) {
     task.context.setSolitary({OutputSymbol, PreDef_BlobType, type});
     switch(type) {
         case PreDef_Natural:
-            OutputSymbolObject->overwriteBlob(task.context.accessBlobData<uint64_t>(MinuendSymbolObject)-task.context.accessBlobData<uint64_t>(SubtrahendSymbolObject));
+            OutputSymbolObject->overwriteBlob(MinuendSymbolObject->accessBlobAt<uint64_t>()-SubtrahendSymbolObject->accessBlobAt<uint64_t>());
             break;
         case PreDef_Integer:
-            OutputSymbolObject->overwriteBlob(task.context.accessBlobData<int64_t>(MinuendSymbolObject)-task.context.accessBlobData<int64_t>(SubtrahendSymbolObject));
+            OutputSymbolObject->overwriteBlob(MinuendSymbolObject->accessBlobAt<int64_t>()-SubtrahendSymbolObject->accessBlobAt<int64_t>());
             break;
         case PreDef_Float:
-            OutputSymbolObject->overwriteBlob(task.context.accessBlobData<double>(MinuendSymbolObject)-task.context.accessBlobData<double>(SubtrahendSymbolObject));
+            OutputSymbolObject->overwriteBlob(MinuendSymbolObject->accessBlobAt<double>()-SubtrahendSymbolObject->accessBlobAt<double>());
             break;
         default:
             throw Exception("Invalid Minuend or Subtrahend SymbolObject");
@@ -567,22 +567,22 @@ PreDefProcedure(Divide) {
 
     switch(type) {
         case PreDef_Natural: {
-            auto DividendValue = task.context.accessBlobData<uint64_t>(DividendSymbolObject),
-                 DivisorValue = task.context.accessBlobData<uint64_t>(DivisorSymbolObject);
+            auto DividendValue =  DividendSymbolObject->accessBlobAt<uint64_t>(),
+                 DivisorValue = DivisorSymbolObject->accessBlobAt<uint64_t>();
             if(DivisorValue == 0) throw Exception("Division by Zero");
             if(rest) RestSymbolObject->overwriteBlob(DividendValue%DivisorValue);
             if(quotient) QuotientSymbolObject->overwriteBlob(DividendValue/DivisorValue);
         }   break;
         case PreDef_Integer: {
-            auto DividendValue = task.context.accessBlobData<int64_t>(DividendSymbolObject),
-                 DivisorValue = task.context.accessBlobData<int64_t>(DivisorSymbolObject);
+            auto DividendValue = DividendSymbolObject->accessBlobAt<int64_t>(),
+                 DivisorValue = DivisorSymbolObject->accessBlobAt<int64_t>();
             if(DivisorValue == 0) throw Exception("Division by Zero");
             if(rest) RestSymbolObject->overwriteBlob(DividendValue%DivisorValue);
             if(quotient) QuotientSymbolObject->overwriteBlob(DividendValue/DivisorValue);
         }   break;
         case PreDef_Float: {
-            auto DividendValue = task.context.accessBlobData<double>(DividendSymbolObject),
-                 DivisorValue = task.context.accessBlobData<double>(DivisorSymbolObject),
+            auto DividendValue = DividendSymbolObject->accessBlobAt<double>(),
+                 DivisorValue = DivisorSymbolObject->accessBlobAt<double>(),
                  QuotientValue = DividendValue/DivisorValue;
             if(DivisorValue == 0.0) throw Exception("Division by Zero");
             if(rest) RestSymbolObject->overwriteBlob(modf(QuotientValue, &QuotientValue));

@@ -2,7 +2,6 @@
 #include <iomanip>
 #include <fstream>
 #include <sstream>
-#include <vector>
 #include <map>
 #include <set>
 #include <limits>

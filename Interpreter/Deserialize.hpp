@@ -15,7 +15,7 @@ if(task.context.query(1, {Name##Symbol, PreDef_BlobType, expectedType}) == 0) \
     Symbol Name##Symbol; ArchitectureType Name##Value; \
     if(task.context.getUncertain(task.block, PreDef_##Name, Name##Symbol)) { \
         checkBlobType(Name, PreDef_Natural) \
-        Name##Value = task.context.accessBlobData<ArchitectureType>(task.context.getSymbolObject(Name##Symbol)); \
+        Name##Value = task.context.getSymbolObject(Name##Symbol)->accessBlobAt<ArchitectureType>(); \
     } else \
         Name##Value = DefaultValue;
 
@@ -32,13 +32,9 @@ class Deserialize {
         });
     }
 
-    std::vector<Symbol> stack;
+    Vector<Symbol> stack;
     Symbol parentEntry, currentEntry;
     std::map<SymbolObject*, Symbol, Context::BlobIndexCompare> locals;
-
-    bool isStackSize(ArchitectureType size) {
-        return stack.size() == size;
-    }
 
     // TODO: Refactor to be a blob based vector
     Symbol popQueue() {
@@ -201,7 +197,7 @@ class Deserialize {
     }
 
     public:
-    Deserialize(Task& _task) :task(_task) {
+    Deserialize(Task& _task) :task(_task), stack(_task.context) {
         package = task.context.getGuaranteed(task.block, PreDef_Package);
         getSymbolObjectByName(Input)
         checkBlobType(Input, PreDef_Text)
@@ -249,17 +245,17 @@ class Deserialize {
                     stack.push_back(currentEntry);
                     break;
                 case ';':
-                    if(isStackSize(1))
+                    if(stack.size() == 1)
                         throwException("Semicolon outside of any brackets");
                     seperateTokens(true);
                     if(!task.context.valueSetCountIs(currentEntry, PreDef_UnnestEntity, 0))
                         throwException("Unnesting failed");
                     break;
                 case ')': {
-                    if(isStackSize(1))
+                    if(stack.size() == 1)
                         throwException("Unmatched closing bracket");
                     seperateTokens(false);
-                    if(isStackSize(2) && task.context.valueSetCountIs(parentEntry, PreDef_UnnestEntity, 0)) {
+                    if(stack.size() == 2 && task.context.valueSetCountIs(parentEntry, PreDef_UnnestEntity, 0)) {
                         locals.clear();
                         auto topIter = task.context.topIndex.find(task.context.getGuaranteed(currentEntry, PreDef_Entity));
                         if(topIter != task.context.topIndex.end() && topIter->second->subIndices[EAV].empty())
@@ -270,7 +266,7 @@ class Deserialize {
                     task.context.destroy(currentEntry);
                     stack.pop_back();
                     currentEntry = parentEntry;
-                    parentEntry = (isStackSize(1)) ? PreDef_Void : *(++stack.rbegin());
+                    parentEntry = (stack.size() < 2) ? PreDef_Void : stack[stack.size()-2];
                 }   break;
             }
             ++column;
@@ -278,7 +274,7 @@ class Deserialize {
         }
         parseToken();
 
-        if(!isStackSize(1))
+        if(stack.size() != 1)
             throwException("Missing closing bracket");
         if(!task.context.valueSetCountIs(currentEntry, PreDef_UnnestEntity, 0))
             throwException("Unnesting failed");

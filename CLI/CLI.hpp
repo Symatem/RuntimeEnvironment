@@ -14,9 +14,9 @@ enum {
 } mode = Mode_Browse;
 std::stringstream stream;
 std::string interfaceBuffer;
-std::vector<ArchitectureType> history;
 ArchitectureType historyTop, historySub, linesForBlob;
 Context context;
+Vector<Symbol> history(context);
 struct Task task = {context, PreDef_Void};
 decltype(context.topIndex)::iterator topIter;
 SymbolObject* symbolObject;

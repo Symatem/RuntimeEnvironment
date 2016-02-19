@@ -18,6 +18,13 @@ enum IndexType {
     EVA = 3, AEV = 4, VAE = 5
 };
 
+struct Exception {
+    const char* message;
+    std::set<std::pair<Symbol, Symbol>> links;
+    Exception(const char* _message, std::set<std::pair<Symbol, Symbol>> _links = {})
+        :message(_message), links(_links) { }
+};
+
 union Triple {
     Symbol pos[3];
     struct {
@@ -72,7 +79,7 @@ struct SymbolObject {
         allocateBlob(_size, _size);
     }
 
-    bool overwriteBlobPartial(const SymbolObject& src, ArchitectureType length, ArchitectureType dstOffset, ArchitectureType srcOffset) {
+    bool overwriteBlobPartial(const SymbolObject& src, ArchitectureType dstOffset, ArchitectureType srcOffset, ArchitectureType length) {
         auto end = dstOffset+length;
         if(end <= dstOffset || end > blobSize)
             return false;
@@ -85,13 +92,39 @@ struct SymbolObject {
 
     void overwriteBlob(const SymbolObject& src) {
         allocateBlob(src.blobSize);
-        overwriteBlobPartial(src, src.blobSize, 0, 0);
+        overwriteBlobPartial(src, 0, 0, src.blobSize);
     }
 
     template<typename DataType>
     void overwriteBlob(DataType src) {
         allocateBlob(sizeof(src)*8);
         *reinterpret_cast<DataType*>(blobData.get()) = src;
+    }
+
+    bool eraseFromBlob(ArchitectureType begin, ArchitectureType end) {
+        if(begin >= end || end > blobSize)
+            return false;
+        auto rest = blobSize-end;
+        bitwiseCopy(blobData.get(), blobData.get(), begin, end, rest);
+        reallocateBlob(rest+begin);
+        return true;
+    }
+
+    bool insertIntoBlob(const ArchitectureType* src, ArchitectureType begin, ArchitectureType length) {
+        auto newBlobSize = blobSize+length, oldBlobSize = blobSize;
+        if(blobSize >= newBlobSize || begin > blobSize)
+            return false;
+        reallocateBlob(newBlobSize);
+        bitwiseCopy(blobData.get(), blobData.get(), begin+length, begin, oldBlobSize-begin);
+        bitwiseCopy(blobData.get(), src, begin, 0, length);
+        return true;
+    }
+
+    template <typename T>
+    T& accessBlobAt(ArchitectureType at = 0) {
+        if((at+1)*sizeof(T)*8 > blobSize)
+            throw Exception("Invalid Blob Size");
+        return *(reinterpret_cast<T*>(blobData.get())+at);
     }
 
     int compareBlob(const SymbolObject& other) const {
@@ -107,7 +140,7 @@ struct SymbolObject {
         auto outerIter = forward.find(beta);
 
         if(outerIter == forward.end())
-            forward.insert(std::make_pair(beta, std::set<Symbol>{gamma}));
+            forward.insert({beta, std::set<Symbol>{gamma}});
         else if(outerIter->second.find(gamma) == outerIter->second.end())
             outerIter->second.insert(gamma);
         else
@@ -117,7 +150,7 @@ struct SymbolObject {
             auto& reverse = subIndices[index+3];
             outerIter = reverse.find(gamma);
             if(outerIter == reverse.end())
-                reverse.insert(std::make_pair(gamma, std::set<Symbol>{beta}));
+                reverse.insert({gamma, std::set<Symbol>{beta}});
             else if(outerIter->second.find(beta) == outerIter->second.end())
                 outerIter->second.insert(beta);
         }

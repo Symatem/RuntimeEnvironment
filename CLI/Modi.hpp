@@ -193,9 +193,9 @@ uint64_t ModeBrowse(bool special, uint64_t size, const char* buffer) {
                         auto& set = subIter->second;
                         if(set.size() > 0)
                             history.push_back(history[historyTop+2]);
-                        if(history.size() > historyLimit*4)
-                            history.erase(history.begin(), history.begin()+4);
                         history.push_back(history[historyTop+2]);
+                        if(history.size() > historyLimit*4)
+                            history.erase(0, 4);
                     }   return 1;
                     case 3:
                         com = Right;
@@ -215,11 +215,11 @@ uint64_t ModeBrowse(bool special, uint64_t size, const char* buffer) {
                         history[historyTop] = (--topIter)->first;
                     break;
                 case 1:
-                    if(*history.rbegin() > 0) *history.rbegin() -= 1;
+                    if(history.back() > 0) --history.back();
                     break;
                 case 2: {
                     if(history[historyTop+1] == 0) {
-                        if(*history.rbegin() > 0) *history.rbegin() -= 1;
+                        if(history.back() > 0) --history.back();
                     } else {
                         historyTop2()
                         if(subIter != subIndex.begin())
@@ -241,15 +241,15 @@ uint64_t ModeBrowse(bool special, uint64_t size, const char* buffer) {
                         history[historyTop] = topIter->first;
                         break;
                 case 1:
-                    if(*history.rbegin() < context.indexMode)
-                        *history.rbegin() += 1;
+                    if(history.back() < context.indexMode)
+                        ++history.back();
                         break;
                 case 2: {
                     if(history[historyTop+1] == 0) {
                         serializeBlob(task, stream, history[historyTop]);
                         auto lines = printStreamLimited(2, 0, 0, 0);
-                        if(lines > linesForBlob && *history.rbegin() < lines-linesForBlob)
-                            *history.rbegin() += 1;
+                        if(lines > linesForBlob && history.back() < lines-linesForBlob)
+                            ++history.back();
                     } else {
                         historyTop2()
                         if(++subIter != subIndex.end())
@@ -286,9 +286,9 @@ uint64_t ModeBrowse(bool special, uint64_t size, const char* buffer) {
                         history.push_back(*set.begin());
                 }   break;
                 case 3:
-                    if(history.size() > historyLimit*4)
-                        history.erase(history.begin(), history.begin()+4);
                     history.push_back(history[historyTop+3]);
+                    if(history.size() > historyLimit*4)
+                        history.erase(0, 4);
                 break;
             }
             break;

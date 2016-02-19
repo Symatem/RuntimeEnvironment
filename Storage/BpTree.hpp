@@ -778,8 +778,7 @@ class BpTree {
                         data.higherOuterParent = lowerInner;
                         data.higherOuterParentIndex = frame->elementsPerPage-1;
                         break;
-                    default: // TODO: Testing
-                        printf("TTP\n");
+                    default:
                         data.higherOuterParent = higherInner;
                         data.higherOuterParentIndex = frame->higherInnerEndIndex-1;
                         break;

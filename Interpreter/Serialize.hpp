@@ -85,13 +85,13 @@ struct Serialize {
                         put('"');
                 }   break;
                 case PreDef_Natural:
-                    serializeNumber(task.context.accessBlobData<uint64_t>(srcSymbolObject));
+                    serializeNumber(srcSymbolObject->accessBlobAt<uint64_t>());
                     break;
                 case PreDef_Integer:
-                    serializeNumber(task.context.accessBlobData<int64_t>(srcSymbolObject));
+                    serializeNumber(srcSymbolObject->accessBlobAt<int64_t>());
                     break;
                 case PreDef_Float:
-                    serializeNumber(task.context.accessBlobData<double>(srcSymbolObject));
+                    serializeNumber(srcSymbolObject->accessBlobAt<double>());
                     break;
                 default: {
                     for(ArchitectureType i = 0; i < strlen(HRLRawBegin); ++i)
