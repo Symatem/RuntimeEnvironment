@@ -370,12 +370,6 @@ struct Context { // TODO: : public Storage {
         return topIter->second.get();
     }
 
-    // TODO: Remove useage of C++ StdLib
-    void debugPrintSymbol(Symbol symbol, std::ostream& stream = std::cout) {
-        SymbolObject* symbolObject = getSymbolObject(symbol);
-        stream.write(reinterpret_cast<const char*>(symbolObject->blobData.get()), symbolObject->blobSize/8);
-    }
-
     TopIter SymbolFactory(Symbol symbol) {
         return topIndex.insert(std::make_pair(symbol, std::unique_ptr<SymbolObject>(new SymbolObject()))).first;
     }
@@ -385,18 +379,6 @@ struct Context { // TODO: : public Storage {
         SymbolFactory(symbol);
         for(auto l : links)
             link({symbol, l.first, l.second});
-        return symbol;
-    }
-
-    // TODO: Remove useage of C++ StdLib
-    Symbol createFromStream(std::istream& stream) {
-        stream.seekg(0, std::ios::end);
-        ArchitectureType len = stream.tellg();
-        stream.seekg(0, std::ios::beg);
-        Symbol symbol = create({{PreDef_BlobType, PreDef_Text}});
-        SymbolObject* symbolObject = getSymbolObject(symbol);
-        symbolObject->allocateBlob(len*8);
-        stream.read(reinterpret_cast<char*>(symbolObject->blobData.get()), len);
         return symbol;
     }
 

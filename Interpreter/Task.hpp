@@ -56,12 +56,13 @@ struct Task {
         return parentExists;
     }
 
-    // TODO: Refactor to unify popCallStack() calls at the ends of PreDefProcedures
-    Symbol popCallStackTargetSymbol() {
-        Symbol TargetSymbol;
-        bool target = context.getUncertain(block, PreDef_Target, TargetSymbol);
-        assert(popCallStack());
-        return (target) ? TargetSymbol : block;
+    Symbol getTargetSymbol() {
+        Symbol result;
+        if(!context.getUncertain(block, PreDef_Target, result)) {
+            Symbol parentFrame = context.getGuaranteed(frame, PreDef_Parent);
+            result = context.getGuaranteed(parentFrame, PreDef_Block);
+        }
+        return result;
     }
 
     void clear() {

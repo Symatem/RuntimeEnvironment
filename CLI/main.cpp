@@ -1,4 +1,5 @@
 #include "Modi.hpp"
+#include <dirent.h>
 
 void loadFromPath(Symbol parentPackage, bool execute, std::string path) {
     if(path[path.size()-1] == '/') path.resize(path.size()-1);
@@ -27,14 +28,14 @@ void loadFromPath(Symbol parentPackage, bool execute, std::string path) {
     } else if(s.st_mode & S_IFREG) {
         if(!stringEndsWith(path, ".sym")) return;
 
-        std::ifstream file(path);
-        if(!file.good()) {
+        Symbol file = createSymbolFromFile(task.context, path);
+        if(file == PreDef_Void) {
             interfaceBuffer = "Could not open file ";
             interfaceBuffer += path;
             return;
         }
 
-        task.deserializationTask(task.context.createFromStream(file), parentPackage);
+        task.deserializationTask(file, parentPackage);
         if(task.uncaughtException()) {
             interfaceBuffer = "Exception occurred while deserializing file ";
             interfaceBuffer += path;

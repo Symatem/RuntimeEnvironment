@@ -86,7 +86,7 @@ class BpTree {
             return set<ValueType, LeafValuesBitOffset>(dst, content);
         }
 
-        template<bool isLeaf>
+        /*template<bool isLeaf>
         void debugPrint(std::ostream& stream) const {
             for(IndexType i = 0; i < keyCount<isLeaf>(); ++i) {
                 if(i > 0) stream << " ";
@@ -101,7 +101,7 @@ class BpTree {
                     stream << std::setfill('0') << std::setw(4) << getPageRef(i);
             }
             stream << std::endl;
-        }
+        }*/
 
         template<bool isLeaf>
         bool isValid() const {
@@ -603,7 +603,7 @@ class BpTree {
             return steps;
         }
 
-        void debugPrint(Storage* storage, std::ostream& stream) {
+        /*void debugPrint(Storage* storage, std::ostream& stream) {
             stream << "Iterator " << static_cast<uint16_t>(end) << std::endl;
             for(LayerType layer = 0; layer < end; ++layer) {
                 auto frame = fromBegin(layer);
@@ -614,7 +614,7 @@ class BpTree {
                 else
                     page->template debugPrint<false>(std::cout);
             }
-        }
+        }*/
     };
 
     template<bool writeable, typename FrameType = IteratorFrame>

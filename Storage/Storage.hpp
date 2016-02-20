@@ -1,15 +1,9 @@
-#include <iostream>
-#include <iomanip>
-#include <fstream>
-#include <sstream>
-#include <map>
-#include <set>
-#include <limits>
-#include <fcntl.h>
 #include <sys/mman.h>
 #include <assert.h>
-#include <dirent.h>
+#include <fcntl.h>
 #include <math.h>
+#include <map>
+#include <set>
 
 typedef uint64_t ArchitectureType;
 const ArchitectureType ArchitectureSize = sizeof(ArchitectureType)*8;
@@ -231,7 +225,7 @@ class PagePool {
             return false;
         }
 
-        void debugPrint(std::ostream& stream) {
+        /*void debugPrint(std::ostream& stream) {
             stream << count << std::endl;
             for(ArchitectureType i = 0; i < count; ++i) {
                 if(i > 0)
@@ -239,7 +233,7 @@ class PagePool {
                 std::cout << pageRefs[i];
             }
             std::cout << std::endl;
-        }
+        }*/
 
         void push(PageRefType pageRef) {
             assert(count < Capacity);
@@ -271,7 +265,7 @@ class PagePool {
         return false;
     }
 
-    void debugPrint(Storage* storage, std::ostream& stream) {
+    /*void debugPrint(Storage* storage, std::ostream& stream) {
         PageRefType pageRef = rootPageRef;
         while(pageRef != 0) {
             auto page = storage->template dereferencePage<Page>(pageRef);
@@ -279,7 +273,7 @@ class PagePool {
             page->debugPrint(stream);
             pageRef = page->chain;
         }
-    }
+    }*/
 
     void push(Storage* storage, PageRefType pageRef) {
         if(rootPageRef == 0) {

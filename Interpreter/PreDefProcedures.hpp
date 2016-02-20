@@ -78,13 +78,14 @@ PreDefProcedure(Create) {
     if(count == 0)
         throw Exception("Expected Output");
 
-    Symbol TargetSymbol = task.popCallStackTargetSymbol();
+    Symbol TargetSymbol = task.getTargetSymbol();
     for(Symbol OutputSymbol : OutputSymbols) {
         if(!input)
             ValueSymbol = task.context.create();
         task.context.setSolitary({TargetSymbol, OutputSymbol, ValueSymbol});
         task.context.link({TargetSymbol, PreDef_Holds, ValueSymbol});
     }
+    task.popCallStack();
 }
 
 PreDefProcedure(Destroy) {
@@ -101,7 +102,8 @@ PreDefProcedure(Destroy) {
 PreDefProcedure(GetEnv) {
     getSymbolByName(Input)
     getSymbolByName(Output)
-    Symbol TargetSymbol = task.popCallStackTargetSymbol();
+    Symbol TargetSymbol = task.getTargetSymbol();
+    task.popCallStack();
     switch(InputSymbol) {
         case PreDef_Task:
             InputSymbol = task.task;
@@ -120,11 +122,11 @@ PreDefProcedure(GetEnv) {
 
 PreDefProcedure(Push) {
     getSymbolByName(Execute)
-    task.block = task.popCallStackTargetSymbol();
-    Symbol parentFrame = task.frame;
+    task.block = task.getTargetSymbol();
+    task.popCallStack();
     task.setFrame(true, false, task.context.create({
-        {PreDef_Holds, parentFrame},
-        {PreDef_Parent, parentFrame},
+        {PreDef_Holds, task.frame},
+        {PreDef_Parent, task.frame},
         {PreDef_Holds, task.block},
         {PreDef_Block, task.block},
         {PreDef_Execute, ExecuteSymbol}

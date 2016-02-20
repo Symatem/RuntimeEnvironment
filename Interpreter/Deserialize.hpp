@@ -203,7 +203,7 @@ class Deserialize {
         checkBlobType(Input, PreDef_Text)
 
         currentEntry = task.context.create();
-        task.context.link({package, PreDef_Holds, currentEntry});
+        task.context.link({task.block, PreDef_Holds, currentEntry});
         stack.push_back(currentEntry);
 
         row = column = 1;
@@ -241,7 +241,7 @@ class Deserialize {
                     parseToken();
                     parentEntry = currentEntry;
                     currentEntry = task.context.create();
-                    task.context.link({package, PreDef_Holds, currentEntry});
+                    task.context.link({task.block, PreDef_Holds, currentEntry});
                     stack.push_back(currentEntry);
                     break;
                 case ';':
@@ -283,11 +283,11 @@ class Deserialize {
 
         Symbol OutputSymbol;
         if(task.context.getUncertain(task.block, PreDef_Output, OutputSymbol)) {
-            Symbol TargetSymbol = task.popCallStackTargetSymbol();
+            Symbol TargetSymbol = task.getTargetSymbol();
             task.context.unlink(TargetSymbol, OutputSymbol);
             while(!task.context.valueSetCountIs(currentEntry, PreDef_Queue, 0))
                 task.context.link({TargetSymbol, OutputSymbol, popQueue()});
-        } else
-            task.popCallStack();
+        }
+        task.popCallStack();
     }
 };
