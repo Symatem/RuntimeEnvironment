@@ -34,18 +34,6 @@ struct Vector {
         return (*this)[size()-1];
     }
 
-    ArchitectureType blobFindIndexFor(T key) const {
-        ArchitectureType begin = 0, mid, end = size();
-        while(begin < end) {
-            mid = (begin+end)/2;
-            if(key > (*this)[mid])
-                begin = mid+1;
-            else
-                end = mid;
-        }
-        return begin;
-    }
-
     void clear() {
         symbolObject->allocateBlob(0);
     }
@@ -62,7 +50,35 @@ struct Vector {
         return element;
     }
 
+    void insert(ArchitectureType at, T element) {
+        symbolObject->insertIntoBlob(reinterpret_cast<ArchitectureType*>(&element), at*sizeof(T)*8, sizeof(T)*8);
+    }
+
     void erase(ArchitectureType begin, ArchitectureType end) {
         symbolObject->eraseFromBlob(begin*sizeof(T)*8, end*sizeof(T)*8);
+    }
+
+    void erase(ArchitectureType at) {
+        symbolObject->eraseFromBlob(at, at+1);
+    }
+};
+
+template<typename T>
+struct Set : public Vector<T> {
+    ArchitectureType blobFindIndexFor(T key) const {
+        ArchitectureType begin = 0, mid, end = Vector<T>::size();
+        while(begin < end) {
+            mid = (begin+end)/2;
+            if(key > (*this)[mid])
+                begin = mid+1;
+            else
+                end = mid;
+        }
+        return begin;
+    }
+
+    void insert(T element) {
+        ArchitectureType at = blobFindIndexFor(element);
+        Vector<T>::insert(at, element);
     }
 };

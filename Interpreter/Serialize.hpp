@@ -41,8 +41,8 @@ struct Serialize {
         NumberType mask = 1;
         while(mask <= number)
             mask *= base;
-        while(number > 0 && mask > 0.001) {
-            if(mask == 1) // TODO
+        while(mask > 0.001) {
+            if(mask == 1 && number > 0) // TODO
                 put('.');
             mask /= base;
             if(mask == 0)

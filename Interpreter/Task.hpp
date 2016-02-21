@@ -102,9 +102,22 @@ struct Task {
 
             if(context.getUncertain(execute, PreDef_Dynamic, dynamicParams))
                 context.query(12, {dynamicParams, PreDef_Void, PreDef_Void}, [&](Triple result, ArchitectureType) {
-                    context.query(9, {parentBlock, result.pos[1], PreDef_Void}, [&](Triple resultB, ArchitectureType) {
-                        context.link({block, result.pos[0], resultB.pos[0]});
-                    });
+                    switch(result.pos[1]) {
+                        case PreDef_Task:
+                            context.link({block, result.pos[0], task});
+                            break;
+                        case PreDef_Frame:
+                            context.link({block, result.pos[0], parentFrame});
+                            break;
+                        case PreDef_Block:
+                            context.link({block, result.pos[0], parentBlock});
+                            break;
+                        default:
+                            context.query(9, {parentBlock, result.pos[1], PreDef_Void}, [&](Triple resultB, ArchitectureType) {
+                                context.link({block, result.pos[0], resultB.pos[0]});
+                            });
+                            break;
+                    }
                 });
 
             if(context.getUncertain(execute, PreDef_Next, next))

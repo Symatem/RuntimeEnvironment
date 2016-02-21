@@ -71,20 +71,15 @@ PreDefProcedure(Create) {
     if(input)
         ValueSymbol = task.context.getSymbolObject(InputSymbol)->accessBlobAt<ArchitectureType>();
 
-    std::set<Symbol> OutputSymbols; // TODO: Replace me!
-    auto count = task.context.query(9, {task.block, PreDef_Output, PreDef_Void}, [&](Triple result, ArchitectureType) {
-        OutputSymbols.insert(result.pos[0]);
-    });
-    if(count == 0)
-        throw Exception("Expected Output");
-
     Symbol TargetSymbol = task.getTargetSymbol();
-    for(Symbol OutputSymbol : OutputSymbols) {
+    if(task.context.query(9, {task.block, PreDef_Output, PreDef_Void}, [&](Triple result, ArchitectureType) {
+        Symbol OutputSymbol = result.pos[0];
         if(!input)
             ValueSymbol = task.context.create();
         task.context.setSolitary({TargetSymbol, OutputSymbol, ValueSymbol});
         task.context.link({TargetSymbol, PreDef_Holds, ValueSymbol});
-    }
+    }) == 0)
+        throw Exception("Expected Output");
     task.popCallStack();
 }
 
@@ -97,27 +92,6 @@ PreDefProcedure(Destroy) {
     for(Symbol symbol : toDestroy)
         task.context.destroy(symbol);
     task.popCallStack();
-}
-
-PreDefProcedure(GetEnv) {
-    getSymbolByName(Input)
-    getSymbolByName(Output)
-    Symbol TargetSymbol = task.getTargetSymbol();
-    task.popCallStack();
-    switch(InputSymbol) {
-        case PreDef_Task:
-            InputSymbol = task.task;
-            break;
-        case PreDef_Frame:
-            InputSymbol = task.frame;
-            break;
-        case PreDef_Block:
-            InputSymbol = task.block;
-            break;
-        default:
-            throw Exception("Invalid Input Symbol");
-    }
-    task.context.setSolitary({TargetSymbol, OutputSymbol, InputSymbol});
 }
 
 PreDefProcedure(Push) {
@@ -613,7 +587,6 @@ bool executePreDefProcedure(Task& task, Symbol procedure) {
         PreDefProcedureGroup(Triple, Unlink)
         PreDefProcedureEntry(Create)
         PreDefProcedureEntry(Destroy)
-        PreDefProcedureEntry(GetEnv)
         PreDefProcedureEntry(Push)
         PreDefProcedureEntry(Pop)
         PreDefProcedureEntry(Branch)

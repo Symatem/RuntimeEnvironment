@@ -15,7 +15,8 @@
 #define historyTop0() \
     historyTop = (history.size()-1)/4*4; \
     historySub = history.size()-1-historyTop; \
-    topIter = context.topIndex.find(history[historyTop]);
+    topIter = context.topIndex.find(history[historyTop]); \
+    symbolObject = topIter->second.get();
 
 #define historyTop2() \
     auto& subIndex = symbolObject->subIndices[history[historyTop+1]-1]; \
@@ -56,7 +57,6 @@ void render() {
         history.push_back(task.task);
         return;
     }
-    symbolObject = topIter->second.get();
 
     std::cout << "Stats: ";
     std::cout << context.topIndex.size();
