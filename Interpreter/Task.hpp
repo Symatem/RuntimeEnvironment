@@ -14,7 +14,7 @@ struct Task {
             context.destroy(symbol);
             return iter->second;
         } else {
-            context.blobIndex.insert(std::make_pair(symbolObject, symbol));
+            context.blobIndex.insert({symbolObject, symbol});
             return symbol;
         }
     }

@@ -1,7 +1,6 @@
 #include <sys/mman.h>
 #include <assert.h>
 #include <fcntl.h>
-#include <math.h>
 #include <map>
 #include <set>
 
@@ -225,14 +224,14 @@ class PagePool {
             return false;
         }
 
-        /*void debugPrint(std::ostream& stream) {
-            stream << count << std::endl;
+        /*void debugPrint() {
+            printf("%hu\n", count);
             for(ArchitectureType i = 0; i < count; ++i) {
                 if(i > 0)
-                    std::cout << ", ";
-                std::cout << pageRefs[i];
+                    printf(", ");
+                printf("%llu", pageRefs[i]);
             }
-            std::cout << std::endl;
+            printf("\n");
         }*/
 
         void push(PageRefType pageRef) {
@@ -265,12 +264,12 @@ class PagePool {
         return false;
     }
 
-    /*void debugPrint(Storage* storage, std::ostream& stream) {
+    /*void debugPrint(Storage* storage) {
         PageRefType pageRef = rootPageRef;
         while(pageRef != 0) {
             auto page = storage->template dereferencePage<Page>(pageRef);
-            stream << "Page " << pageRef << " ";
-            page->debugPrint(stream);
+            printf("Page %llu ", pageRef);
+            page->debugPrint();
             pageRef = page->chain;
         }
     }*/

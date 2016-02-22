@@ -545,24 +545,36 @@ PreDefProcedure(Divide) {
         case PreDef_Natural: {
             auto DividendValue =  DividendSymbolObject->accessBlobAt<uint64_t>(),
                  DivisorValue = DivisorSymbolObject->accessBlobAt<uint64_t>();
-            if(DivisorValue == 0) throw Exception("Division by Zero");
-            if(rest) RestSymbolObject->overwriteBlob(DividendValue%DivisorValue);
-            if(quotient) QuotientSymbolObject->overwriteBlob(DividendValue/DivisorValue);
+            if(DivisorValue == 0)
+                throw Exception("Division by Zero");
+            if(rest)
+                RestSymbolObject->overwriteBlob(DividendValue%DivisorValue);
+            if(quotient)
+                QuotientSymbolObject->overwriteBlob(DividendValue/DivisorValue);
         }   break;
         case PreDef_Integer: {
             auto DividendValue = DividendSymbolObject->accessBlobAt<int64_t>(),
                  DivisorValue = DivisorSymbolObject->accessBlobAt<int64_t>();
-            if(DivisorValue == 0) throw Exception("Division by Zero");
-            if(rest) RestSymbolObject->overwriteBlob(DividendValue%DivisorValue);
-            if(quotient) QuotientSymbolObject->overwriteBlob(DividendValue/DivisorValue);
+            if(DivisorValue == 0)
+                throw Exception("Division by Zero");
+            if(rest)
+                RestSymbolObject->overwriteBlob(DividendValue%DivisorValue);
+            if(quotient)
+                QuotientSymbolObject->overwriteBlob(DividendValue/DivisorValue);
         }   break;
         case PreDef_Float: {
             auto DividendValue = DividendSymbolObject->accessBlobAt<double>(),
                  DivisorValue = DivisorSymbolObject->accessBlobAt<double>(),
                  QuotientValue = DividendValue/DivisorValue;
-            if(DivisorValue == 0.0) throw Exception("Division by Zero");
-            if(rest) RestSymbolObject->overwriteBlob(modf(QuotientValue, &QuotientValue));
-            if(quotient) QuotientSymbolObject->overwriteBlob(QuotientValue);
+            if(DivisorValue == 0.0)
+                throw Exception("Division by Zero");
+            if(rest) {
+                double integerPart = static_cast<int64_t>(QuotientValue);
+                RestSymbolObject->overwriteBlob(QuotientValue-integerPart);
+                QuotientValue = integerPart;
+            }
+            if(quotient)
+                QuotientSymbolObject->overwriteBlob(QuotientValue);
         }   break;
         default:
             throw Exception("Invalid Dividend or Divisor SymbolObject");

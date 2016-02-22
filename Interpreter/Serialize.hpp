@@ -48,7 +48,7 @@ struct Serialize {
             if(mask == 0)
                 break;
             NumberType digit = number/mask;
-            digit = floor(digit); // TODO
+            digit = static_cast<int64_t>(digit); // TODO
             number -= digit*mask;
             put('0'+digit);
         }

@@ -282,14 +282,14 @@ struct Context { // TODO: : public Storage {
         return true;
     }
 
-    bool unlink(Symbol alpha, Symbol beta, bool allowFailure = false) {
+    bool unlink(Symbol alpha, Symbol beta) {
         std::set<Triple> triples; // TODO: Replace me!
         query(9, {alpha, beta, PreDef_Void}, [&](Triple result, ArchitectureType) {
             triples.insert({alpha, beta, result.pos[0]});
         });
         if(triples.empty())
             return true;
-        return unlink(triples, allowFailure);
+        return unlink(triples);
     }
 
     bool unlink(Triple triple, bool allowFailure = false) {
@@ -346,11 +346,9 @@ struct Context { // TODO: : public Storage {
     }
 
     bool getUncertain(Symbol alpha, Symbol beta, Symbol& gamma) {
-        if(query(9, {alpha, beta, PreDef_Void}, [&](Triple result, ArchitectureType) {
+        return (query(9, {alpha, beta, PreDef_Void}, [&](Triple result, ArchitectureType) {
             gamma = result.pos[0];
-        }) != 1)
-            return false;
-        return true;
+        }) == 1);
     }
 
     Symbol getGuaranteed(Symbol entity, Symbol attribute) {
@@ -428,7 +426,7 @@ struct Context { // TODO: : public Storage {
         while(nextSymbol < sizeof(PreDefSymbols)/sizeof(void*)) {
             Symbol symbol = createFromData(PreDefSymbols[nextSymbol]);
             link({PreDef_RunTimeEnvironment, PreDef_Holds, symbol});
-            blobIndex.insert(std::make_pair(getSymbolObject(symbol), symbol));
+            blobIndex.insert({getSymbolObject(symbol), symbol});
         }
         Symbol ArchitectureSizeSymbol = createFromData(ArchitectureSize);
         link({PreDef_RunTimeEnvironment, PreDef_Holds, ArchitectureSizeSymbol});

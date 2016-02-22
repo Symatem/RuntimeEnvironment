@@ -87,20 +87,22 @@ class BpTree {
         }
 
         /*template<bool isLeaf>
-        void debugPrint(std::ostream& stream) const {
+        void debugPrint() const {
             for(IndexType i = 0; i < keyCount<isLeaf>(); ++i) {
-                if(i > 0) stream << " ";
-                stream << std::setfill('0') << std::setw(8) << getKey(i);
+                if(i > 0)
+                    printf(" ");
+                printf("%08llu", getKey(i));
             }
-            stream << std::endl;
+            printf("\n");
             for(IndexType i = 0; i < count; ++i) {
-                if(i > 0) stream << " ";
+                if(i > 0)
+                    printf(" ");
                 if(isLeaf)
-                    stream << std::setfill('0') << std::setw(8) << getValue(i);
+                    printf("%08llu", getValue(i));
                 else
-                    stream << std::setfill('0') << std::setw(4) << getPageRef(i);
+                    printf("%04llu", getPageRef(i));
             }
-            stream << std::endl;
+            printf("\n");
         }*/
 
         template<bool isLeaf>
@@ -603,16 +605,16 @@ class BpTree {
             return steps;
         }
 
-        /*void debugPrint(Storage* storage, std::ostream& stream) {
-            stream << "Iterator " << static_cast<uint16_t>(end) << std::endl;
+        /*void debugPrint(Storage* storage) {
+            printf("Iterator %hd\n", static_cast<uint16_t>(end));
             for(LayerType layer = 0; layer < end; ++layer) {
                 auto frame = fromBegin(layer);
-                stream << "    " << layer << ": " << frame->pageRef << " (" << frame->index << "/" << frame->endIndex << ")" << std::endl;
+                printf("    %hhd: %llu (%hd/%hd)\n", layer, frame->pageRef, frame->index, frame->endIndex);
                 Page* page = getPage<false>(storage, frame->pageRef);
                 if(layer == end-1)
-                    page->template debugPrint<true>(std::cout);
+                    page->template debugPrint<true>();
                 else
-                    page->template debugPrint<false>(std::cout);
+                    page->template debugPrint<false>();
             }
         }*/
     };
@@ -677,7 +679,7 @@ class BpTree {
 
     template<typename FrameType, bool isLeaf>
     static bool insertAuxLayer(InsertData& data, Iterator<false, FrameType>* iter) {
-        bool apply = std::is_same<FrameType, InsertIteratorFrame>::value;
+        bool apply = (typeid(FrameType) == typeid(InsertIteratorFrame));
         Page* page;
         auto frame = reinterpret_cast<InsertIteratorFrame*>(iter->fromBegin(data.layer));
         if(data.layer >= data.startLayer) {

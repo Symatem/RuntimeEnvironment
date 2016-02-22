@@ -75,7 +75,7 @@ class Deserialize {
                 SymbolObject* symbolObject = task.context.getSymbolObject(symbol);
                 auto iter = locals.find(symbolObject);
                 if(iter == locals.end())
-                    locals.insert(std::make_pair(symbolObject, symbol));
+                    locals.insert({symbolObject, symbol});
                 else {
                     task.context.destroy(symbol);
                     symbol = (*iter).second;
