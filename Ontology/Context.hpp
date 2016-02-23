@@ -66,21 +66,7 @@ struct Context { // TODO: : public Storage {
         return count;
     }
 
-    ArchitectureType searchGIV(ArchitectureType index, Triple& triple, std::function<void()> callback) {
-        auto topIter = topIndex.find(triple.pos[0]);
-        if(topIter == topIndex.end())
-            throw Exception("Symbol is Nonexistent");
-        auto& subIndex = topIter->second->subIndices[index];
-        std::set<Symbol> result; // TODO: Replace me!
-        for(auto& beta : subIndex)
-            result.insert(beta.second.begin(), beta.second.end());
-        if(callback)
-            for(auto gamma : result) {
-                triple.pos[2] = gamma;
-                callback();
-            }
-        return result.size();
-    }
+    ArchitectureType searchGIV(ArchitectureType index, Triple& triple, std::function<void()> callback);
 
     ArchitectureType searchGVI(ArchitectureType index, Triple& triple, std::function<void()> callback) {
         auto topIter = topIndex.find(triple.pos[0]);
@@ -222,7 +208,7 @@ struct Context { // TODO: : public Storage {
         return query(0, triple) == 1;
     }
 
-    bool link(Triple triple, bool allowFailure = false) {
+    bool link(Triple triple, bool exception = true) {
         ArchitectureType indexCount = (indexMode == MonoIndex) ? 1 : 3;
         bool reverseIndex = (indexMode == HexaIndex);
         for(ArchitectureType i = 0; i < indexCount; ++i) {
@@ -230,7 +216,7 @@ struct Context { // TODO: : public Storage {
             if(topIter == topIndex.end())
                 topIter = SymbolFactory(triple.pos[i]);
             if(!topIter->second->link(reverseIndex, i, triple.pos[(i+1)%3], triple.pos[(i+2)%3])) {
-                if(allowFailure)
+                if(!exception)
                     return false;
                 throw Exception("Already linked", {
                     {PreDef_Entity, triple.entity},
@@ -242,108 +228,51 @@ struct Context { // TODO: : public Storage {
         return true;
     }
 
-    bool unlink(std::set<Triple> triples, bool allowFailure = false, std::set<Symbol> symbols = {}) {
-        std::set<Symbol> dirty; // TODO: Replace me!
+    void scrutinizeSymbol(Symbol symbol) {
+        auto topIter = topIndex.find(symbol);
+        ArchitectureType indexCount = (indexMode == MonoIndex) ? 1 : 3;
+        for(ArchitectureType i = 0; i < indexCount; ++i)
+            if(!topIter->second->subIndices[i].empty())
+                return;
+        topIndex.erase(topIter);
+    }
+
+    bool unlinkInternal(Triple triple, bool skipEnabled = false, Symbol skip = PreDef_Void) {
         ArchitectureType indexCount = (indexMode == MonoIndex) ? 1 : 3;
         bool reverseIndex = (indexMode == HexaIndex);
-        for(auto& triple : triples) {
-            for(ArchitectureType i = 0; i < indexCount; ++i) {
-                dirty.insert(triple.pos[i]);
-                if(symbols.find(triple.pos[i]) != symbols.end())
-                    continue;
-                auto topIter = topIndex.find(triple.pos[i]);
-                if(topIter == topIndex.end() ||
-                   !topIter->second->unlink(reverseIndex, i, triple.pos[(i+1)%3], triple.pos[(i+2)%3])) {
-                    if(allowFailure)
-                        return false;
-                    throw Exception("Already unlinked", {
-                        {PreDef_Entity, triple.entity},
-                        {PreDef_Attribute, triple.attribute},
-                        {PreDef_Value, triple.value}
-                    });
-                }
-            }
-            if(triple.pos[1] == PreDef_BlobType)
-                unindexBlob(triple.pos[0]);
-        }
-        for(auto alpha : dirty) {
-            auto topIter = topIndex.find(alpha);
-            bool empty = true;
-            for(ArchitectureType i = 0; i < indexCount; ++i)
-                if(!topIter->second->subIndices[i].empty()) {
-                    empty = false;
-                    break;
-                }
-            if(empty)
-                topIndex.erase(topIter);
-        }
-        for(auto alpha : symbols)
-            topIndex.erase(alpha);
-        return true;
-    }
-
-    bool unlink(Symbol alpha, Symbol beta) {
-        std::set<Triple> triples; // TODO: Replace me!
-        query(9, {alpha, beta, PreDef_Void}, [&](Triple result, ArchitectureType) {
-            triples.insert({alpha, beta, result.pos[0]});
-        });
-        if(triples.empty())
-            return true;
-        return unlink(triples);
-    }
-
-    bool unlink(Triple triple, bool allowFailure = false) {
-        return unlink(std::set<Triple>{triple}, allowFailure);
-    }
-
-    bool destroy(Symbol alpha, bool allowFailure = false) {
-        std::set<Triple> triples; // TODO: Replace me!
-        auto topIter = topIndex.find(alpha);
-        if(topIter == topIndex.end()) {
-            if(allowFailure)
-                return false;
-            throw Exception("Already destroyed", {
-                {PreDef_Entity, alpha}
-            });
-        }
-        for(ArchitectureType i = EAV; i <= VEA; ++i)
-            for(auto& beta : topIter->second->subIndices[i])
-                for(auto gamma : beta.second)
-                    triples.insert(Triple(alpha, beta.first, gamma).normalized(i));
-        unlink(triples, false, {alpha});
-        return true;
-    }
-
-    void scrutinizeExistence(Symbol symbol) {
-        std::set<Symbol> symbols; // TODO: Replace me!
-        symbols.insert(symbol);
-        while(!symbols.empty()) {
-            symbol = *symbols.begin();
-            symbols.erase(symbols.begin());
-            if(topIndex.find(symbol) == topIndex.end() ||
-               query(1, {PreDef_Void, PreDef_Holds, symbol}) > 0)
+        for(ArchitectureType i = 0; i < indexCount; ++i) {
+            if(skipEnabled && triple.pos[i] == skip)
                 continue;
-            query(9, {symbol, PreDef_Holds, PreDef_Void}, [&](Triple result, ArchitectureType) {
-                symbols.insert(result.pos[0]);
-            });
-            destroy(symbol);
+            auto topIter = topIndex.find(triple.pos[i]);
+            if(topIter == topIndex.end() ||
+               !topIter->second->unlink(reverseIndex, i, triple.pos[(i+1)%3], triple.pos[(i+2)%3]))
+                return false;
         }
+        if(triple.pos[1] == PreDef_BlobType)
+            unindexBlob(triple.pos[0]);
+        return true;
     }
 
-    void setSolitary(Triple triple) {
-        bool toLink = true;
-        std::set<Triple> triples; // TODO: Replace me!
-        query(9, triple, [&](Triple result, ArchitectureType) {
-            if(triple.pos[2] == result.pos[0])
-                toLink = false;
-            else
-                triples.insert({triple.pos[0], triple.pos[1], result.pos[0]});
-        });
-        if(toLink)
-            link(triple);
-        if(!triples.empty())
-            unlink(triples);
+    bool unlink(Triple triple, bool exception = true) {
+        bool success = unlinkInternal(triple);
+        if(exception && !success)
+            throw Exception("Already unlinked", {
+                {PreDef_Entity, triple.entity},
+                {PreDef_Attribute, triple.attribute},
+                {PreDef_Value, triple.value}
+            });
+        for(ArchitectureType i = 0; i < 3; ++i)
+            scrutinizeSymbol(triple.pos[i]);
+        return success;
     }
+
+    void destroy(Symbol symbol);
+
+    void scrutinizeHeldBy(Symbol symbol);
+
+    void unlink(Symbol entity, Symbol attribute);
+
+    void setSolitary(Triple triple);
 
     bool getUncertain(Symbol alpha, Symbol beta, Symbol& gamma) {
         return (query(9, {alpha, beta, PreDef_Void}, [&](Triple result, ArchitectureType) {

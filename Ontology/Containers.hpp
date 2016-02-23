@@ -6,23 +6,25 @@ struct Vector {
     SymbolObject* symbolObject;
     Context& context;
 
-    Vector(Context& _context) :context(_context), symbol(_context.create()), symbolObject(_context.getSymbolObject(symbol)) {
+    Vector(Context& _context) :context(_context), symbol(PreDef_Void), symbolObject(NULL) {
 
     }
 
     ~Vector() {
-        context.destroy(symbol);
+        if(symbolObject)
+            context.destroy(symbol);
     }
 
     bool empty() const {
-        return symbolObject->blobSize == 0;
+        return !symbolObject || symbolObject->blobSize == 0;
     }
 
     ArchitectureType size() const {
-        return symbolObject->blobSize/(sizeof(T)*8);
+        return (symbolObject) ? symbolObject->blobSize/(sizeof(T)*8) : 0;
     }
 
     T& operator[](ArchitectureType at) const {
+        assert(symbolObject);
         return symbolObject->template accessBlobAt<T>(at);
     }
 
@@ -34,16 +36,31 @@ struct Vector {
         return (*this)[size()-1];
     }
 
+    void iterate(std::function<void(T)> callback) const {
+        for(ArchitectureType at = 0; at < size(); ++at)
+            callback((*this)[at]);
+    }
+
+    void activate() {
+        if(symbolObject)
+            return;
+        symbol = context.create();
+        symbolObject = context.getSymbolObject(symbol);
+    }
+
     void clear() {
-        symbolObject->allocateBlob(0);
+        if(symbolObject)
+            symbolObject->allocateBlob(0);
     }
 
     void push_back(T element) {
+        activate();
         symbolObject->reallocateBlob(symbolObject->blobSize+sizeof(T)*8);
         back() = element;
     }
 
     T pop_back() {
+        activate();
         assert(symbolObject->blobSize >= sizeof(T)*8);
         T element = back();
         symbolObject->reallocateBlob(symbolObject->blobSize-sizeof(T)*8);
@@ -51,20 +68,27 @@ struct Vector {
     }
 
     void insert(ArchitectureType at, T element) {
+        activate();
         symbolObject->insertIntoBlob(reinterpret_cast<ArchitectureType*>(&element), at*sizeof(T)*8, sizeof(T)*8);
     }
 
     void erase(ArchitectureType begin, ArchitectureType end) {
+        assert(symbolObject);
         symbolObject->eraseFromBlob(begin*sizeof(T)*8, end*sizeof(T)*8);
     }
 
     void erase(ArchitectureType at) {
+        assert(symbolObject);
         symbolObject->eraseFromBlob(at, at+1);
     }
 };
 
 template<typename T>
 struct Set : public Vector<T> {
+    Set(Context& _context) :Vector<T>(_context) {
+
+    }
+
     ArchitectureType blobFindIndexFor(T key) const {
         ArchitectureType begin = 0, mid, end = Vector<T>::size();
         while(begin < end) {
@@ -77,8 +101,98 @@ struct Set : public Vector<T> {
         return begin;
     }
 
-    void insert(T element) {
+    bool insert(T element) {
         ArchitectureType at = blobFindIndexFor(element);
+        if(at < Vector<T>::size() && (*this)[at] == element)
+            return false;
         Vector<T>::insert(at, element);
+        return true;
     }
 };
+
+ArchitectureType Context::searchGIV(ArchitectureType index, Triple& triple, std::function<void()> callback) {
+    auto topIter = topIndex.find(triple.pos[0]);
+    if(topIter == topIndex.end())
+        throw Exception("Symbol is Nonexistent");
+    auto& subIndex = topIter->second->subIndices[index];
+    Set<Symbol> result(*this);
+    for(auto& beta : subIndex)
+        for(auto& gamma : beta.second)
+            result.insert(gamma);
+    if(callback)
+        result.iterate([&](Symbol gamma) {
+            triple.pos[2] = gamma;
+            callback();
+        });
+    return result.size();
+}
+
+void Context::destroy(Symbol alpha) {
+    auto topIter = topIndex.find(alpha);
+    if(topIter == topIndex.end())
+        throw Exception("Already destroyed", {
+            {PreDef_Entity, alpha}
+        });
+    Set<Symbol> symbols(*this);
+    for(ArchitectureType i = EAV; i <= VEA; ++i)
+        for(auto& beta : topIter->second->subIndices[i])
+            for(auto gamma : beta.second) {
+                unlinkInternal(Triple(alpha, beta.first, gamma).normalized(i), true, alpha);
+                symbols.insert(beta.first);
+                symbols.insert(gamma);
+            }
+    topIndex.erase(topIter);
+    symbols.iterate([&](Symbol symbol) {
+        scrutinizeSymbol(symbol);
+    });
+}
+
+void Context::scrutinizeHeldBy(Symbol symbol) {
+    Set<Symbol> symbols(*this);
+    symbols.insert(symbol);
+    while(!symbols.empty()) {
+        symbol = symbols.pop_back();
+        if(topIndex.find(symbol) == topIndex.end() ||
+           query(1, {PreDef_Void, PreDef_Holds, symbol}) > 0)
+            continue;
+        query(9, {symbol, PreDef_Holds, PreDef_Void}, [&](Triple result, ArchitectureType) {
+            symbols.insert(result.pos[0]);
+        });
+        destroy(symbol);
+    }
+}
+
+void Context::unlink(Symbol entity, Symbol attribute) {
+    Set<Symbol> symbols(*this);
+    query(9, {entity, attribute, PreDef_Void}, [&](Triple result, ArchitectureType) {
+        symbols.insert(result.pos[0]);
+    });
+    symbols.iterate([&](Symbol symbol) {
+        unlinkInternal({entity, attribute, symbol});
+    });
+    symbols.insert(entity);
+    symbols.insert(attribute);
+    symbols.iterate([&](Symbol symbol) {
+        scrutinizeSymbol(symbol);
+    });
+}
+
+void Context::setSolitary(Triple triple) {
+    bool toLink = true;
+    Set<Symbol> symbols(*this);
+    query(9, triple, [&](Triple result, ArchitectureType) {
+        if(triple.pos[2] == result.pos[0])
+            toLink = false;
+        else
+            symbols.insert(result.pos[0]);
+    });
+    if(toLink)
+        link(triple);
+    symbols.iterate([&](Symbol symbol) {
+        unlinkInternal({triple.pos[0], triple.pos[1], symbol});
+    });
+    symbols.insert(triple.pos[1]);
+    symbols.iterate([&](Symbol symbol) {
+        scrutinizeSymbol(symbol);
+    });
+}

@@ -84,13 +84,14 @@ PreDefProcedure(Create) {
 }
 
 PreDefProcedure(Destroy) {
-    std::set<Symbol> toDestroy; // TODO: Replace me!
+    Set<Symbol> symbols(task.context);
     if(task.context.query(9, {task.block, PreDef_Input, PreDef_Void}, [&](Triple result, ArchitectureType) {
-        toDestroy.insert(result.pos[0]);
+        symbols.insert(result.pos[0]);
     }) == 0)
         throw Exception("Expected more Inputs");
-    for(Symbol symbol : toDestroy)
+    symbols.iterate([&](Symbol symbol) {
         task.context.destroy(symbol);
+    });
     task.popCallStack();
 }
 

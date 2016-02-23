@@ -105,17 +105,20 @@ struct SymbolObject {
         if(begin >= end || end > blobSize)
             return false;
         auto rest = blobSize-end;
-        bitwiseCopy(blobData.get(), blobData.get(), begin, end, rest);
+        if(rest > 0)
+            bitwiseCopy(blobData.get(), blobData.get(), begin, end, rest);
         reallocateBlob(rest+begin);
         return true;
     }
 
     bool insertIntoBlob(const ArchitectureType* src, ArchitectureType begin, ArchitectureType length) {
-        auto newBlobSize = blobSize+length, oldBlobSize = blobSize;
+        assert(length > 0);
+        auto newBlobSize = blobSize+length, rest = blobSize-begin;
         if(blobSize >= newBlobSize || begin > blobSize)
             return false;
         reallocateBlob(newBlobSize);
-        bitwiseCopy(blobData.get(), blobData.get(), begin+length, begin, oldBlobSize-begin);
+        if(rest > 0)
+            bitwiseCopy(blobData.get(), blobData.get(), begin+length, begin, rest);
         bitwiseCopy(blobData.get(), src, begin, 0, length);
         return true;
     }

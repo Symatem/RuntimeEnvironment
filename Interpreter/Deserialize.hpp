@@ -141,7 +141,7 @@ class Deserialize {
                     symbol = task.context.createFromData(tokenBegin, pos-tokenBegin);
                 symbol = task.indexBlob(symbol);
             }
-            task.context.link({package, PreDef_Holds, symbol}, true);
+            task.context.link({package, PreDef_Holds, symbol}, false);
             nextSymbol(currentEntry, symbol);
         }
         tokenBegin = pos+1;

@@ -37,7 +37,7 @@ struct Task {
         if(unlinkHolds)
             context.unlink({task, PreDef_Holds, frame});
         if(frame != PreDef_Void)
-            context.scrutinizeExistence(frame);
+            context.scrutinizeHeldBy(frame);
         frame = _frame;
     }
 
