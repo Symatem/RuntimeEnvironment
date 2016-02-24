@@ -1,22 +1,21 @@
 #include "Context.hpp"
 
-template<typename T>
+template<typename T, bool guarded = true>
 struct Vector {
     Symbol symbol;
     SymbolObject* symbolObject;
     Context& context;
 
-    Vector(Context& _context) :context(_context), symbol(PreDef_Void), symbolObject(NULL) {
-
-    }
+    Vector(Context& _context)
+        :context(_context), symbol(PreDef_Void), symbolObject(NULL) { }
 
     ~Vector() {
-        if(symbolObject)
+        if(guarded && symbolObject)
             context.destroy(symbol);
     }
 
     bool empty() const {
-        return !symbolObject || symbolObject->blobSize == 0;
+        return (!symbolObject || symbolObject->blobSize == 0);
     }
 
     ArchitectureType size() const {
@@ -41,11 +40,14 @@ struct Vector {
             callback((*this)[at]);
     }
 
-    void activate() {
-        if(symbolObject)
-            return;
-        symbol = context.create();
+    void setSymbol(Symbol _symbol) {
+        symbol = _symbol;
         symbolObject = context.getSymbolObject(symbol);
+    }
+
+    void activate() {
+        if(!symbolObject)
+            setSymbol(context.create());
     }
 
     void clear() {
@@ -83,14 +85,14 @@ struct Vector {
     }
 };
 
-template<typename T>
-struct Set : public Vector<T> {
-    Set(Context& _context) :Vector<T>(_context) {
+template<typename T, bool guarded = true>
+struct Set : public Vector<T, guarded> {
+    Set(Context& _context) :Vector<T, guarded>(_context) {
 
     }
 
     ArchitectureType blobFindIndexFor(T key) const {
-        ArchitectureType begin = 0, mid, end = Vector<T>::size();
+        ArchitectureType begin = 0, mid, end = Vector<T, guarded>::size();
         while(begin < end) {
             mid = (begin+end)/2;
             if(key > (*this)[mid])
@@ -103,9 +105,9 @@ struct Set : public Vector<T> {
 
     bool insert(T element) {
         ArchitectureType at = blobFindIndexFor(element);
-        if(at < Vector<T>::size() && (*this)[at] == element)
+        if(at < Vector<T, guarded>::size() && (*this)[at] == element)
             return false;
-        Vector<T>::insert(at, element);
+        Vector<T, guarded>::insert(at, element);
         return true;
     }
 };
@@ -162,26 +164,11 @@ void Context::scrutinizeHeldBy(Symbol symbol) {
     }
 }
 
-void Context::unlink(Symbol entity, Symbol attribute) {
-    Set<Symbol> symbols(*this);
-    query(9, {entity, attribute, PreDef_Void}, [&](Triple result, ArchitectureType) {
-        symbols.insert(result.pos[0]);
-    });
-    symbols.iterate([&](Symbol symbol) {
-        unlinkInternal({entity, attribute, symbol});
-    });
-    symbols.insert(entity);
-    symbols.insert(attribute);
-    symbols.iterate([&](Symbol symbol) {
-        scrutinizeSymbol(symbol);
-    });
-}
-
-void Context::setSolitary(Triple triple) {
-    bool toLink = true;
+void Context::setSolitary(Triple triple, bool linkVoid) {
+    bool toLink = (linkVoid || triple.value != PreDef_Void);
     Set<Symbol> symbols(*this);
     query(9, triple, [&](Triple result, ArchitectureType) {
-        if(triple.pos[2] == result.pos[0])
+        if((triple.pos[2] == result.pos[0]) && (linkVoid || result.pos[0] != PreDef_Void))
             toLink = false;
         else
             symbols.insert(result.pos[0]);
@@ -191,6 +178,8 @@ void Context::setSolitary(Triple triple) {
     symbols.iterate([&](Symbol symbol) {
         unlinkInternal({triple.pos[0], triple.pos[1], symbol});
     });
+    if(!linkVoid)
+        symbols.insert(triple.pos[0]);
     symbols.insert(triple.pos[1]);
     symbols.iterate([&](Symbol symbol) {
         scrutinizeSymbol(symbol);

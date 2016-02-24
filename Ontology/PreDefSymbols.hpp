@@ -44,7 +44,6 @@ PreDefWrapper(Serialize),
 PreDefWrapper(Deserialize),
 PreDefWrapper(UnnestEntity),
 PreDefWrapper(UnnestAttribute),
-PreDefWrapper(Queue),
 PreDefWrapper(Row),
 PreDefWrapper(Column),
 

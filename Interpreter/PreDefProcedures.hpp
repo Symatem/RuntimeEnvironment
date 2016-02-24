@@ -118,7 +118,7 @@ PreDefProcedure(Pop) {
 }
 
 PreDefProcedure(Branch) {
-    getUncertainSymbolObjectByName(Input, 1)
+    getUncertainValueByName(Input, 1)
     getSymbolByName(Branch)
     task.popCallStack();
     if(InputValue != 0)
@@ -137,7 +137,7 @@ PreDefProcedure(Exception) {
     Symbol execute, currentFrame = task.frame, prevFrame = currentFrame;
     do {
         if(currentFrame != prevFrame && task.context.getUncertain(currentFrame, PreDef_Catch, execute)) {
-            task.context.unlink(prevFrame, PreDef_Parent);
+            task.context.setSolitary({prevFrame, PreDef_Parent, PreDef_Void});
             task.setFrame(true, true, currentFrame);
             task.context.link({task.block, PreDef_Holds, ExceptionSymbol});
             task.context.link({task.block, PreDef_Exception, ExceptionSymbol});
@@ -166,9 +166,9 @@ PreDefProcedure(Deserialize) {
 PreDefProcedure(SliceBlob) {
     getSymbolObjectByName(Input)
     getSymbolObjectByName(Target)
-    getUncertainSymbolObjectByName(Count, InputSymbolObject->blobSize)
-    getUncertainSymbolObjectByName(Destination, 0)
-    getUncertainSymbolObjectByName(Source, 0)
+    getUncertainValueByName(Count, InputSymbolObject->blobSize)
+    getUncertainValueByName(Destination, 0)
+    getUncertainValueByName(Source, 0)
     task.context.unindexBlob(TargetSymbol);
     if(!TargetSymbolObject->overwriteBlobPartial(*InputSymbolObject, DestinationValue, SourceValue, CountValue))
         throw Exception("Invalid Count, Destination or SrcOffset Value");
@@ -177,7 +177,7 @@ PreDefProcedure(SliceBlob) {
 
 PreDefProcedure(AllocateBlob) {
     getSymbolObjectByName(Input)
-    getUncertainSymbolObjectByName(Preserve, 0)
+    getUncertainValueByName(Preserve, 0)
     getSymbolObjectByName(Target)
     checkBlobType(Input, PreDef_Natural)
     task.context.unindexBlob(TargetSymbol);
@@ -190,10 +190,9 @@ PreDefProcedure(CloneBlob) {
     getSymbolObjectByName(Output)
     OutputSymbolObject->overwriteBlob(*InputSymbolObject);
     Symbol type;
-    if(task.context.getUncertain(InputSymbol, PreDef_BlobType, type))
-        task.context.setSolitary({OutputSymbol, PreDef_BlobType, type});
-    else
-        task.context.unlink(OutputSymbol, PreDef_BlobType);
+    if(!task.context.getUncertain(InputSymbol, PreDef_BlobType, type))
+        type = PreDef_Void;
+    task.context.setSolitary({OutputSymbol, PreDef_BlobType, type});
     task.popCallStack();
 }
 
@@ -375,7 +374,7 @@ PreDefProcedure(BitShift) {
             throw Exception("Invalid Direction");
     }
 
-    task.context.unlink(OutputSymbol, PreDef_BlobType);
+    task.context.setSolitary({OutputSymbol, PreDef_BlobType, PreDef_Void});
     OutputSymbolObject->overwriteBlob(result);
     task.popCallStack();
 }
@@ -384,7 +383,7 @@ PreDefProcedure(BitwiseComplement) {
     getSymbolObjectByName(Input)
     getSymbolObjectByName(Output)
 
-    task.context.unlink(OutputSymbol, PreDef_BlobType);
+    task.context.setSolitary({OutputSymbol, PreDef_BlobType, PreDef_Void});
     OutputSymbolObject->overwriteBlob(~InputSymbolObject->accessBlobAt<uint64_t>());
     task.popCallStack();
 }
@@ -417,7 +416,7 @@ PreDefProcedure(AssociativeCommutativeBitwise) {
         throw Exception("Expected more Input");
 
     getSymbolObjectByName(Output)
-    task.context.unlink(OutputSymbol, PreDef_BlobType);
+    task.context.setSolitary({OutputSymbol, PreDef_BlobType, PreDef_Void});
     OutputSymbolObject->overwriteBlob(OutputValue);
     task.popCallStack();
 }

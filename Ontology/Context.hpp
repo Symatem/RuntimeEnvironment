@@ -27,7 +27,8 @@ struct Context { // TODO: : public Storage {
         auto gammaIter = betaIter->second.find(triple.pos[2]);
         if(gammaIter == betaIter->second.end())
             return 0;
-        if(callback) callback();
+        if(callback)
+            callback();
         return 1;
     }
 
@@ -200,7 +201,7 @@ struct Context { // TODO: : public Storage {
         return (this->*method.function)(method.index, triple, handleNext);
     }
 
-    bool valueSetCountIs(Symbol entity, Symbol attribute, ArchitectureType size) {
+    bool valueCountIs(Symbol entity, Symbol attribute, ArchitectureType size) {
         return query(9, {entity, attribute, PreDef_Void}) == size;
     }
 
@@ -267,13 +268,10 @@ struct Context { // TODO: : public Storage {
     }
 
     void destroy(Symbol symbol);
-
     void scrutinizeHeldBy(Symbol symbol);
+    void setSolitary(Triple triple, bool linkVoid = false);
 
-    void unlink(Symbol entity, Symbol attribute);
-
-    void setSolitary(Triple triple);
-
+    // TODO: Set PreDef_Void option
     bool getUncertain(Symbol alpha, Symbol beta, Symbol& gamma) {
         return (query(9, {alpha, beta, PreDef_Void}, [&](Triple result, ArchitectureType) {
             gamma = result.pos[0];

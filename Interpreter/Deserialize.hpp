@@ -11,7 +11,7 @@
 if(task.context.query(1, {Name##Symbol, PreDef_BlobType, expectedType}) == 0) \
     throw Exception("Invalid Blob Type");
 
-#define getUncertainSymbolObjectByName(Name, DefaultValue) \
+#define getUncertainValueByName(Name, DefaultValue) \
     Symbol Name##Symbol; ArchitectureType Name##Value; \
     if(task.context.getUncertain(task.block, PreDef_##Name, Name##Symbol)) { \
         checkBlobType(Name, PreDef_Natural) \
@@ -33,35 +33,20 @@ class Deserialize {
     }
 
     Vector<Symbol> stack;
+    Vector<Symbol, false> queue;
     Symbol parentEntry, currentEntry;
     std::map<SymbolObject*, Symbol, Context::BlobIndexCompare> locals;
 
-    // TODO: Refactor to be a blob based vector
-    Symbol popQueue() {
-        Symbol oldElement = task.context.getGuaranteed(currentEntry, PreDef_Queue),
-               symbol = task.context.getGuaranteed(oldElement, PreDef_Value),
-               queueBegin = oldElement;
-        if(task.context.getUncertain(queueBegin, PreDef_Next, queueBegin))
-            task.context.setSolitary({currentEntry, PreDef_Queue, queueBegin});
-        else
-            task.context.unlink(currentEntry, PreDef_Queue);
-        task.context.destroy(oldElement);
-        return symbol;
-    }
-
     void nextSymbol(Symbol stackEntry, Symbol symbol) {
-        if(task.context.valueSetCountIs(stackEntry, PreDef_UnnestEntity, 0)) {
-            Symbol queueEnd, newElement = task.context.create({{PreDef_Value, symbol}});
-            if(task.context.getUncertain(stackEntry, PreDef_Queue, queueEnd)) {
-                while(task.context.getUncertain(queueEnd, PreDef_Next, queueEnd));
-                task.context.link({queueEnd, PreDef_Next, newElement});
-            } else
-                task.context.link({stackEntry, PreDef_Queue, newElement});
+        if(task.context.valueCountIs(stackEntry, PreDef_UnnestEntity, 0)) {
+            queue.setSymbol(stackEntry);
+            queue.insert(0, symbol);
+            queue.setSymbol(currentEntry);
         } else {
             Symbol entity = task.context.getGuaranteed(stackEntry, PreDef_UnnestEntity),
                    attribute = task.context.getGuaranteed(stackEntry, PreDef_UnnestAttribute);
             task.context.link({entity, attribute, symbol});
-            task.context.unlink(stackEntry, PreDef_UnnestEntity);
+            task.context.setSolitary({stackEntry, PreDef_UnnestEntity, PreDef_Void});
         }
     }
 
@@ -159,13 +144,11 @@ class Deserialize {
     void seperateTokens(bool semicolon) {
         parseToken();
 
-        Symbol entity, queue;
+        Symbol entity;
         if(!task.context.getUncertain(currentEntry, PreDef_Entity, entity))
             entity = PreDef_Void;
-        if(!task.context.getUncertain(currentEntry, PreDef_Queue, queue))
-            queue = PreDef_Void;
 
-        if(queue == PreDef_Void) {
+        if(queue.empty()) {
             if(semicolon) {
                 if(entity != PreDef_Void)
                     throwException("Pointless semicolon");
@@ -174,30 +157,30 @@ class Deserialize {
             return;
         }
 
-        if(semicolon && queue != PreDef_Void && task.context.valueSetCountIs(queue, PreDef_Next, 0)) {
+        if(semicolon && queue.size() == 1) {
             if(entity == PreDef_Void) {
-                entity = popQueue();
+                entity = queue.pop_back();
                 task.context.link({currentEntry, PreDef_Entity, entity});
                 nextSymbol(parentEntry, entity);
             } else
-                task.context.link({entity, popQueue(), entity});
+                task.context.link({entity, queue.pop_back(), entity});
             return;
         }
 
         fillInAnonymous(entity);
         if(semicolon)
-            task.context.unlink(parentEntry, PreDef_UnnestEntity);
+            task.context.setSolitary({parentEntry, PreDef_UnnestEntity, PreDef_Void});
         else
-            task.context.setSolitary({parentEntry, PreDef_UnnestEntity, entity});
-        Symbol attribute = popQueue();
-        task.context.setSolitary({parentEntry, PreDef_UnnestAttribute, attribute});
+            task.context.setSolitary({parentEntry, PreDef_UnnestEntity, entity}, true);
+        Symbol attribute = queue.pop_back();
+        task.context.setSolitary({parentEntry, PreDef_UnnestAttribute, attribute}, true);
 
-        while(!task.context.valueSetCountIs(currentEntry, PreDef_Queue, 0))
-            task.context.link({entity, attribute, popQueue()});
+        while(!queue.empty())
+            task.context.link({entity, attribute, queue.pop_back()});
     }
 
     public:
-    Deserialize(Task& _task) :task(_task), stack(_task.context) {
+    Deserialize(Task& _task) :task(_task), stack(_task.context), queue(_task.context) {
         package = task.context.getGuaranteed(task.block, PreDef_Package);
         getSymbolObjectByName(Input)
         checkBlobType(Input, PreDef_Text)
@@ -205,6 +188,7 @@ class Deserialize {
         currentEntry = task.context.create();
         task.context.link({task.block, PreDef_Holds, currentEntry});
         stack.push_back(currentEntry);
+        queue.setSymbol(currentEntry);
 
         row = column = 1;
         tokenBegin = pos = reinterpret_cast<const char*>(InputSymbolObject->blobData.get());
@@ -243,29 +227,31 @@ class Deserialize {
                     currentEntry = task.context.create();
                     task.context.link({task.block, PreDef_Holds, currentEntry});
                     stack.push_back(currentEntry);
+                    queue.setSymbol(currentEntry);
                     break;
                 case ';':
                     if(stack.size() == 1)
                         throwException("Semicolon outside of any brackets");
                     seperateTokens(true);
-                    if(!task.context.valueSetCountIs(currentEntry, PreDef_UnnestEntity, 0))
+                    if(!task.context.valueCountIs(currentEntry, PreDef_UnnestEntity, 0))
                         throwException("Unnesting failed");
                     break;
                 case ')': {
                     if(stack.size() == 1)
                         throwException("Unmatched closing bracket");
                     seperateTokens(false);
-                    if(stack.size() == 2 && task.context.valueSetCountIs(parentEntry, PreDef_UnnestEntity, 0)) {
+                    if(stack.size() == 2 && task.context.valueCountIs(parentEntry, PreDef_UnnestEntity, 0)) {
                         locals.clear();
                         auto topIter = task.context.topIndex.find(task.context.getGuaranteed(currentEntry, PreDef_Entity));
                         if(topIter != task.context.topIndex.end() && topIter->second->subIndices[EAV].empty())
                             throwException("Nothing declared");
                     }
-                    if(!task.context.valueSetCountIs(currentEntry, PreDef_UnnestEntity, 0))
+                    if(!task.context.valueCountIs(currentEntry, PreDef_UnnestEntity, 0))
                         throwException("Unnesting failed");
                     task.context.destroy(currentEntry);
                     stack.pop_back();
                     currentEntry = parentEntry;
+                    queue.setSymbol(currentEntry);
                     parentEntry = (stack.size() < 2) ? PreDef_Void : stack[stack.size()-2];
                 }   break;
             }
@@ -276,17 +262,17 @@ class Deserialize {
 
         if(stack.size() != 1)
             throwException("Missing closing bracket");
-        if(!task.context.valueSetCountIs(currentEntry, PreDef_UnnestEntity, 0))
+        if(!task.context.valueCountIs(currentEntry, PreDef_UnnestEntity, 0))
             throwException("Unnesting failed");
-        if(task.context.valueSetCountIs(currentEntry, PreDef_Queue, 0))
+        if(queue.empty())
             throwException("Empty Input");
 
         Symbol OutputSymbol;
         if(task.context.getUncertain(task.block, PreDef_Output, OutputSymbol)) {
             Symbol TargetSymbol = task.getTargetSymbol();
-            task.context.unlink(TargetSymbol, OutputSymbol);
-            while(!task.context.valueSetCountIs(currentEntry, PreDef_Queue, 0))
-                task.context.link({TargetSymbol, OutputSymbol, popQueue()});
+            task.context.setSolitary({TargetSymbol, OutputSymbol, PreDef_Void});
+            while(!queue.empty())
+                task.context.link({TargetSymbol, OutputSymbol, queue.pop_back()});
         }
         task.popCallStack();
     }

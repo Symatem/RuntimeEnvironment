@@ -120,10 +120,9 @@ struct Task {
                     }
                 });
 
-            if(context.getUncertain(execute, PreDef_Next, next))
-                context.setSolitary({parentFrame, PreDef_Execute, next});
-            else
-                context.unlink(parentFrame, PreDef_Execute);
+            if(!context.getUncertain(execute, PreDef_Next, next))
+                next = PreDef_Void;
+            context.setSolitary({parentFrame, PreDef_Execute, next});
 
             if(context.getUncertain(execute, PreDef_Catch, catcher))
                 context.link({frame, PreDef_Catch, catcher});
