@@ -45,15 +45,12 @@ struct Task {
         assert(task != PreDef_Void);
         if(frame == PreDef_Void)
             return false;
-        assert(context.topIndex.find(frame) != context.topIndex.end());
-        Symbol parentFrame;
+        Symbol parentFrame = PreDef_Void;
         bool parentExists = context.getUncertain(frame, PreDef_Parent, parentFrame);
-        if(!parentExists) {
-            parentFrame = PreDef_Void;
+        if(parentFrame == PreDef_Void)
             setStatus(PreDef_Done);
-        }
         setFrame(true, true, parentFrame);
-        return parentExists;
+        return parentFrame != PreDef_Void;
     }
 
     Symbol getTargetSymbol() {
@@ -78,7 +75,7 @@ struct Task {
             return false;
 
         Symbol parentBlock = block, parentFrame = frame, execute,
-               procedure, next, catcher, staticParams, dynamicParams;
+               procedure, next = PreDef_Void, catcher, staticParams, dynamicParams;
         if(!context.getUncertain(parentFrame, PreDef_Execute, execute)) {
             popCallStack();
             return true;
@@ -120,8 +117,7 @@ struct Task {
                     }
                 });
 
-            if(!context.getUncertain(execute, PreDef_Next, next))
-                next = PreDef_Void;
+            context.getUncertain(execute, PreDef_Next, next);
             context.setSolitary({parentFrame, PreDef_Execute, next});
 
             if(context.getUncertain(execute, PreDef_Catch, catcher))

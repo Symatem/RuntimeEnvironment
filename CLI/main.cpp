@@ -28,7 +28,7 @@ void loadFromPath(Symbol parentPackage, bool execute, std::string path) {
     } else if(s.st_mode & S_IFREG) {
         if(!stringEndsWith(path, ".sym")) return;
 
-        Symbol file = createSymbolFromFile(task.context, path);
+        Symbol file = task.context.createSymbolFromFile(path.c_str());
         if(file == PreDef_Void) {
             interfaceBuffer = "Could not open file ";
             interfaceBuffer += path;

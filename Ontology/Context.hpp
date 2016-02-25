@@ -7,14 +7,13 @@ struct Context { // TODO: : public Storage {
         HexaIndex = 6
     } indexMode;
     Symbol nextSymbol;
-    typedef std::map<Symbol, std::unique_ptr<SymbolObject>>::iterator TopIter;
     std::map<Symbol, std::unique_ptr<SymbolObject>> topIndex;
     struct BlobIndexCompare {
         bool operator()(const SymbolObject* a, const SymbolObject* b) const {
             return a->compareBlob(*b) < 0;
         }
     };
-    std::map<SymbolObject*, Symbol, BlobIndexCompare> blobIndex;
+    std::map<SymbolObject*, Symbol, BlobIndexCompare> blobIndex; // TODO: Internalize blob index
 
     ArchitectureType searchGGG(ArchitectureType index, Triple& triple, std::function<void()> callback) {
         auto topIter = topIndex.find(triple.pos[0]);
@@ -249,7 +248,7 @@ struct Context { // TODO: : public Storage {
                !topIter->second->unlink(reverseIndex, i, triple.pos[(i+1)%3], triple.pos[(i+2)%3]))
                 return false;
         }
-        if(triple.pos[1] == PreDef_BlobType)
+        if(triple.pos[1] == PreDef_BlobType) // TODO: Internalize blob index
             unindexBlob(triple.pos[0]);
         return true;
     }
@@ -271,7 +270,6 @@ struct Context { // TODO: : public Storage {
     void scrutinizeHeldBy(Symbol symbol);
     void setSolitary(Triple triple, bool linkVoid = false);
 
-    // TODO: Set PreDef_Void option
     bool getUncertain(Symbol alpha, Symbol beta, Symbol& gamma) {
         return (query(9, {alpha, beta, PreDef_Void}, [&](Triple result, ArchitectureType) {
             gamma = result.pos[0];
@@ -295,7 +293,7 @@ struct Context { // TODO: : public Storage {
         return topIter->second.get();
     }
 
-    TopIter SymbolFactory(Symbol symbol) {
+    std::map<Symbol, std::unique_ptr<SymbolObject>>::iterator SymbolFactory(Symbol symbol) {
         return topIndex.insert(std::make_pair(symbol, std::unique_ptr<SymbolObject>(new SymbolObject()))).first;
     }
 
@@ -304,6 +302,36 @@ struct Context { // TODO: : public Storage {
         SymbolFactory(symbol);
         for(auto l : links)
             link({symbol, l.first, l.second});
+        return symbol;
+    }
+
+    template<typename DataType>
+    Symbol createFromData(DataType src) {
+        Symbol blobType;
+        if(typeid(DataType) == typeid(uint64_t))
+            blobType = PreDef_Natural;
+        else if(typeid(DataType) == typeid(int64_t))
+            blobType = PreDef_Integer;
+        else if(typeid(DataType) == typeid(double))
+            blobType = PreDef_Float;
+        else
+            throw Exception("Unknown Data Type");
+        Symbol symbol = create({{PreDef_BlobType, blobType}});
+        getSymbolObject(symbol)->overwriteBlob(src);
+        return symbol;
+    }
+
+    Symbol createSymbolFromFile(const char* path) {
+        int fd = open(path, O_RDONLY);
+        if(fd < 0)
+            return PreDef_Void;
+        Symbol symbol = create({{PreDef_BlobType, PreDef_Text}});
+        SymbolObject* symbolObject = getSymbolObject(symbol);
+        ArchitectureType len = lseek(fd, 0, SEEK_END);
+        symbolObject->allocateBlob(len*8);
+        lseek(fd, 0, SEEK_SET);
+        read(fd, reinterpret_cast<char*>(symbolObject->blobData.get()), len);
+        close(fd);
         return symbol;
     }
 
@@ -324,23 +352,7 @@ struct Context { // TODO: : public Storage {
         return createFromData(src, len);
     }
 
-    template<typename DataType>
-    Symbol createFromData(DataType src) {
-        Symbol blobType;
-        if(typeid(DataType) == typeid(uint64_t))
-            blobType = PreDef_Natural;
-        else if(typeid(DataType) == typeid(int64_t))
-            blobType = PreDef_Integer;
-        else if(typeid(DataType) == typeid(double))
-            blobType = PreDef_Float;
-        else
-            throw Exception("Unknown Data Type");
-        Symbol symbol = create({{PreDef_BlobType, blobType}});
-        getSymbolObject(symbol)->overwriteBlob(src);
-        return symbol;
-    }
-
-    // TODO: Needs to be called at every blob mutation
+    // TODO: Internalize blob index
     bool unindexBlob(Symbol symbol) {
         auto iter = blobIndex.find(getSymbolObject(symbol));
         if(iter == blobIndex.end() || iter->second != symbol)

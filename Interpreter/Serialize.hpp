@@ -113,11 +113,8 @@ struct Serialize {
     }
 
     void serializeEntity(Symbol entity, std::function<Symbol(Symbol)> followCallback = nullptr) {
-        Symbol followAttribute;
         while(true) {
-            auto topIter = task.context.topIndex.find(entity);
-            assert(topIter != task.context.topIndex.end());
-
+            Symbol followAttribute, followEntity = PreDef_Void;
             if(followCallback)
                 followAttribute = followCallback(entity);
 
@@ -128,33 +125,29 @@ struct Serialize {
             put(';');
             put('\n');
 
-            std::set<Symbol>* lastAttribute = nullptr;
-            for(auto& j : topIter->second->subIndices[EAV]) {
-                if(followCallback && j.first == followAttribute) {
-                    lastAttribute = &j.second;
-                    continue;
+            task.context.query(21, {entity, PreDef_Void, PreDef_Void}, [&](Triple result, ArchitectureType) {
+                if(followCallback && result.pos[0] == followAttribute) {
+                    task.context.getUncertain(entity, followAttribute, followEntity);
+                    return;
                 }
                 put('\t');
-                serializeBlob(j.first);
-                for(auto& k : j.second) {
+                serializeBlob(result.pos[0]);
+                task.context.query(9, {entity, result.pos[0], PreDef_Void}, [&](Triple resultB, ArchitectureType) {
                     put(' ');
-                    serializeBlob(k);
-                }
+                    serializeBlob(resultB.pos[0]);
+                });
                 put(';');
                 put('\n');
-            }
-            if(!followCallback || !lastAttribute) {
+            });
+
+            if(!followCallback || followEntity == PreDef_Void) {
                 put(')');
                 return;
             }
 
             put('\t');
             serializeBlob(followAttribute);
-            for(auto iter = lastAttribute->begin(); iter != --lastAttribute->end(); ++iter) {
-                put(' ');
-                serializeBlob(*iter);
-            }
-            entity = *lastAttribute->rbegin();
+            entity = followEntity;
             put('\n');
             put(')');
             put(' ');

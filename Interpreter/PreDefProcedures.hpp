@@ -126,13 +126,12 @@ PreDefProcedure(Branch) {
 }
 
 PreDefProcedure(Exception) {
-    Symbol ExceptionSymbol;
+    Symbol ExceptionSymbol = task.frame;
     if(task.context.getUncertain(task.block, PreDef_Exception, ExceptionSymbol)) {
         Symbol currentFrame = ExceptionSymbol;
         while(task.context.getUncertain(currentFrame, PreDef_Parent, currentFrame));
         task.context.link({currentFrame, PreDef_Parent, task.frame});
-    } else
-        ExceptionSymbol = task.frame;
+    }
 
     Symbol execute, currentFrame = task.frame, prevFrame = currentFrame;
     do {
@@ -189,9 +188,8 @@ PreDefProcedure(CloneBlob) {
     getSymbolObjectByName(Input)
     getSymbolObjectByName(Output)
     OutputSymbolObject->overwriteBlob(*InputSymbolObject);
-    Symbol type;
-    if(!task.context.getUncertain(InputSymbol, PreDef_BlobType, type))
-        type = PreDef_Void;
+    Symbol type = PreDef_Void;
+    task.context.getUncertain(InputSymbol, PreDef_BlobType, type);
     task.context.setSolitary({OutputSymbol, PreDef_BlobType, type});
     task.popCallStack();
 }

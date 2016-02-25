@@ -1,4 +1,6 @@
-#include "Stream.hpp"
+#include "../Interpreter/PreDefProcedures.hpp"
+#include <iostream>
+#include <sstream>
 #include <sys/ioctl.h>
 #include <sys/types.h>
 #include <sys/stat.h>

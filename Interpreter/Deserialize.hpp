@@ -12,12 +12,12 @@ if(task.context.query(1, {Name##Symbol, PreDef_BlobType, expectedType}) == 0) \
     throw Exception("Invalid Blob Type");
 
 #define getUncertainValueByName(Name, DefaultValue) \
-    Symbol Name##Symbol; ArchitectureType Name##Value; \
+    Symbol Name##Symbol; \
+    ArchitectureType Name##Value = DefaultValue; \
     if(task.context.getUncertain(task.block, PreDef_##Name, Name##Symbol)) { \
         checkBlobType(Name, PreDef_Natural) \
         Name##Value = task.context.getSymbolObject(Name##Symbol)->accessBlobAt<ArchitectureType>(); \
-    } else \
-        Name##Value = DefaultValue;
+    }
 
 class Deserialize {
     Task& task;
@@ -35,7 +35,7 @@ class Deserialize {
     Vector<Symbol> stack;
     Vector<Symbol, false> queue;
     Symbol parentEntry, currentEntry;
-    std::map<SymbolObject*, Symbol, Context::BlobIndexCompare> locals;
+    std::map<SymbolObject*, Symbol, Context::BlobIndexCompare> locals; // TODO: Internalize blob index
 
     void nextSymbol(Symbol stackEntry, Symbol symbol) {
         if(task.context.valueCountIs(stackEntry, PreDef_UnnestEntity, 0)) {
@@ -56,6 +56,7 @@ class Deserialize {
             if(isText)
                 symbol = task.context.createFromData(tokenBegin, pos-tokenBegin);
             else if(*tokenBegin == '#') {
+                // TODO: Internalize blob index
                 symbol = task.context.createFromData(tokenBegin, pos-tokenBegin);
                 SymbolObject* symbolObject = task.context.getSymbolObject(symbol);
                 auto iter = locals.find(symbolObject);
@@ -144,9 +145,8 @@ class Deserialize {
     void seperateTokens(bool semicolon) {
         parseToken();
 
-        Symbol entity;
-        if(!task.context.getUncertain(currentEntry, PreDef_Entity, entity))
-            entity = PreDef_Void;
+        Symbol entity = PreDef_Void;
+        task.context.getUncertain(currentEntry, PreDef_Entity, entity);
 
         if(queue.empty()) {
             if(semicolon) {
@@ -242,8 +242,7 @@ class Deserialize {
                     seperateTokens(false);
                     if(stack.size() == 2 && task.context.valueCountIs(parentEntry, PreDef_UnnestEntity, 0)) {
                         locals.clear();
-                        auto topIter = task.context.topIndex.find(task.context.getGuaranteed(currentEntry, PreDef_Entity));
-                        if(topIter != task.context.topIndex.end() && topIter->second->subIndices[EAV].empty())
+                        if(task.context.query(12, {task.context.getGuaranteed(currentEntry, PreDef_Entity), PreDef_Void, PreDef_Void}) == 0)
                             throwException("Nothing declared");
                     }
                     if(!task.context.valueCountIs(currentEntry, PreDef_UnnestEntity, 0))
