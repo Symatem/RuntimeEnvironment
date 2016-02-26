@@ -32,10 +32,10 @@ class Deserialize {
         });
     }
 
-    Vector<Symbol> stack;
+    Vector<Symbol, true> stack;
     Vector<Symbol, false> queue;
+    BlobIndex locals;
     Symbol parentEntry, currentEntry;
-    std::map<SymbolObject*, Symbol, Context::BlobIndexCompare> locals; // TODO: Internalize blob index
 
     void nextSymbol(Symbol stackEntry, Symbol symbol) {
         if(task.context.valueCountIs(stackEntry, PreDef_UnnestEntity, 0)) {
@@ -56,16 +56,8 @@ class Deserialize {
             if(isText)
                 symbol = task.context.createFromData(tokenBegin, pos-tokenBegin);
             else if(*tokenBegin == '#') {
-                // TODO: Internalize blob index
                 symbol = task.context.createFromData(tokenBegin, pos-tokenBegin);
-                SymbolObject* symbolObject = task.context.getSymbolObject(symbol);
-                auto iter = locals.find(symbolObject);
-                if(iter == locals.end())
-                    locals.insert({symbolObject, symbol});
-                else {
-                    task.context.destroy(symbol);
-                    symbol = (*iter).second;
-                }
+                locals.insertElement(symbol);
             } else if(pos-tokenBegin > strlen(HRLRawBegin) && memcmp(tokenBegin, HRLRawBegin, 4) == 0) {
                 const char* src = tokenBegin+strlen(HRLRawBegin);
                 ArchitectureType nibbleCount = pos-src;
@@ -125,7 +117,7 @@ class Deserialize {
                         symbol = task.context.createFromData(mantissa);
                 } else
                     symbol = task.context.createFromData(tokenBegin, pos-tokenBegin);
-                symbol = task.indexBlob(symbol);
+                blobIndex.insertElement(symbol);
             }
             task.context.link({package, PreDef_Holds, symbol}, false);
             nextSymbol(currentEntry, symbol);
@@ -180,7 +172,7 @@ class Deserialize {
     }
 
     public:
-    Deserialize(Task& _task) :task(_task), stack(_task.context), queue(_task.context) {
+    Deserialize(Task& _task) :task(_task) {
         package = task.context.getGuaranteed(task.block, PreDef_Package);
         getSymbolObjectByName(Input)
         checkBlobType(Input, PreDef_Text)

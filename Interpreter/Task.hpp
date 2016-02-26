@@ -7,18 +7,6 @@ struct Task {
     Context& context;
     Symbol task, status, frame, block;
 
-    Symbol indexBlob(Symbol symbol) {
-        SymbolObject* symbolObject = context.getSymbolObject(symbol);
-        auto iter = context.blobIndex.find(symbolObject);
-        if(iter != context.blobIndex.end()) {
-            context.destroy(symbol);
-            return iter->second;
-        } else {
-            context.blobIndex.insert({symbolObject, symbol});
-            return symbol;
-        }
-    }
-
     void setStatus(Symbol _status) {
         status = _status;
         context.setSolitary({task, PreDef_Status, status});
@@ -128,8 +116,9 @@ struct Task {
         } catch(Exception exception) {
             assert(task != PreDef_Void && frame != PreDef_Void);
 
-            Symbol parentFrame = frame;
-            exception.links.insert({PreDef_Message, indexBlob(context.createFromData(exception.message))});
+            Symbol parentFrame = frame, message = context.createFromData(exception.message);
+            blobIndex.insertElement(message);
+            exception.links.insert({PreDef_Message, message});
             block = context.create(exception.links);
             setFrame(true, false, context.create({
                 {PreDef_Holds, parentFrame},

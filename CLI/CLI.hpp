@@ -17,8 +17,7 @@ enum {
 std::stringstream stream;
 std::string interfaceBuffer;
 ArchitectureType historyTop, historySub, linesForBlob;
-Context context;
-Vector<Symbol> history(context);
+Vector<Symbol, true> history;
 struct Task task = {context, PreDef_Void};
 decltype(context.topIndex)::iterator topIter;
 SymbolObject* symbolObject;

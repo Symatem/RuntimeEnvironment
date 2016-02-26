@@ -56,6 +56,7 @@ void loadFromPath(Symbol parentPackage, bool execute, std::string path) {
 }
 
 int main(int argc, const char** argv) {
+    context.init();
     init();
 
     /*const std::string errorMessage = CSI+"1;31m[Error]"+CSI+"m",

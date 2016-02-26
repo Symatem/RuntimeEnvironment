@@ -5,15 +5,10 @@ struct Context { // TODO: : public Storage {
         MonoIndex = 1,
         TriIndex = 3,
         HexaIndex = 6
-    } indexMode;
-    Symbol nextSymbol;
+    } indexMode = HexaIndex;
+    Symbol nextSymbol = 0;
+    const Symbol preDefSymbolsEnd = sizeof(PreDefSymbols)/sizeof(void*);
     std::map<Symbol, std::unique_ptr<SymbolObject>> topIndex;
-    struct BlobIndexCompare {
-        bool operator()(const SymbolObject* a, const SymbolObject* b) const {
-            return a->compareBlob(*b) < 0;
-        }
-    };
-    std::map<SymbolObject*, Symbol, BlobIndexCompare> blobIndex; // TODO: Internalize blob index
 
     ArchitectureType searchGGG(ArchitectureType index, Triple& triple, std::function<void()> callback) {
         auto topIter = topIndex.find(triple.pos[0]);
@@ -237,21 +232,7 @@ struct Context { // TODO: : public Storage {
         topIndex.erase(topIter);
     }
 
-    bool unlinkInternal(Triple triple, bool skipEnabled = false, Symbol skip = PreDef_Void) {
-        ArchitectureType indexCount = (indexMode == MonoIndex) ? 1 : 3;
-        bool reverseIndex = (indexMode == HexaIndex);
-        for(ArchitectureType i = 0; i < indexCount; ++i) {
-            if(skipEnabled && triple.pos[i] == skip)
-                continue;
-            auto topIter = topIndex.find(triple.pos[i]);
-            if(topIter == topIndex.end() ||
-               !topIter->second->unlink(reverseIndex, i, triple.pos[(i+1)%3], triple.pos[(i+2)%3]))
-                return false;
-        }
-        if(triple.pos[1] == PreDef_BlobType) // TODO: Internalize blob index
-            unindexBlob(triple.pos[0]);
-        return true;
-    }
+    bool unlinkInternal(Triple triple, bool skipEnabled = false, Symbol skip = PreDef_Void);
 
     bool unlink(Triple triple, bool exception = true) {
         bool success = unlinkInternal(triple);
@@ -352,23 +333,9 @@ struct Context { // TODO: : public Storage {
         return createFromData(src, len);
     }
 
-    // TODO: Internalize blob index
-    bool unindexBlob(Symbol symbol) {
-        auto iter = blobIndex.find(getSymbolObject(symbol));
-        if(iter == blobIndex.end() || iter->second != symbol)
-            return false;
-        blobIndex.erase(iter);
-        return true;
-    }
+    // TODO: unindexBlob must be called at every blob mutation
 
-    Context() :nextSymbol(0), indexMode(HexaIndex) {
-        while(nextSymbol < sizeof(PreDefSymbols)/sizeof(void*)) {
-            Symbol symbol = createFromData(PreDefSymbols[nextSymbol]);
-            link({PreDef_RunTimeEnvironment, PreDef_Holds, symbol});
-            blobIndex.insert({getSymbolObject(symbol), symbol});
-        }
-        Symbol ArchitectureSizeSymbol = createFromData(ArchitectureSize);
-        link({PreDef_RunTimeEnvironment, PreDef_Holds, ArchitectureSizeSymbol});
-        link({PreDef_RunTimeEnvironment, PreDef_ArchitectureSize, ArchitectureSizeSymbol});
-    }
+    void init();
 };
+
+Context context;

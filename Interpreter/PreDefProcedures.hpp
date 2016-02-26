@@ -84,9 +84,9 @@ PreDefProcedure(Create) {
 }
 
 PreDefProcedure(Destroy) {
-    Set<Symbol> symbols(task.context);
+    Set<Symbol, true> symbols;
     if(task.context.query(9, {task.block, PreDef_Input, PreDef_Void}, [&](Triple result, ArchitectureType) {
-        symbols.insert(result.pos[0]);
+        symbols.insertElement(result.pos[0]);
     }) == 0)
         throw Exception("Expected more Inputs");
     symbols.iterate([&](Symbol symbol) {
@@ -151,7 +151,7 @@ PreDefProcedure(Exception) {
 PreDefProcedure(Serialize) {
     getSymbolByName(Input)
     getSymbolObjectByName(Output)
-    task.context.unindexBlob(OutputSymbol);
+    blobIndex.eraseElement(OutputSymbol);
     Serialize serialize(task, OutputSymbol);
     serialize.serializeBlob(InputSymbol);
     serialize.finalizeSymbol();
@@ -168,7 +168,7 @@ PreDefProcedure(SliceBlob) {
     getUncertainValueByName(Count, InputSymbolObject->blobSize)
     getUncertainValueByName(Destination, 0)
     getUncertainValueByName(Source, 0)
-    task.context.unindexBlob(TargetSymbol);
+    blobIndex.eraseElement(TargetSymbol);
     if(!TargetSymbolObject->overwriteBlobPartial(*InputSymbolObject, DestinationValue, SourceValue, CountValue))
         throw Exception("Invalid Count, Destination or SrcOffset Value");
     task.popCallStack();
@@ -179,7 +179,7 @@ PreDefProcedure(AllocateBlob) {
     getUncertainValueByName(Preserve, 0)
     getSymbolObjectByName(Target)
     checkBlobType(Input, PreDef_Natural)
-    task.context.unindexBlob(TargetSymbol);
+    blobIndex.eraseElement(TargetSymbol);
     TargetSymbolObject->allocateBlob(InputSymbolObject->accessBlobAt<ArchitectureType>(), PreserveValue);
     task.popCallStack();
 }

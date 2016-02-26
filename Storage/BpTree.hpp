@@ -1,5 +1,18 @@
 #include "Storage.hpp"
 
+template<typename IndexType>
+IndexType binarySearch(IndexType end, std::function<bool(IndexType)> compare) {
+    IndexType begin = 0, mid;
+    while(begin < end) {
+        mid = (begin+end)/2;
+        if(compare(mid))
+            begin = mid+1;
+        else
+            end = mid;
+    }
+    return begin;
+}
+
 template<class TemplateKeyType, class TemplateValueType>
 class BpTree {
     public:
@@ -117,16 +130,10 @@ class BpTree {
 
         template<bool isLeaf>
         IndexType indexOfKey(KeyType key) const {
-            IndexType begin = 0, mid, end = keyCount<isLeaf>();
-            while(begin < end) {
-                mid = (begin+end)/2;
-                if((isLeaf && key > getKey(mid)) ||
-                   (!isLeaf && key >= getKey(mid)))
-                    begin = mid+1;
-                else
-                    end = mid;
-            }
-            return begin;
+            return binarySearch(keyCount<isLeaf>(), [&](IndexType at) {
+                return ((isLeaf && key > getKey(at)) ||
+                        (!isLeaf && key >= getKey(at)));
+            });
         }
 
         template<bool frontKey, int dir = -1>
