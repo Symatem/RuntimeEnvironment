@@ -6,7 +6,7 @@ PreDefProcedure(Search) {
     Triple triple;
     uint8_t modes[3] = {2, 2, 2};
     Symbol posNames[3] = {PreDef_Entity, PreDef_Attribute, PreDef_Value};
-    task.context.query(9, {task.block, PreDef_Varying, PreDef_Void}, [&](Triple result, ArchitectureType) {
+    context.query(9, {task.block, PreDef_Varying, PreDef_Void}, [&](Triple result, ArchitectureType) {
         for(ArchitectureType index = 0; index < 3; ++index)
             if(result.pos[0] == posNames[index]) {
                 modes[index] = 1;
@@ -15,7 +15,7 @@ PreDefProcedure(Search) {
         throw Exception("Invalid Varying");
     });
     for(ArchitectureType index = 0; index < 3; ++index)
-        if(task.context.getUncertain(task.block, posNames[index], triple.pos[index])) {
+        if(context.getUncertain(task.block, posNames[index], triple.pos[index])) {
             if(modes[index] != 2)
                 throw Exception("Invalid Input");
                 modes[index] = 0;
@@ -24,7 +24,7 @@ PreDefProcedure(Search) {
 
     ArchitectureType blobSize = 0, index = 0;
     OutputSymbolObject->allocateBlob(ArchitectureSize);
-    auto count = task.context.query(modes[0] + modes[1]*3 + modes[2]*9, triple,
+    auto count = context.query(modes[0] + modes[1]*3 + modes[2]*9, triple,
     [&](Triple result, ArchitectureType size) {
         blobSize = ArchitectureSize*size*(index+1);
         if(blobSize > OutputSymbolObject->blobSize)
@@ -35,20 +35,20 @@ PreDefProcedure(Search) {
     OutputSymbolObject->reallocateBlob(blobSize);
 
     Symbol CountSymbol;
-    if(task.context.getUncertain(task.block, PreDef_Count, CountSymbol)) {
-        task.context.setSolitary({CountSymbol, PreDef_BlobType, PreDef_Natural});
-        task.context.getSymbolObject(CountSymbol)->overwriteBlob(count);
+    if(context.getUncertain(task.block, PreDef_Count, CountSymbol)) {
+        context.setSolitary({CountSymbol, PreDef_BlobType, PreDef_Natural});
+        context.getSymbolObject(CountSymbol)->overwriteBlob(count);
     }
 
     task.popCallStack();
 }
 
 struct PreDefProcedure_Link {
-    static bool e(Context& context, Triple triple) { return context.link(triple); };
+    static bool e(Triple triple) { return context.link(triple); };
 };
 
 struct PreDefProcedure_Unlink {
-    static bool e(Context& context, Triple triple) { return context.unlink(triple); };
+    static bool e(Triple triple) { return context.unlink(triple); };
 };
 
 template<class op>
@@ -56,28 +56,28 @@ PreDefProcedure(Triple) {
     getSymbolByName(Entity)
     getSymbolByName(Attribute)
     getSymbolByName(Value)
-    ArchitectureType result = op::e(task.context, {EntitySymbol, AttributeSymbol, ValueSymbol});
+    ArchitectureType result = op::e({EntitySymbol, AttributeSymbol, ValueSymbol});
     Symbol OutputSymbol;
-    if(task.context.getUncertain(task.block, PreDef_Output, OutputSymbol)) {
-        task.context.setSolitary({OutputSymbol, PreDef_BlobType, PreDef_Natural});
-        task.context.getSymbolObject(OutputSymbol)->overwriteBlob(result);
+    if(context.getUncertain(task.block, PreDef_Output, OutputSymbol)) {
+        context.setSolitary({OutputSymbol, PreDef_BlobType, PreDef_Natural});
+        context.getSymbolObject(OutputSymbol)->overwriteBlob(result);
     }
     task.popCallStack();
 }
 
 PreDefProcedure(Create) {
     Symbol InputSymbol, ValueSymbol;
-    bool input = task.context.getUncertain(task.block, PreDef_Input, InputSymbol);
+    bool input = context.getUncertain(task.block, PreDef_Input, InputSymbol);
     if(input)
-        ValueSymbol = task.context.getSymbolObject(InputSymbol)->accessBlobAt<ArchitectureType>();
+        ValueSymbol = context.getSymbolObject(InputSymbol)->accessBlobAt<ArchitectureType>();
 
     Symbol TargetSymbol = task.getTargetSymbol();
-    if(task.context.query(9, {task.block, PreDef_Output, PreDef_Void}, [&](Triple result, ArchitectureType) {
+    if(context.query(9, {task.block, PreDef_Output, PreDef_Void}, [&](Triple result, ArchitectureType) {
         Symbol OutputSymbol = result.pos[0];
         if(!input)
-            ValueSymbol = task.context.create();
-        task.context.setSolitary({TargetSymbol, OutputSymbol, ValueSymbol});
-        task.context.link({TargetSymbol, PreDef_Holds, ValueSymbol});
+            ValueSymbol = context.create();
+        context.setSolitary({TargetSymbol, OutputSymbol, ValueSymbol});
+        context.link({TargetSymbol, PreDef_Holds, ValueSymbol});
     }) == 0)
         throw Exception("Expected Output");
     task.popCallStack();
@@ -85,12 +85,12 @@ PreDefProcedure(Create) {
 
 PreDefProcedure(Destroy) {
     Set<Symbol, true> symbols;
-    if(task.context.query(9, {task.block, PreDef_Input, PreDef_Void}, [&](Triple result, ArchitectureType) {
+    if(context.query(9, {task.block, PreDef_Input, PreDef_Void}, [&](Triple result, ArchitectureType) {
         symbols.insertElement(result.pos[0]);
     }) == 0)
         throw Exception("Expected more Inputs");
     symbols.iterate([&](Symbol symbol) {
-        task.context.destroy(symbol);
+        context.destroy(symbol);
     });
     task.popCallStack();
 }
@@ -99,7 +99,7 @@ PreDefProcedure(Push) {
     getSymbolByName(Execute)
     task.block = task.getTargetSymbol();
     task.popCallStack();
-    task.setFrame(true, false, task.context.create({
+    task.setFrame(true, false, context.create({
         {PreDef_Holds, task.frame},
         {PreDef_Parent, task.frame},
         {PreDef_Holds, task.block},
@@ -122,29 +122,29 @@ PreDefProcedure(Branch) {
     getSymbolByName(Branch)
     task.popCallStack();
     if(InputValue != 0)
-        task.context.setSolitary({task.frame, PreDef_Execute, BranchSymbol});
+        context.setSolitary({task.frame, PreDef_Execute, BranchSymbol});
 }
 
 PreDefProcedure(Exception) {
     Symbol ExceptionSymbol = task.frame;
-    if(task.context.getUncertain(task.block, PreDef_Exception, ExceptionSymbol)) {
+    if(context.getUncertain(task.block, PreDef_Exception, ExceptionSymbol)) {
         Symbol currentFrame = ExceptionSymbol;
-        while(task.context.getUncertain(currentFrame, PreDef_Parent, currentFrame));
-        task.context.link({currentFrame, PreDef_Parent, task.frame});
+        while(context.getUncertain(currentFrame, PreDef_Parent, currentFrame));
+        context.link({currentFrame, PreDef_Parent, task.frame});
     }
 
     Symbol execute, currentFrame = task.frame, prevFrame = currentFrame;
     do {
-        if(currentFrame != prevFrame && task.context.getUncertain(currentFrame, PreDef_Catch, execute)) {
-            task.context.setSolitary({prevFrame, PreDef_Parent, PreDef_Void});
+        if(currentFrame != prevFrame && context.getUncertain(currentFrame, PreDef_Catch, execute)) {
+            context.setSolitary({prevFrame, PreDef_Parent, PreDef_Void});
             task.setFrame(true, true, currentFrame);
-            task.context.link({task.block, PreDef_Holds, ExceptionSymbol});
-            task.context.link({task.block, PreDef_Exception, ExceptionSymbol});
-            task.context.setSolitary({task.frame, PreDef_Execute, execute});
+            context.link({task.block, PreDef_Holds, ExceptionSymbol});
+            context.link({task.block, PreDef_Exception, ExceptionSymbol});
+            context.setSolitary({task.frame, PreDef_Execute, execute});
             return;
         }
         prevFrame = currentFrame;
-    } while(task.context.getUncertain(currentFrame, PreDef_Parent, currentFrame));
+    } while(context.getUncertain(currentFrame, PreDef_Parent, currentFrame));
     task.setStatus(PreDef_Exception);
 }
 
@@ -189,15 +189,15 @@ PreDefProcedure(CloneBlob) {
     getSymbolObjectByName(Output)
     OutputSymbolObject->overwriteBlob(*InputSymbolObject);
     Symbol type = PreDef_Void;
-    task.context.getUncertain(InputSymbol, PreDef_BlobType, type);
-    task.context.setSolitary({OutputSymbol, PreDef_BlobType, type});
+    context.getUncertain(InputSymbol, PreDef_BlobType, type);
+    context.setSolitary({OutputSymbol, PreDef_BlobType, type});
     task.popCallStack();
 }
 
 PreDefProcedure(GetBlobLength) {
     getSymbolObjectByName(Input)
     getSymbolObjectByName(Output)
-    task.context.setSolitary({OutputSymbol, PreDef_BlobType, PreDef_Natural});
+    context.setSolitary({OutputSymbol, PreDef_BlobType, PreDef_Natural});
     OutputSymbolObject->overwriteBlob(InputSymbolObject->blobSize);
     task.popCallStack();
 }
@@ -225,9 +225,9 @@ PreDefProcedure(NumericCast) {
     getSymbolObjectByName(Output)
 
     Symbol type;
-    if(!task.context.getUncertain(InputSymbol, PreDef_BlobType, type))
+    if(!context.getUncertain(InputSymbol, PreDef_BlobType, type))
         throw Exception("Invalid Input SymbolObject");
-    task.context.setSolitary({OutputSymbol, PreDef_BlobType, ToSymbol});
+    context.setSolitary({OutputSymbol, PreDef_BlobType, ToSymbol});
     switch(ToSymbol) {
         case PreDef_Natural:
             PreDefProcedure_NumericCastTo<uint64_t>(task, type, OutputSymbolObject, InputSymbolObject);
@@ -250,17 +250,17 @@ PreDefProcedure(Equal) {
     uint64_t OutputValue = 1;
     bool first = true;
 
-    if(task.context.query(9, {task.block, PreDef_Input, PreDef_Void}, [&](Triple result, ArchitectureType) {
+    if(context.query(9, {task.block, PreDef_Input, PreDef_Void}, [&](Triple result, ArchitectureType) {
         if(OutputValue == 0)
             return;
         Symbol _type = PreDef_Void;
-        task.context.getUncertain(result.pos[0], PreDef_BlobType, _type);
+        context.getUncertain(result.pos[0], PreDef_BlobType, _type);
         if(first) {
             first = false;
             type = _type;
-            FirstSymbolObject = task.context.getSymbolObject(result.pos[0]);
+            FirstSymbolObject = context.getSymbolObject(result.pos[0]);
         } else if(type == _type) {
-            SymbolObject* InputSymbolObject = task.context.getSymbolObject(result.pos[0]);
+            SymbolObject* InputSymbolObject = context.getSymbolObject(result.pos[0]);
             if(type == PreDef_Float) {
                 if(InputSymbolObject->accessBlobAt<double>() != FirstSymbolObject->accessBlobAt<double>())
                     OutputValue = 0;
@@ -272,7 +272,7 @@ PreDefProcedure(Equal) {
         throw Exception("Expected more Input");
 
     getSymbolObjectByName(Output)
-    task.context.setSolitary({OutputSymbol, PreDef_BlobType, PreDef_Natural});
+    context.setSolitary({OutputSymbol, PreDef_BlobType, PreDef_Natural});
     OutputSymbolObject->overwriteBlob(OutputValue);
     task.popCallStack();
 }
@@ -298,8 +298,8 @@ PreDefProcedure(CompareLogic) {
     getSymbolObjectByName(Output)
 
     Symbol type, _type;
-    task.context.getUncertain(InputSymbol, PreDef_BlobType, type);
-    task.context.getUncertain(ComparandumSymbol, PreDef_BlobType, _type);
+    context.getUncertain(InputSymbol, PreDef_BlobType, type);
+    context.getUncertain(ComparandumSymbol, PreDef_BlobType, _type);
     if(type != _type)
         throw Exception("Input and Comparandum have different types");
 
@@ -318,7 +318,7 @@ PreDefProcedure(CompareLogic) {
             result = op::s(*InputSymbolObject, *ComparandumSymbolObject);
             break;
     }
-    task.context.setSolitary({OutputSymbol, PreDef_BlobType, PreDef_Natural});
+    context.setSolitary({OutputSymbol, PreDef_BlobType, PreDef_Natural});
     OutputSymbolObject->overwriteBlob(result);
     task.popCallStack();
 }
@@ -361,7 +361,7 @@ PreDefProcedure(BitShift) {
 
     auto result = InputSymbolObject->accessBlobAt<uint64_t>();
     auto CountValue = CountSymbolObject->accessBlobAt<uint64_t>();
-    switch(task.context.getGuaranteed(task.block, PreDef_Direction)) {
+    switch(context.getGuaranteed(task.block, PreDef_Direction)) {
         case PreDef_Divide:
             op::d(result, CountValue);
             break;
@@ -372,7 +372,7 @@ PreDefProcedure(BitShift) {
             throw Exception("Invalid Direction");
     }
 
-    task.context.setSolitary({OutputSymbol, PreDef_BlobType, PreDef_Void});
+    context.setSolitary({OutputSymbol, PreDef_BlobType, PreDef_Void});
     OutputSymbolObject->overwriteBlob(result);
     task.popCallStack();
 }
@@ -381,7 +381,7 @@ PreDefProcedure(BitwiseComplement) {
     getSymbolObjectByName(Input)
     getSymbolObjectByName(Output)
 
-    task.context.setSolitary({OutputSymbol, PreDef_BlobType, PreDef_Void});
+    context.setSolitary({OutputSymbol, PreDef_BlobType, PreDef_Void});
     OutputSymbolObject->overwriteBlob(~InputSymbolObject->accessBlobAt<uint64_t>());
     task.popCallStack();
 }
@@ -403,8 +403,8 @@ PreDefProcedure(AssociativeCommutativeBitwise) {
     uint64_t OutputValue;
     bool first = true;
 
-    if(task.context.query(9, {task.block, PreDef_Input, PreDef_Void}, [&](Triple result, ArchitectureType) {
-        SymbolObject* InputSymbolObject = task.context.getSymbolObject(result.pos[0]);
+    if(context.query(9, {task.block, PreDef_Input, PreDef_Void}, [&](Triple result, ArchitectureType) {
+        SymbolObject* InputSymbolObject = context.getSymbolObject(result.pos[0]);
         if(first) {
             first = false;
             OutputValue = InputSymbolObject->accessBlobAt<uint64_t>();
@@ -414,7 +414,7 @@ PreDefProcedure(AssociativeCommutativeBitwise) {
         throw Exception("Expected more Input");
 
     getSymbolObjectByName(Output)
-    task.context.setSolitary({OutputSymbol, PreDef_BlobType, PreDef_Void});
+    context.setSolitary({OutputSymbol, PreDef_BlobType, PreDef_Void});
     OutputSymbolObject->overwriteBlob(OutputValue);
     task.popCallStack();
 }
@@ -441,9 +441,9 @@ PreDefProcedure(AssociativeCommutativeArithmetic) {
     } aux;
     bool first = true;
 
-    if(task.context.query(9, {task.block, PreDef_Input, PreDef_Void}, [&](Triple result, ArchitectureType) {
-        Symbol _type = task.context.getGuaranteed(result.pos[0], PreDef_BlobType);
-        SymbolObject* InputSymbolObject = task.context.getSymbolObject(result.pos[0]);
+    if(context.query(9, {task.block, PreDef_Input, PreDef_Void}, [&](Triple result, ArchitectureType) {
+        Symbol _type = context.getGuaranteed(result.pos[0], PreDef_BlobType);
+        SymbolObject* InputSymbolObject = context.getSymbolObject(result.pos[0]);
         if(first) {
             first = false;
             type = _type;
@@ -478,7 +478,7 @@ PreDefProcedure(AssociativeCommutativeArithmetic) {
         throw Exception("Expected more Input");
 
     getSymbolObjectByName(Output)
-    task.context.setSolitary({OutputSymbol, PreDef_BlobType, type});
+    context.setSolitary({OutputSymbol, PreDef_BlobType, type});
     OutputSymbolObject->overwriteBlob(aux.n);
     task.popCallStack();
 }
@@ -488,12 +488,12 @@ PreDefProcedure(Subtract) {
     getSymbolObjectByName(Subtrahend)
     getSymbolObjectByName(Output)
 
-    Symbol type = task.context.getGuaranteed(MinuendSymbol, PreDef_BlobType);
-    Symbol _type = task.context.getGuaranteed(SubtrahendSymbol, PreDef_BlobType);
+    Symbol type = context.getGuaranteed(MinuendSymbol, PreDef_BlobType);
+    Symbol _type = context.getGuaranteed(SubtrahendSymbol, PreDef_BlobType);
     if(type != _type)
         throw Exception("Minuend and Subtrahend have different types");
 
-    task.context.setSolitary({OutputSymbol, PreDef_BlobType, type});
+    context.setSolitary({OutputSymbol, PreDef_BlobType, type});
     switch(type) {
         case PreDef_Natural:
             OutputSymbolObject->overwriteBlob(MinuendSymbolObject->accessBlobAt<uint64_t>()-SubtrahendSymbolObject->accessBlobAt<uint64_t>());
@@ -514,24 +514,24 @@ PreDefProcedure(Divide) {
     getSymbolObjectByName(Dividend)
     getSymbolObjectByName(Divisor)
 
-    Symbol type = task.context.getGuaranteed(DividendSymbol, PreDef_BlobType);
-    Symbol _type = task.context.getGuaranteed(DivisorSymbol, PreDef_BlobType);
+    Symbol type = context.getGuaranteed(DividendSymbol, PreDef_BlobType);
+    Symbol _type = context.getGuaranteed(DivisorSymbol, PreDef_BlobType);
     if(type != _type)
         throw Exception("Dividend and Divisor have different types");
 
     Symbol RestSymbol, QuotientSymbol;
     SymbolObject *RestSymbolObject, *QuotientSymbolObject;
-    bool rest = task.context.getUncertain(task.block, PreDef_Rest, RestSymbol),
-         quotient = task.context.getUncertain(task.block, PreDef_Quotient, QuotientSymbol);
+    bool rest = context.getUncertain(task.block, PreDef_Rest, RestSymbol),
+         quotient = context.getUncertain(task.block, PreDef_Quotient, QuotientSymbol);
     if(rest) {
-        task.context.setSolitary({RestSymbol, PreDef_BlobType, type});
-        RestSymbolObject = task.context.getSymbolObject(RestSymbol);
+        context.setSolitary({RestSymbol, PreDef_BlobType, type});
+        RestSymbolObject = context.getSymbolObject(RestSymbol);
         if(RestSymbolObject->blobSize != ArchitectureSize)
             throw Exception("Invalid Rest SymbolObject");
     }
     if(quotient) {
-        task.context.setSolitary({QuotientSymbol, PreDef_BlobType, type});
-        QuotientSymbolObject = task.context.getSymbolObject(QuotientSymbol);
+        context.setSolitary({QuotientSymbol, PreDef_BlobType, type});
+        QuotientSymbolObject = context.getSymbolObject(QuotientSymbol);
         if(QuotientSymbolObject->blobSize != ArchitectureSize)
             throw Exception("Invalid Quotient SymbolObject");
     }

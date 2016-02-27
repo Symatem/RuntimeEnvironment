@@ -4,6 +4,19 @@
 #include <map>
 #include <set>
 
+/* TODO: Activate to check and later disable heap
+
+void* operator new(size_t num) {
+    void* ptr = malloc(num);
+    printf("new %zu %p\n", num, ptr);
+    return ptr;
+}
+
+void operator delete(void* ptr) noexcept {
+    printf("free %p\n", ptr);
+    free(ptr);
+}*/
+
 typedef uint64_t ArchitectureType;
 const ArchitectureType ArchitectureSize = sizeof(ArchitectureType)*8;
 constexpr ArchitectureType architecturePadding(ArchitectureType bits) {

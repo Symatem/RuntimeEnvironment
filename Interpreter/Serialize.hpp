@@ -55,19 +55,19 @@ struct Serialize {
     }
 
     Serialize(Task& _task, Symbol _symbol) :task(_task), symbol(_symbol), blobSize(0) {
-        symbolObject = task.context.getSymbolObject(_symbol);
+        symbolObject = context.getSymbolObject(_symbol);
     }
 
-    Serialize(Task& _task) :Serialize(_task, _task.context.create({{PreDef_BlobType, PreDef_Text}})) {
+    Serialize(Task& _task) :Serialize(_task, context.create({{PreDef_BlobType, PreDef_Text}})) {
 
     }
 
     void serializeBlob(Symbol symbol) {
-        auto srcSymbolObject = task.context.getSymbolObject(symbol);
+        auto srcSymbolObject = context.getSymbolObject(symbol);
         auto src = reinterpret_cast<const uint8_t*>(srcSymbolObject->blobData.get());
         if(srcSymbolObject->blobSize) {
             Symbol type = PreDef_Void;
-            task.context.getUncertain(symbol, PreDef_BlobType, type);
+            context.getUncertain(symbol, PreDef_BlobType, type);
             switch(type) {
                 case PreDef_Text: {
                     ArchitectureType len = srcSymbolObject->blobSize/8;
@@ -125,14 +125,14 @@ struct Serialize {
             put(';');
             put('\n');
 
-            task.context.query(21, {entity, PreDef_Void, PreDef_Void}, [&](Triple result, ArchitectureType) {
+            context.query(21, {entity, PreDef_Void, PreDef_Void}, [&](Triple result, ArchitectureType) {
                 if(followCallback && result.pos[0] == followAttribute) {
-                    task.context.getUncertain(entity, followAttribute, followEntity);
+                    context.getUncertain(entity, followAttribute, followEntity);
                     return;
                 }
                 put('\t');
                 serializeBlob(result.pos[0]);
-                task.context.query(9, {entity, result.pos[0], PreDef_Void}, [&](Triple resultB, ArchitectureType) {
+                context.query(9, {entity, result.pos[0], PreDef_Void}, [&](Triple resultB, ArchitectureType) {
                     put(' ');
                     serializeBlob(resultB.pos[0]);
                 });

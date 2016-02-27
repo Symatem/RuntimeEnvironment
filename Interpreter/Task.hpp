@@ -4,8 +4,9 @@ struct Task;
 bool executePreDefProcedure(Task& task, Symbol procedure);
 
 struct Task {
-    Context& context;
     Symbol task, status, frame, block;
+
+    Task() :task(PreDef_Void) { }
 
     void setStatus(Symbol _status) {
         status = _status;

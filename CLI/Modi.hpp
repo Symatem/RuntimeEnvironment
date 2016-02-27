@@ -61,7 +61,7 @@ void render() {
     std::cout << "Stats: ";
     std::cout << context.topIndex.size();
     std::cout << " / " << context.nextSymbol;
-    std::cout << " / " << task.context.query(13, {PreDef_Void, PreDef_Void, PreDef_Void});
+    std::cout << " / " << context.query(13, {PreDef_Void, PreDef_Void, PreDef_Void});
 
     stream << "History: ";
     if(history.size() > 4)
@@ -325,7 +325,7 @@ uint64_t ModeInput(bool special, uint64_t size, const char* buffer) {
                 history.clear();
                 history.push_back(task.task);
                 if(interfaceBuffer.empty()) break;
-                task.deserializationTask(task.context.createFromData(interfaceBuffer.c_str()));
+                task.deserializationTask(context.createFromData(interfaceBuffer.c_str()));
                 history[0] = task.task;
                 if(task.uncaughtException()) {
                     interfaceBuffer = "Exception occurred while deserializing input";
@@ -333,8 +333,8 @@ uint64_t ModeInput(bool special, uint64_t size, const char* buffer) {
                 }
                 interfaceBuffer.clear();
                 Symbol OutputSymbol, ExecuteSymbol;
-                if(task.context.getUncertain(task.block, PreDef_Output, OutputSymbol) &&
-                   !task.context.getUncertain(OutputSymbol, PreDef_Execute, ExecuteSymbol)) {
+                if(context.getUncertain(task.block, PreDef_Output, OutputSymbol) &&
+                   !context.getUncertain(OutputSymbol, PreDef_Execute, ExecuteSymbol)) {
                     history[0] = OutputSymbol;
                     break;
                 }
