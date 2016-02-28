@@ -16,9 +16,9 @@ void loadFromPath(Symbol parentPackage, bool execute, std::string path) {
 
         auto slashIndex = path.rfind('/');
         std::string name = (slashIndex != std::string::npos) ? path.substr(slashIndex+1) : path;
-        Symbol package = context.createFromData(name.c_str());
+        Symbol package = Context::createFromData(name.c_str());
         if(parentPackage == PreDef_Void) parentPackage = package;
-        context.link({package, PreDef_Holds, parentPackage});
+        Context::link({package, PreDef_Holds, parentPackage});
 
         struct dirent* entry;
         while(interfaceBuffer.empty() && (entry = readdir(dp)))
@@ -28,7 +28,7 @@ void loadFromPath(Symbol parentPackage, bool execute, std::string path) {
     } else if(s.st_mode & S_IFREG) {
         if(!stringEndsWith(path, ".sym")) return;
 
-        Symbol file = context.createSymbolFromFile(path.c_str());
+        Symbol file = Context::createSymbolFromFile(path.c_str());
         if(file == PreDef_Void) {
             interfaceBuffer = "Could not open file ";
             interfaceBuffer += path;
@@ -56,7 +56,7 @@ void loadFromPath(Symbol parentPackage, bool execute, std::string path) {
 }
 
 int main(int argc, const char** argv) {
-    context.init();
+    Context::init();
     init();
 
     /*const std::string errorMessage = CSI+"1;31m[Error]"+CSI+"m",

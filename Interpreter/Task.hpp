@@ -1,4 +1,4 @@
-#include "../Ontology/Containers.hpp"
+#include "../Ontology/Context.hpp"
 
 struct Task;
 bool executePreDefProcedure(Task& task, Symbol procedure);
@@ -10,23 +10,23 @@ struct Task {
 
     void setStatus(Symbol _status) {
         status = _status;
-        context.setSolitary({task, PreDef_Status, status});
+        Context::setSolitary({task, PreDef_Status, status});
     }
 
     void setFrame(bool unlinkHolds, bool setBlock, Symbol _frame) {
         assert(frame != _frame);
-        if(_frame == PreDef_Void) {
+        if(_frame == PreDef_Void)
             block = PreDef_Void;
-        } else {
-            context.link({task, PreDef_Holds, _frame});
-            context.setSolitary({task, PreDef_Frame, _frame});
+        else {
+            Context::link({task, PreDef_Holds, _frame});
+            Context::setSolitary({task, PreDef_Frame, _frame});
             if(setBlock)
-                block = context.getGuaranteed(_frame, PreDef_Block);
+                block = Context::getGuaranteed(_frame, PreDef_Block);
         }
         if(unlinkHolds)
-            context.unlink({task, PreDef_Holds, frame});
+            Context::unlink({task, PreDef_Holds, frame});
         if(frame != PreDef_Void)
-            context.scrutinizeHeldBy(frame);
+            Context::scrutinizeHeldBy(frame);
         frame = _frame;
     }
 
@@ -35,7 +35,7 @@ struct Task {
         if(frame == PreDef_Void)
             return false;
         Symbol parentFrame = PreDef_Void;
-        bool parentExists = context.getUncertain(frame, PreDef_Parent, parentFrame);
+        bool parentExists = Context::getUncertain(frame, PreDef_Parent, parentFrame);
         if(parentFrame == PreDef_Void)
             setStatus(PreDef_Done);
         setFrame(true, true, parentFrame);
@@ -44,9 +44,9 @@ struct Task {
 
     Symbol getTargetSymbol() {
         Symbol result;
-        if(!context.getUncertain(block, PreDef_Target, result)) {
-            Symbol parentFrame = context.getGuaranteed(frame, PreDef_Parent);
-            result = context.getGuaranteed(parentFrame, PreDef_Block);
+        if(!Context::getUncertain(block, PreDef_Target, result)) {
+            Symbol parentFrame = Context::getGuaranteed(frame, PreDef_Parent);
+            result = Context::getGuaranteed(parentFrame, PreDef_Block);
         }
         return result;
     }
@@ -55,7 +55,7 @@ struct Task {
         if(task == PreDef_Void)
             return;
         while(popCallStack());
-        context.destroy(task);
+        Context::destroy(task);
         task = status = frame = block = PreDef_Void;
     }
 
@@ -65,69 +65,73 @@ struct Task {
 
         Symbol parentBlock = block, parentFrame = frame, execute,
                procedure, next = PreDef_Void, catcher, staticParams, dynamicParams;
-        if(!context.getUncertain(parentFrame, PreDef_Execute, execute)) {
+        if(!Context::getUncertain(parentFrame, PreDef_Execute, execute)) {
             popCallStack();
             return true;
         }
 
         try {
-            block = context.create();
-            procedure = context.getGuaranteed(execute, PreDef_Procedure);
-            setFrame(true, false, context.create({
-                {PreDef_Holds, parentFrame},
-                {PreDef_Parent, parentFrame},
-                {PreDef_Holds, block},
-                {PreDef_Block, block},
-                {PreDef_Procedure, procedure} // TODO: debugging
-            }));
+            block = Context::create();
+            procedure = Context::getGuaranteed(execute, PreDef_Procedure);
 
-            if(context.getUncertain(execute, PreDef_Static, staticParams))
-                context.query(12, {staticParams, PreDef_Void, PreDef_Void}, [&](Triple result, ArchitectureType) {
-                    context.link({block, result.pos[0], result.pos[1]});
+            Symbol frame = Context::create();
+            Context::link({frame, PreDef_Holds, parentFrame});
+            Context::link({frame, PreDef_Parent, parentFrame});
+            Context::link({frame, PreDef_Holds, block});
+            Context::link({frame, PreDef_Block, block});
+            setFrame(true, false, frame);
+            Context::link({frame, PreDef_Procedure, procedure}); // TODO: debugging
+
+            if(Context::getUncertain(execute, PreDef_Static, staticParams))
+                Context::query(12, {staticParams, PreDef_Void, PreDef_Void}, [&](Triple result, ArchitectureType) {
+                    Context::link({block, result.pos[0], result.pos[1]});
                 });
 
-            if(context.getUncertain(execute, PreDef_Dynamic, dynamicParams))
-                context.query(12, {dynamicParams, PreDef_Void, PreDef_Void}, [&](Triple result, ArchitectureType) {
+            if(Context::getUncertain(execute, PreDef_Dynamic, dynamicParams))
+                Context::query(12, {dynamicParams, PreDef_Void, PreDef_Void}, [&](Triple result, ArchitectureType) {
                     switch(result.pos[1]) {
                         case PreDef_Task:
-                            context.link({block, result.pos[0], task});
+                            Context::link({block, result.pos[0], task});
                             break;
                         case PreDef_Frame:
-                            context.link({block, result.pos[0], parentFrame});
+                            Context::link({block, result.pos[0], parentFrame});
                             break;
                         case PreDef_Block:
-                            context.link({block, result.pos[0], parentBlock});
+                            Context::link({block, result.pos[0], parentBlock});
                             break;
                         default:
-                            context.query(9, {parentBlock, result.pos[1], PreDef_Void}, [&](Triple resultB, ArchitectureType) {
-                                context.link({block, result.pos[0], resultB.pos[0]});
+                            Context::query(9, {parentBlock, result.pos[1], PreDef_Void}, [&](Triple resultB, ArchitectureType) {
+                                Context::link({block, result.pos[0], resultB.pos[0]});
                             });
                             break;
                     }
                 });
 
-            context.getUncertain(execute, PreDef_Next, next);
-            context.setSolitary({parentFrame, PreDef_Execute, next});
+            Context::getUncertain(execute, PreDef_Next, next);
+            Context::setSolitary({parentFrame, PreDef_Execute, next});
 
-            if(context.getUncertain(execute, PreDef_Catch, catcher))
-                context.link({frame, PreDef_Catch, catcher});
+            if(Context::getUncertain(execute, PreDef_Catch, catcher))
+                Context::link({frame, PreDef_Catch, catcher});
 
             if(!executePreDefProcedure(*this, procedure))
-                context.link({frame, PreDef_Execute, context.getGuaranteed(procedure, PreDef_Execute)});
+                Context::link({frame, PreDef_Execute, Context::getGuaranteed(procedure, PreDef_Execute)});
         } catch(Exception exception) {
             assert(task != PreDef_Void && frame != PreDef_Void);
 
-            Symbol parentFrame = frame, message = context.createFromData(exception.message);
-            blobIndex.insertElement(message);
+            Symbol parentFrame = frame, message = Context::createFromData(exception.message);
+            Context::blobIndex.insertElement(message);
             exception.links.insert({PreDef_Message, message});
-            block = context.create(exception.links);
-            setFrame(true, false, context.create({
-                {PreDef_Holds, parentFrame},
-                {PreDef_Parent, parentFrame},
-                {PreDef_Holds, block},
-                {PreDef_Block, block},
-                {PreDef_Procedure, PreDef_Exception} // TODO: debugging
-            }));
+            block = Context::create();
+            for(auto pair : exception.links)
+                Context::link({block, pair.first, pair.second});
+
+            Symbol frame = Context::create();
+            Context::link({frame, PreDef_Holds, parentFrame});
+            Context::link({frame, PreDef_Parent, parentFrame});
+            Context::link({frame, PreDef_Holds, block});
+            Context::link({frame, PreDef_Block, block});
+            setFrame(true, false, frame);
+            Context::link({frame, PreDef_Procedure, PreDef_Exception}); // TODO: debugging
 
             executePreDefProcedure(*this, PreDef_Exception);
         }
@@ -137,12 +141,12 @@ struct Task {
 
     bool uncaughtException() {
         assert(task != PreDef_Void);
-        return context.tripleExists({task, PreDef_Status, PreDef_Exception});
+        return Context::tripleExists({task, PreDef_Status, PreDef_Exception});
     }
 
     bool running() {
         assert(task != PreDef_Void);
-        return context.tripleExists({task, PreDef_Status, PreDef_Run});
+        return Context::tripleExists({task, PreDef_Status, PreDef_Run});
     }
 
     void executeFinite(ArchitectureType n) {
@@ -162,41 +166,39 @@ struct Task {
     void deserializationTask(Symbol input, Symbol package = PreDef_Void) {
         clear();
 
-        block = context.create({
-            {PreDef_Holds, input}
-        });
+        block = Context::create();
+        Context::link({block, PreDef_Holds, input});
         if(package == PreDef_Void)
             package = block;
-        Symbol staticParams = context.create({
-            {PreDef_Package, package},
-            {PreDef_Input, input},
-            {PreDef_Target, block},
-            {PreDef_Output, PreDef_Output}
-        }), execute = context.create({
-            {PreDef_Procedure, PreDef_Deserialize},
-            {PreDef_Static, staticParams}
-        });
-        task = context.create();
-        setFrame(false, false, context.create({
-            {PreDef_Holds, staticParams},
-            {PreDef_Holds, execute},
-            {PreDef_Holds, block},
-            {PreDef_Block, block},
-            {PreDef_Execute, execute}
-        }));
+        Symbol staticParams = Context::create();
+        Context::link({staticParams, PreDef_Package, package});
+        Context::link({staticParams, PreDef_Input, input});
+        Context::link({staticParams, PreDef_Target, block});
+        Context::link({staticParams, PreDef_Output, PreDef_Output});
+        Symbol execute = Context::create();
+        Context::link({execute, PreDef_Procedure, PreDef_Deserialize});
+        Context::link({execute, PreDef_Static, staticParams});
+
+        task = Context::create();
+        Symbol frame = Context::create();
+        Context::link({frame, PreDef_Holds, staticParams});
+        Context::link({frame, PreDef_Holds, execute});
+        Context::link({frame, PreDef_Holds, block});
+        Context::link({frame, PreDef_Block, block});
+        Context::link({frame, PreDef_Execute, execute});
+        setFrame(false, false, frame);
         executeFinite(1);
     }
 
     bool executeDeserialized() {
         Symbol prev = PreDef_Void;
-        if(context.query(9, {block, PreDef_Output, PreDef_Void}, [&](Triple result, ArchitectureType) {
-            Symbol next = context.create({
-                {PreDef_Procedure, result.pos[0]}
-            });
+        if(Context::query(9, {block, PreDef_Output, PreDef_Void}, [&](Triple result, ArchitectureType) {
+            Symbol next = Context::create();
+            Context::link({next, PreDef_Procedure, result.pos[0]});
             if(prev == PreDef_Void)
-                context.setSolitary({frame, PreDef_Execute, next});
+                Context::setSolitary({frame, PreDef_Execute, next});
             else
-                context.link({prev, PreDef_Next, next});
+                Context::link({prev, PreDef_Next, next});
             prev = next;
         }) == 0)
             return false;

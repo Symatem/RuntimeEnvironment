@@ -15,7 +15,7 @@
 #define historyTop0() \
     historyTop = (history.size()-1)/4*4; \
     historySub = history.size()-1-historyTop; \
-    topIter = context.topIndex.find(history[historyTop]); \
+    topIter = Context::topIndex.find(history[historyTop]); \
     symbolObject = topIter->second.get();
 
 #define historyTop2() \
@@ -38,7 +38,7 @@
 void render() {
     ioctl(STDIN_FILENO, TIOCGWINSZ, &screenSize);
     clearScreen();
-    if(screenSize.ws_row <= context.indexMode+4) {
+    if(screenSize.ws_row <= Context::indexMode+4) {
         std::cout << std::endl << "Console is too small" << std::endl;
         pollKeyboard([&](bool special, uint64_t size, const char* buffer) {
             exit(0);
@@ -48,20 +48,20 @@ void render() {
 
     if(history.size() == 0)
         history.push_back(task.task);
-    ArchitectureType linesLeft = screenSize.ws_row-context.indexMode-5,
+    ArchitectureType linesLeft = screenSize.ws_row-Context::indexMode-5,
                      pos, size, maxSize;
     linesForBlob = linesLeft;
     historyTop0()
-    if(topIter == context.topIndex.end()) {
+    if(topIter == Context::topIndex.end()) {
         history.clear();
         history.push_back(task.task);
         return;
     }
 
     std::cout << "Stats: ";
-    std::cout << context.topIndex.size();
-    std::cout << " / " << context.nextSymbol;
-    std::cout << " / " << context.query(13, {PreDef_Void, PreDef_Void, PreDef_Void});
+    std::cout << Context::topIndex.size();
+    std::cout << " / " << Context::nextSymbol;
+    std::cout << " / " << Context::query(13, {PreDef_Void, PreDef_Void, PreDef_Void});
 
     stream << "History: ";
     if(history.size() > 4)
@@ -86,7 +86,7 @@ void render() {
     }
 
     const char* indexName[] = { "EAV", "AVE", "VEA", "EVA", "AEV", "VAE" };
-    for(ArchitectureType i = 0; i < context.indexMode; ++i) {
+    for(ArchitectureType i = 0; i < Context::indexMode; ++i) {
         auto& subIndex = symbolObject->subIndices[i];
         stream << indexName[i] << " " << subIndex.size();
         printStreamLimited(historySub == 1 && i+1 == history[historyTop+1], 2);
@@ -211,7 +211,7 @@ uint64_t ModeBrowse(bool special, uint64_t size, const char* buffer) {
         case Up:
             switch(historySub) {
                 case 0:
-                    if(topIter != context.topIndex.begin())
+                    if(topIter != Context::topIndex.begin())
                         history[historyTop] = (--topIter)->first;
                     break;
                 case 1:
@@ -237,11 +237,11 @@ uint64_t ModeBrowse(bool special, uint64_t size, const char* buffer) {
             switch(historySub) {
                 case 0:
                     ++topIter;
-                    if(topIter != context.topIndex.end())
+                    if(topIter != Context::topIndex.end())
                         history[historyTop] = topIter->first;
                         break;
                 case 1:
-                    if(history.back() < context.indexMode)
+                    if(history.back() < Context::indexMode)
                         ++history.back();
                         break;
                 case 2: {
@@ -325,7 +325,7 @@ uint64_t ModeInput(bool special, uint64_t size, const char* buffer) {
                 history.clear();
                 history.push_back(task.task);
                 if(interfaceBuffer.empty()) break;
-                task.deserializationTask(context.createFromData(interfaceBuffer.c_str()));
+                task.deserializationTask(Context::createFromData(interfaceBuffer.c_str()));
                 history[0] = task.task;
                 if(task.uncaughtException()) {
                     interfaceBuffer = "Exception occurred while deserializing input";
@@ -333,8 +333,8 @@ uint64_t ModeInput(bool special, uint64_t size, const char* buffer) {
                 }
                 interfaceBuffer.clear();
                 Symbol OutputSymbol, ExecuteSymbol;
-                if(context.getUncertain(task.block, PreDef_Output, OutputSymbol) &&
-                   !context.getUncertain(OutputSymbol, PreDef_Execute, ExecuteSymbol)) {
+                if(Context::getUncertain(task.block, PreDef_Output, OutputSymbol) &&
+                   !Context::getUncertain(OutputSymbol, PreDef_Execute, ExecuteSymbol)) {
                     history[0] = OutputSymbol;
                     break;
                 }

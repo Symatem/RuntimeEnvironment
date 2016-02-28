@@ -1,4 +1,10 @@
-#include "Context.hpp"
+#include "Ontology.hpp"
+
+namespace Context {
+    void destroy(Symbol alpha);
+    SymbolObject* getSymbolObject(Symbol symbol);
+    Symbol create();
+};
 
 template<typename T, bool guarded>
 struct Vector {
@@ -9,7 +15,7 @@ struct Vector {
 
     ~Vector() {
         if(guarded && symbolObject)
-            context.destroy(symbol);
+            Context::destroy(symbol);
     }
 
     bool empty() const {
@@ -40,12 +46,12 @@ struct Vector {
 
     void setSymbol(Symbol _symbol) {
         symbol = _symbol;
-        symbolObject = context.getSymbolObject(symbol);
+        symbolObject = Context::getSymbolObject(symbol);
     }
 
     void activate() {
         if(!symbolObject)
-            setSymbol(context.create());
+            setSymbol(Context::create());
     }
 
     void clear() {
@@ -128,9 +134,9 @@ struct BlobIndex : public Set<Symbol, true> {
     BlobIndex() :Super() { }
 
     ArchitectureType blobFindIndexFor(Symbol key) const {
-        SymbolObject* keySymbolObject = context.getSymbolObject(key);
+        SymbolObject* keySymbolObject = Context::getSymbolObject(key);
         return binarySearch<ArchitectureType>(Super::size(), [&](ArchitectureType at) {
-            SymbolObject* atSymbolObject = context.getSymbolObject((*this)[at]);
+            SymbolObject* atSymbolObject = Context::getSymbolObject((*this)[at]);
             return keySymbolObject->compareBlob(*atSymbolObject) < 0;
         });
     }
@@ -139,15 +145,15 @@ struct BlobIndex : public Set<Symbol, true> {
         at = blobFindIndexFor(element);
         if(at == Super::size())
             return false;
-        SymbolObject *elementSymbolObject = context.getSymbolObject(element),
-                     *atSymbolObject = context.getSymbolObject((*this)[at]);
+        SymbolObject *elementSymbolObject = Context::getSymbolObject(element),
+                     *atSymbolObject = Context::getSymbolObject((*this)[at]);
         return (elementSymbolObject->compareBlob(*atSymbolObject) == 0);
     }
 
     void insertElement(Symbol& element) {
         ArchitectureType at;
         if(findElement(element, at)) {
-            context.destroy(element);
+            Context::destroy(element);
             element = (*this)[at];
         } else
             Super::insert(at, element);
@@ -161,107 +167,3 @@ struct BlobIndex : public Set<Symbol, true> {
         return true;
     }
 };
-
-BlobIndex blobIndex;
-
-ArchitectureType Context::searchGIV(ArchitectureType index, Triple& triple, std::function<void()> callback) {
-    auto topIter = topIndex.find(triple.pos[0]);
-    if(topIter == topIndex.end())
-        throw Exception("Symbol is Nonexistent");
-    auto& subIndex = topIter->second->subIndices[index];
-    Set<Symbol, true> result;
-    for(auto& beta : subIndex)
-        for(auto& gamma : beta.second)
-            result.insertElement(gamma);
-    if(callback)
-        result.iterate([&](Symbol gamma) {
-            triple.pos[2] = gamma;
-            callback();
-        });
-    return result.size();
-}
-
-bool Context::unlinkInternal(Triple triple, bool skipEnabled, Symbol skip) {
-    ArchitectureType indexCount = (indexMode == MonoIndex) ? 1 : 3;
-    bool reverseIndex = (indexMode == HexaIndex);
-    for(ArchitectureType i = 0; i < indexCount; ++i) {
-        if(skipEnabled && triple.pos[i] == skip)
-            continue;
-        auto topIter = topIndex.find(triple.pos[i]);
-        if(topIter == topIndex.end() ||
-           !topIter->second->unlink(reverseIndex, i, triple.pos[(i+1)%3], triple.pos[(i+2)%3]))
-            return false;
-    }
-    if(triple.pos[1] == PreDef_BlobType)
-        blobIndex.eraseElement(triple.pos[0]);
-    return true;
-}
-
-void Context::destroy(Symbol alpha) {
-    auto topIter = topIndex.find(alpha);
-    if(topIter == topIndex.end())
-        throw Exception("Already destroyed", {
-            {PreDef_Entity, alpha}
-        });
-    Set<Symbol, true> symbols;
-    for(ArchitectureType i = EAV; i <= VEA; ++i)
-        for(auto& beta : topIter->second->subIndices[i])
-            for(auto gamma : beta.second) {
-                unlinkInternal(Triple(alpha, beta.first, gamma).normalized(i), true, alpha);
-                symbols.insertElement(beta.first);
-                symbols.insertElement(gamma);
-            }
-    topIndex.erase(topIter);
-    symbols.iterate([&](Symbol symbol) {
-        scrutinizeSymbol(symbol);
-    });
-}
-
-void Context::scrutinizeHeldBy(Symbol symbol) {
-    Set<Symbol, true> symbols;
-    symbols.insertElement(symbol);
-    while(!symbols.empty()) {
-        symbol = symbols.pop_back();
-        if(topIndex.find(symbol) == topIndex.end() ||
-           query(1, {PreDef_Void, PreDef_Holds, symbol}) > 0)
-            continue;
-        query(9, {symbol, PreDef_Holds, PreDef_Void}, [&](Triple result, ArchitectureType) {
-            symbols.insertElement(result.pos[0]);
-        });
-        destroy(symbol);
-    }
-}
-
-void Context::setSolitary(Triple triple, bool linkVoid) {
-    bool toLink = (linkVoid || triple.value != PreDef_Void);
-    Set<Symbol, true> symbols;
-    query(9, triple, [&](Triple result, ArchitectureType) {
-        if((triple.pos[2] == result.pos[0]) && (linkVoid || result.pos[0] != PreDef_Void))
-            toLink = false;
-        else
-            symbols.insertElement(result.pos[0]);
-    });
-    if(toLink)
-        link(triple);
-    symbols.iterate([&](Symbol symbol) {
-        unlinkInternal({triple.pos[0], triple.pos[1], symbol});
-    });
-    if(!linkVoid)
-        symbols.insertElement(triple.pos[0]);
-    symbols.insertElement(triple.pos[1]);
-    symbols.iterate([&](Symbol symbol) {
-        scrutinizeSymbol(symbol);
-    });
-}
-
-void Context::init() {
-    while(nextSymbol < preDefSymbolsEnd) {
-        Symbol symbol = createFromData(PreDefSymbols[nextSymbol]);
-        link({PreDef_RunTimeEnvironment, PreDef_Holds, symbol});
-    }
-    for(Symbol symbol = 0; symbol < preDefSymbolsEnd; ++symbol)
-        blobIndex.insertElement(symbol);
-    Symbol ArchitectureSizeSymbol = createFromData(ArchitectureSize);
-    link({PreDef_RunTimeEnvironment, PreDef_Holds, ArchitectureSizeSymbol});
-    link({PreDef_RunTimeEnvironment, PreDef_ArchitectureSize, ArchitectureSizeSymbol});
-}

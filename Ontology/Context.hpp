@@ -1,14 +1,15 @@
-#include "Ontology.hpp"
+#include "Containers.hpp"
 
-struct Context { // TODO: : public Storage {
+namespace Context {
     enum IndexMode {
         MonoIndex = 1,
         TriIndex = 3,
         HexaIndex = 6
     } indexMode = HexaIndex;
     Symbol nextSymbol = 0;
-    const Symbol preDefSymbolsEnd = sizeof(PreDefSymbols)/sizeof(void*);
     std::map<Symbol, std::unique_ptr<SymbolObject>> topIndex;
+    // TODO: unindexBlob must be called at every blob mutation
+    BlobIndex blobIndex;
 
     ArchitectureType searchGGG(ArchitectureType index, Triple& triple, std::function<void()> callback) {
         auto topIter = topIndex.find(triple.pos[0]);
@@ -61,7 +62,22 @@ struct Context { // TODO: : public Storage {
         return count;
     }
 
-    ArchitectureType searchGIV(ArchitectureType index, Triple& triple, std::function<void()> callback);
+    ArchitectureType searchGIV(ArchitectureType index, Triple& triple, std::function<void()> callback) {
+        auto topIter = topIndex.find(triple.pos[0]);
+        if(topIter == topIndex.end())
+            throw Exception("Symbol is Nonexistent");
+        auto& subIndex = topIter->second->subIndices[index];
+        Set<Symbol, true> result;
+        for(auto& beta : subIndex)
+            for(auto& gamma : beta.second)
+                result.insertElement(gamma);
+        if(callback)
+            result.iterate([&](Symbol gamma) {
+                triple.pos[2] = gamma;
+                callback();
+            });
+        return result.size();
+    }
 
     ArchitectureType searchGVI(ArchitectureType index, Triple& triple, std::function<void()> callback) {
         auto topIter = topIndex.find(triple.pos[0]);
@@ -122,7 +138,7 @@ struct Context { // TODO: : public Storage {
     ArchitectureType query(ArchitectureType mode, Triple triple, std::function<void(Triple, ArchitectureType)> callback = nullptr) {
         struct QueryMethod {
             uint8_t index, pos, size;
-            ArchitectureType(Context::*function)(ArchitectureType, Triple&, std::function<void()>);
+            ArchitectureType(*function)(ArchitectureType, Triple&, std::function<void()>);
         };
 
         const QueryMethod lookup[] = {
@@ -192,7 +208,7 @@ struct Context { // TODO: : public Storage {
 
         triple = triple.reordered(method.index);
         if(!callback) handleNext = nullptr;
-        return (this->*method.function)(method.index, triple, handleNext);
+        return (*method.function)(method.index, triple, handleNext);
     }
 
     bool valueCountIs(Symbol entity, Symbol attribute, ArchitectureType size) {
@@ -201,6 +217,10 @@ struct Context { // TODO: : public Storage {
 
     bool tripleExists(Triple triple) {
         return query(0, triple) == 1;
+    }
+
+    std::map<Symbol, std::unique_ptr<SymbolObject>>::iterator SymbolFactory(Symbol symbol) {
+        return topIndex.insert(std::make_pair(symbol, std::unique_ptr<SymbolObject>(new SymbolObject()))).first;
     }
 
     bool link(Triple triple, bool exception = true) {
@@ -232,7 +252,21 @@ struct Context { // TODO: : public Storage {
         topIndex.erase(topIter);
     }
 
-    bool unlinkInternal(Triple triple, bool skipEnabled = false, Symbol skip = PreDef_Void);
+    bool unlinkInternal(Triple triple, bool skipEnabled = false, Symbol skip = PreDef_Void) {
+        ArchitectureType indexCount = (indexMode == MonoIndex) ? 1 : 3;
+        bool reverseIndex = (indexMode == HexaIndex);
+        for(ArchitectureType i = 0; i < indexCount; ++i) {
+            if(skipEnabled && triple.pos[i] == skip)
+                continue;
+            auto topIter = topIndex.find(triple.pos[i]);
+            if(topIter == topIndex.end() ||
+               !topIter->second->unlink(reverseIndex, i, triple.pos[(i+1)%3], triple.pos[(i+2)%3]))
+                return false;
+        }
+        if(triple.pos[1] == PreDef_BlobType)
+            Context::blobIndex.eraseElement(triple.pos[0]);
+        return true;
+    }
 
     bool unlink(Triple triple, bool exception = true) {
         bool success = unlinkInternal(triple);
@@ -247,9 +281,62 @@ struct Context { // TODO: : public Storage {
         return success;
     }
 
-    void destroy(Symbol symbol);
-    void scrutinizeHeldBy(Symbol symbol);
-    void setSolitary(Triple triple, bool linkVoid = false);
+    void destroy(Symbol alpha) {
+        auto topIter = topIndex.find(alpha);
+        if(topIter == topIndex.end())
+            throw Exception("Already destroyed", {
+                {PreDef_Entity, alpha}
+            });
+        Set<Symbol, true> symbols;
+        for(ArchitectureType i = EAV; i <= VEA; ++i)
+            for(auto& beta : topIter->second->subIndices[i])
+                for(auto gamma : beta.second) {
+                    unlinkInternal(Triple(alpha, beta.first, gamma).normalized(i), true, alpha);
+                    symbols.insertElement(beta.first);
+                    symbols.insertElement(gamma);
+                }
+        topIndex.erase(topIter);
+        symbols.iterate([&](Symbol symbol) {
+            scrutinizeSymbol(symbol);
+        });
+    }
+
+    void scrutinizeHeldBy(Symbol symbol) {
+        Set<Symbol, true> symbols;
+        symbols.insertElement(symbol);
+        while(!symbols.empty()) {
+            symbol = symbols.pop_back();
+            if(topIndex.find(symbol) == topIndex.end() ||
+               query(1, {PreDef_Void, PreDef_Holds, symbol}) > 0)
+                continue;
+            query(9, {symbol, PreDef_Holds, PreDef_Void}, [&](Triple result, ArchitectureType) {
+                symbols.insertElement(result.pos[0]);
+            });
+            destroy(symbol);
+        }
+    }
+
+    void setSolitary(Triple triple, bool linkVoid = false) {
+        bool toLink = (linkVoid || triple.value != PreDef_Void);
+        Set<Symbol, true> symbols;
+        query(9, triple, [&](Triple result, ArchitectureType) {
+            if((triple.pos[2] == result.pos[0]) && (linkVoid || result.pos[0] != PreDef_Void))
+                toLink = false;
+            else
+                symbols.insertElement(result.pos[0]);
+        });
+        if(toLink)
+            link(triple);
+        symbols.iterate([&](Symbol symbol) {
+            unlinkInternal({triple.pos[0], triple.pos[1], symbol});
+        });
+        if(!linkVoid)
+            symbols.insertElement(triple.pos[0]);
+        symbols.insertElement(triple.pos[1]);
+        symbols.iterate([&](Symbol symbol) {
+            scrutinizeSymbol(symbol);
+        });
+    }
 
     bool getUncertain(Symbol alpha, Symbol beta, Symbol& gamma) {
         return (query(9, {alpha, beta, PreDef_Void}, [&](Triple result, ArchitectureType) {
@@ -274,15 +361,9 @@ struct Context { // TODO: : public Storage {
         return topIter->second.get();
     }
 
-    std::map<Symbol, std::unique_ptr<SymbolObject>>::iterator SymbolFactory(Symbol symbol) {
-        return topIndex.insert(std::make_pair(symbol, std::unique_ptr<SymbolObject>(new SymbolObject()))).first;
-    }
-
-    Symbol create(std::set<std::pair<Symbol, Symbol>> links = {}) {
+    Symbol create() {
         Symbol symbol = nextSymbol++;
         SymbolFactory(symbol);
-        for(auto l : links)
-            link({symbol, l.first, l.second});
         return symbol;
     }
 
@@ -297,7 +378,8 @@ struct Context { // TODO: : public Storage {
             blobType = PreDef_Float;
         else
             throw Exception("Unknown Data Type");
-        Symbol symbol = create({{PreDef_BlobType, blobType}});
+        Symbol symbol = create();
+        Context::link({symbol, PreDef_BlobType, blobType});
         getSymbolObject(symbol)->overwriteBlob(src);
         return symbol;
     }
@@ -306,7 +388,8 @@ struct Context { // TODO: : public Storage {
         int fd = open(path, O_RDONLY);
         if(fd < 0)
             return PreDef_Void;
-        Symbol symbol = create({{PreDef_BlobType, PreDef_Text}});
+        Symbol symbol = create();
+        Context::link({symbol, PreDef_BlobType, PreDef_Text});
         SymbolObject* symbolObject = getSymbolObject(symbol);
         ArchitectureType len = lseek(fd, 0, SEEK_END);
         symbolObject->allocateBlob(len*8);
@@ -317,7 +400,8 @@ struct Context { // TODO: : public Storage {
     }
 
     Symbol createFromData(const char* src, ArchitectureType len) {
-        Symbol symbol = create({{PreDef_BlobType, PreDef_Text}});
+        Symbol symbol = create();
+        Context::link({symbol, PreDef_BlobType, PreDef_Text});
         SymbolObject* symbolObject = getSymbolObject(symbol);
         symbolObject->allocateBlob(len*8);
         auto dst = reinterpret_cast<uint8_t*>(symbolObject->blobData.get());
@@ -333,9 +417,16 @@ struct Context { // TODO: : public Storage {
         return createFromData(src, len);
     }
 
-    // TODO: unindexBlob must be called at every blob mutation
-
-    void init();
+    void init() {
+        const Symbol preDefSymbolsEnd = sizeof(PreDefSymbols)/sizeof(void*);
+        while(nextSymbol < preDefSymbolsEnd) {
+            Symbol symbol = createFromData(PreDefSymbols[nextSymbol]);
+            link({PreDef_RunTimeEnvironment, PreDef_Holds, symbol});
+        }
+        for(Symbol symbol = 0; symbol < preDefSymbolsEnd; ++symbol)
+            Context::blobIndex.insertElement(symbol);
+        Symbol ArchitectureSizeSymbol = createFromData(ArchitectureSize);
+        link({PreDef_RunTimeEnvironment, PreDef_Holds, ArchitectureSizeSymbol});
+        link({PreDef_RunTimeEnvironment, PreDef_ArchitectureSize, ArchitectureSizeSymbol});
+    }
 };
-
-Context context;

@@ -19,7 +19,7 @@ std::string interfaceBuffer;
 ArchitectureType historyTop, historySub, linesForBlob;
 Vector<Symbol, true> history;
 struct Task task;
-decltype(context.topIndex)::iterator topIter;
+decltype(Context::topIndex)::iterator topIter;
 SymbolObject* symbolObject;
 
 bool stringEndsWith(std::string const& value, std::string const& ending) {
@@ -131,7 +131,7 @@ void serializeBlob(Task& task, std::ostream& stream, Symbol symbol) {
     Serialize serialize(task);
     serialize.serializeBlob(symbol);
     symbol = serialize.finalizeSymbol();
-    SymbolObject* symbolObject = context.getSymbolObject(symbol);
+    SymbolObject* symbolObject = Context::getSymbolObject(symbol);
     stream.write(reinterpret_cast<const char*>(symbolObject->blobData.get()), symbolObject->blobSize/8);
-    context.destroy(symbol);
+    Context::destroy(symbol);
 }
