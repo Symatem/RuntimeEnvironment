@@ -1,4 +1,4 @@
-CPPOPTIONS := -std=c++1y -stdlib=libc++ ${PGO_OPTIONS}
+CPPOPTIONS := -std=c++1y -stdlib=libc++ -fno-exceptions ${PGO_OPTIONS}
 BUILDDIR := build
 TARGET := $(BUILDDIR)/CLI
 STDPATH := ../StandardLibrary

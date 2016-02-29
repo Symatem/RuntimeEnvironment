@@ -1,35 +1,39 @@
 #include "Serialize.hpp"
 
 #define getSymbolByName(Name) \
-    Symbol Name##Symbol = Context::getGuaranteed(task.block, PreDef_##Name);
+    Symbol Name##Symbol = thread.getGuaranteed(thread.block, PreDef_##Name);
 
 #define getSymbolObjectByName(Name) \
     getSymbolByName(Name) \
-    auto Name##SymbolObject = Context::getSymbolObject(Name##Symbol);
+    auto Name##SymbolObject = Ontology::getSymbolObject(Name##Symbol);
 
 #define checkBlobType(Name, expectedType) \
-if(Context::query(1, {Name##Symbol, PreDef_BlobType, expectedType}) == 0) \
-    throw Exception("Invalid Blob Type");
+if(thread.query(1, {Name##Symbol, PreDef_BlobType, expectedType}) == 0) \
+    thread.throwException("Invalid Blob Type");
 
 #define getUncertainValueByName(Name, DefaultValue) \
     Symbol Name##Symbol; \
     ArchitectureType Name##Value = DefaultValue; \
-    if(Context::getUncertain(task.block, PreDef_##Name, Name##Symbol)) { \
+    if(thread.getUncertain(thread.block, PreDef_##Name, Name##Symbol)) { \
         checkBlobType(Name, PreDef_Natural) \
-        Name##Value = Context::getSymbolObject(Name##Symbol)->accessBlobAt<ArchitectureType>(); \
+        Name##Value = thread.accessBlobAs<ArchitectureType>(Ontology::getSymbolObject(Name##Symbol)); \
     }
 
 class Deserialize {
-    Task& task;
+    Thread& thread;
     const char *pos, *end, *tokenBegin;
     ArchitectureType row, column;
     Symbol package;
 
     void throwException(const char* message) {
-        throw Exception(message, {
-            {PreDef_Row, Context::createFromData(row)},
-            {PreDef_Column, Context::createFromData(column)}
-        });
+        Symbol data = Ontology::create(),
+               rowSymbol = Ontology::createFromData(row),
+               columnSymbol = Ontology::createFromData(column);
+        thread.link({data, PreDef_Holds, rowSymbol});
+        thread.link({data, PreDef_Holds, columnSymbol});
+        thread.link({data, PreDef_Row, rowSymbol});
+        thread.link({data, PreDef_Column, columnSymbol});
+        thread.throwException(message, data);
     }
 
     Vector<Symbol, true> stack;
@@ -38,15 +42,15 @@ class Deserialize {
     Symbol parentEntry, currentEntry;
 
     void nextSymbol(Symbol stackEntry, Symbol symbol) {
-        if(Context::valueCountIs(stackEntry, PreDef_UnnestEntity, 0)) {
+        if(thread.valueCountIs(stackEntry, PreDef_UnnestEntity, 0)) {
             queue.setSymbol(stackEntry);
             queue.insert(0, symbol);
             queue.setSymbol(currentEntry);
         } else {
-            Symbol entity = Context::getGuaranteed(stackEntry, PreDef_UnnestEntity),
-                   attribute = Context::getGuaranteed(stackEntry, PreDef_UnnestAttribute);
-            Context::link({entity, attribute, symbol});
-            Context::setSolitary({stackEntry, PreDef_UnnestEntity, PreDef_Void});
+            Symbol entity = thread.getGuaranteed(stackEntry, PreDef_UnnestEntity),
+                   attribute = thread.getGuaranteed(stackEntry, PreDef_UnnestAttribute);
+            thread.link({entity, attribute, symbol});
+            thread.setSolitary({stackEntry, PreDef_UnnestEntity, PreDef_Void});
         }
     }
 
@@ -54,17 +58,17 @@ class Deserialize {
         if(pos > tokenBegin) {
             Symbol symbol;
             if(isText)
-                symbol = Context::createFromData(tokenBegin, pos-tokenBegin);
+                symbol = Ontology::createFromData(tokenBegin, pos-tokenBegin);
             else if(*tokenBegin == '#') {
-                symbol = Context::createFromData(tokenBegin, pos-tokenBegin);
+                symbol = Ontology::createFromData(tokenBegin, pos-tokenBegin);
                 locals.insertElement(symbol);
             } else if(pos-tokenBegin > strlen(HRLRawBegin) && memcmp(tokenBegin, HRLRawBegin, 4) == 0) {
                 const char* src = tokenBegin+strlen(HRLRawBegin);
                 ArchitectureType nibbleCount = pos-src;
                 if(nibbleCount == 0)
                     throwException("Empty raw data");
-                symbol = Context::create();
-                SymbolObject* symbolObject = Context::getSymbolObject(symbol);
+                symbol = Ontology::create();
+                SymbolObject* symbolObject = Ontology::getSymbolObject(symbol);
                 symbolObject->allocateBlob(nibbleCount*4);
                 char* dst = reinterpret_cast<char*>(symbolObject->blobData.get()), odd = 0, nibble;
                 while(src < pos) {
@@ -110,16 +114,16 @@ class Deserialize {
                         double value = mantissa;
                         value /= devisor;
                         if(negative) value *= -1;
-                        symbol = Context::createFromData(value);
+                        symbol = Ontology::createFromData(value);
                     } else if(negative)
-                        symbol = Context::createFromData(-static_cast<int64_t>(mantissa));
+                        symbol = Ontology::createFromData(-static_cast<int64_t>(mantissa));
                     else
-                        symbol = Context::createFromData(mantissa);
+                        symbol = Ontology::createFromData(mantissa);
                 } else
-                    symbol = Context::createFromData(tokenBegin, pos-tokenBegin);
-                Context::blobIndex.insertElement(symbol);
+                    symbol = Ontology::createFromData(tokenBegin, pos-tokenBegin);
+                Ontology::blobIndex.insertElement(symbol);
             }
-            Context::link({package, PreDef_Holds, symbol}, false);
+            thread.link({package, PreDef_Holds, symbol}, false);
             nextSymbol(currentEntry, symbol);
         }
         tokenBegin = pos+1;
@@ -128,9 +132,9 @@ class Deserialize {
     void fillInAnonymous(Symbol& entity) {
         if(entity != PreDef_Void)
             return;
-        entity = Context::create();
-        Context::link({currentEntry, PreDef_Entity, entity});
-        Context::link({package, PreDef_Holds, entity});
+        entity = Ontology::create();
+        thread.link({currentEntry, PreDef_Entity, entity});
+        thread.link({package, PreDef_Holds, entity});
         nextSymbol(parentEntry, entity);
     }
 
@@ -138,7 +142,7 @@ class Deserialize {
         parseToken();
 
         Symbol entity = PreDef_Void;
-        Context::getUncertain(currentEntry, PreDef_Entity, entity);
+        thread.getUncertain(currentEntry, PreDef_Entity, entity);
 
         if(queue.empty()) {
             if(semicolon) {
@@ -152,33 +156,33 @@ class Deserialize {
         if(semicolon && queue.size() == 1) {
             if(entity == PreDef_Void) {
                 entity = queue.pop_back();
-                Context::link({currentEntry, PreDef_Entity, entity});
+                thread.link({currentEntry, PreDef_Entity, entity});
                 nextSymbol(parentEntry, entity);
             } else
-                Context::link({entity, queue.pop_back(), entity});
+                thread.link({entity, queue.pop_back(), entity});
             return;
         }
 
         fillInAnonymous(entity);
         if(semicolon)
-            Context::setSolitary({parentEntry, PreDef_UnnestEntity, PreDef_Void});
+            thread.setSolitary({parentEntry, PreDef_UnnestEntity, PreDef_Void});
         else
-            Context::setSolitary({parentEntry, PreDef_UnnestEntity, entity}, true);
+            thread.setSolitary({parentEntry, PreDef_UnnestEntity, entity}, true);
         Symbol attribute = queue.pop_back();
-        Context::setSolitary({parentEntry, PreDef_UnnestAttribute, attribute}, true);
+        thread.setSolitary({parentEntry, PreDef_UnnestAttribute, attribute}, true);
 
         while(!queue.empty())
-            Context::link({entity, attribute, queue.pop_back()});
+            thread.link({entity, attribute, queue.pop_back()});
     }
 
     public:
-    Deserialize(Task& _task) :task(_task) {
-        package = Context::getGuaranteed(task.block, PreDef_Package);
+    Deserialize(Thread& _thread) :thread(_thread) {
+        package = thread.getGuaranteed(thread.block, PreDef_Package);
         getSymbolObjectByName(Input)
         checkBlobType(Input, PreDef_Text)
 
-        currentEntry = Context::create();
-        Context::link({task.block, PreDef_Holds, currentEntry});
+        currentEntry = Ontology::create();
+        thread.link({thread.block, PreDef_Holds, currentEntry});
         stack.push_back(currentEntry);
         queue.setSymbol(currentEntry);
 
@@ -216,8 +220,8 @@ class Deserialize {
                 case '(':
                     parseToken();
                     parentEntry = currentEntry;
-                    currentEntry = Context::create();
-                    Context::link({task.block, PreDef_Holds, currentEntry});
+                    currentEntry = Ontology::create();
+                    thread.link({thread.block, PreDef_Holds, currentEntry});
                     stack.push_back(currentEntry);
                     queue.setSymbol(currentEntry);
                     break;
@@ -225,21 +229,21 @@ class Deserialize {
                     if(stack.size() == 1)
                         throwException("Semicolon outside of any brackets");
                     seperateTokens(true);
-                    if(!Context::valueCountIs(currentEntry, PreDef_UnnestEntity, 0))
+                    if(!thread.valueCountIs(currentEntry, PreDef_UnnestEntity, 0))
                         throwException("Unnesting failed");
                     break;
                 case ')': {
                     if(stack.size() == 1)
                         throwException("Unmatched closing bracket");
                     seperateTokens(false);
-                    if(stack.size() == 2 && Context::valueCountIs(parentEntry, PreDef_UnnestEntity, 0)) {
+                    if(stack.size() == 2 && thread.valueCountIs(parentEntry, PreDef_UnnestEntity, 0)) {
                         locals.clear();
-                        if(Context::query(12, {Context::getGuaranteed(currentEntry, PreDef_Entity), PreDef_Void, PreDef_Void}) == 0)
+                        if(thread.query(12, {thread.getGuaranteed(currentEntry, PreDef_Entity), PreDef_Void, PreDef_Void}) == 0)
                             throwException("Nothing declared");
                     }
-                    if(!Context::valueCountIs(currentEntry, PreDef_UnnestEntity, 0))
+                    if(!thread.valueCountIs(currentEntry, PreDef_UnnestEntity, 0))
                         throwException("Unnesting failed");
-                    Context::destroy(currentEntry);
+                    Ontology::destroy(currentEntry);
                     stack.pop_back();
                     currentEntry = parentEntry;
                     queue.setSymbol(currentEntry);
@@ -253,18 +257,18 @@ class Deserialize {
 
         if(stack.size() != 1)
             throwException("Missing closing bracket");
-        if(!Context::valueCountIs(currentEntry, PreDef_UnnestEntity, 0))
+        if(!thread.valueCountIs(currentEntry, PreDef_UnnestEntity, 0))
             throwException("Unnesting failed");
         if(queue.empty())
             throwException("Empty Input");
 
         Symbol OutputSymbol;
-        if(Context::getUncertain(task.block, PreDef_Output, OutputSymbol)) {
-            Symbol TargetSymbol = task.getTargetSymbol();
-            Context::setSolitary({TargetSymbol, OutputSymbol, PreDef_Void});
+        if(thread.getUncertain(thread.block, PreDef_Output, OutputSymbol)) {
+            Symbol TargetSymbol = thread.getTargetSymbol();
+            thread.setSolitary({TargetSymbol, OutputSymbol, PreDef_Void});
             while(!queue.empty())
-                Context::link({TargetSymbol, OutputSymbol, queue.pop_back()});
+                thread.link({TargetSymbol, OutputSymbol, queue.pop_back()});
         }
-        task.popCallStack();
+        thread.popCallStack();
     }
 };

@@ -1,187 +1,155 @@
-#include "../Storage/BpTree.hpp"
+#include "Containers.hpp"
 
-#define PreDefWrapper(token) PreDef_##token
-enum PreDefSymbols {
-#include "PreDefSymbols.hpp"
-};
-#undef PreDefWrapper
+namespace Ontology {
+    enum IndexMode {
+        MonoIndex = 1,
+        TriIndex = 3,
+        HexaIndex = 6
+    } indexMode = HexaIndex;
+    Symbol nextSymbol = 0;
+    std::map<Symbol, std::unique_ptr<SymbolObject>> topIndex;
+    // TODO: unindexBlob must be called at every blob mutation
+    BlobIndex blobIndex;
 
-#define PreDefWrapper(token) #token
-const char* PreDefSymbols[] = {
-#include "PreDefSymbols.hpp"
-};
-#undef PreDefWrapper
-
-typedef ArchitectureType Symbol;
-enum IndexType {
-    EAV = 0, AVE = 1, VEA = 2,
-    EVA = 3, AEV = 4, VAE = 5
-};
-
-struct Exception {
-    const char* message;
-    std::set<std::pair<Symbol, Symbol>> links;
-    Exception(const char* _message, std::set<std::pair<Symbol, Symbol>> _links = {})
-        :message(_message), links(_links) { }
-};
-
-union Triple {
-    Symbol pos[3];
-    struct {
-        Symbol entity, attribute, value;
-    };
-    Triple() {};
-    Triple(Symbol _entity, Symbol _attribute, Symbol _value)
-        :entity(_entity), attribute(_attribute), value(_value) {}
-    bool operator<(const Triple& other) const {
-        for(ArchitectureType i = 0; i < 3; ++i)
-            if(pos[i] < other.pos[i]) return true;
-            else if(pos[i] > other.pos[i]) return false;
-        return false;
-    }
-    Triple reordered(ArchitectureType to) {
-        ArchitectureType alpha[] = { 0, 1, 2, 0, 1, 2 },
-                          beta[] = { 1, 2, 0, 2, 0, 1 },
-                         gamma[] = { 2, 0, 1, 1, 2, 0 };
-        return {pos[alpha[to]], pos[beta[to]], pos[gamma[to]]};
-    }
-    Triple normalized(ArchitectureType from) {
-        ArchitectureType alpha[] = { 0, 2, 1, 0, 1, 2 },
-                          beta[] = { 1, 0, 2, 2, 0, 1 },
-                         gamma[] = { 2, 1, 0, 1, 2, 0 };
-        return {pos[alpha[from]], pos[beta[from]], pos[gamma[from]]};
-    }
-};
-
-struct SymbolObject {
-    ArchitectureType blobSize;
-    std::unique_ptr<ArchitectureType> blobData;
-    std::map<Symbol, std::set<Symbol>> subIndices[6];
-
-    void allocateBlob(ArchitectureType size, ArchitectureType preserve = 0) {
-        if(blobSize == size)
-            return;
-        ArchitectureType* data;
-        if(size) {
-            data = new ArchitectureType[(size+ArchitectureSize-1)/ArchitectureSize];
-            if(size%ArchitectureSize > 0)
-                data[size/ArchitectureSize] &= BitMask<ArchitectureType>::fillLSBs(size%ArchitectureSize);
-        } else
-            data = NULL;
-        ArchitectureType length = std::min(std::min(blobSize, size), preserve);
-        if(length > 0)
-            bitwiseCopy<-1>(data, blobData.get(), 0, 0, length);
-        blobSize = size;
-        blobData.reset(data);
+    SymbolObject* getSymbolObject(Symbol symbol) {
+        auto topIter = topIndex.find(symbol);
+        assert(topIter != topIndex.end());
+        return topIter->second.get();
     }
 
-    void reallocateBlob(ArchitectureType _size) {
-        allocateBlob(_size, _size);
+    std::map<Symbol, std::unique_ptr<SymbolObject>>::iterator SymbolFactory(Symbol symbol) {
+        return topIndex.insert(std::make_pair(symbol, std::unique_ptr<SymbolObject>(new SymbolObject()))).first;
     }
 
-    bool overwriteBlobPartial(const SymbolObject& src, ArchitectureType dstOffset, ArchitectureType srcOffset, ArchitectureType length) {
-        auto end = dstOffset+length;
-        if(end <= dstOffset || end > blobSize)
-            return false;
-        end = srcOffset+length;
-        if(end <= srcOffset || end > src.blobSize)
-            return false;
-        bitwiseCopy(blobData.get(), src.blobData.get(), dstOffset, srcOffset, length);
+    bool link(Triple triple) {
+        ArchitectureType indexCount = (Ontology::indexMode == Ontology::MonoIndex) ? 1 : 3;
+        bool reverseIndex = (Ontology::indexMode == Ontology::HexaIndex);
+        for(ArchitectureType i = 0; i < indexCount; ++i) {
+            auto topIter = Ontology::topIndex.find(triple.pos[i]);
+            if(topIter == Ontology::topIndex.end())
+                topIter = SymbolFactory(triple.pos[i]);
+            if(!topIter->second->link(reverseIndex, i, triple.pos[(i+1)%3], triple.pos[(i+2)%3]))
+                return false;
+        }
         return true;
     }
 
-    void overwriteBlob(const SymbolObject& src) {
-        allocateBlob(src.blobSize);
-        overwriteBlobPartial(src, 0, 0, src.blobSize);
+    Symbol create() {
+        Symbol symbol = nextSymbol++;
+        SymbolFactory(symbol);
+        return symbol;
     }
 
     template<typename DataType>
-    void overwriteBlob(DataType src) {
-        allocateBlob(sizeof(src)*8);
-        *reinterpret_cast<DataType*>(blobData.get()) = src;
-    }
-
-    bool eraseFromBlob(ArchitectureType begin, ArchitectureType end) {
-        if(begin >= end || end > blobSize)
-            return false;
-        auto rest = blobSize-end;
-        if(rest > 0)
-            bitwiseCopy(blobData.get(), blobData.get(), begin, end, rest);
-        reallocateBlob(rest+begin);
-        return true;
-    }
-
-    bool insertIntoBlob(const ArchitectureType* src, ArchitectureType begin, ArchitectureType length) {
-        assert(length > 0);
-        auto newBlobSize = blobSize+length, rest = blobSize-begin;
-        if(blobSize >= newBlobSize || begin > blobSize)
-            return false;
-        reallocateBlob(newBlobSize);
-        if(rest > 0)
-            bitwiseCopy(blobData.get(), blobData.get(), begin+length, begin, rest);
-        bitwiseCopy(blobData.get(), src, begin, 0, length);
-        return true;
-    }
-
-    template <typename T>
-    T& accessBlobAt(ArchitectureType at = 0) {
-        if((at+1)*sizeof(T)*8 > blobSize)
-            throw Exception("Invalid Blob Size");
-        return *(reinterpret_cast<T*>(blobData.get())+at);
-    }
-
-    int compareBlob(const SymbolObject& other) const {
-        if(blobSize < other.blobSize)
-            return -1;
-        if(blobSize > other.blobSize)
-            return 1;
-        return memcmp(blobData.get(), other.blobData.get(), (blobSize+7)/8);
-    }
-
-    bool link(bool reverseIndex, ArchitectureType index, Symbol beta, Symbol gamma) {
-        auto& forward = subIndices[index];
-        auto outerIter = forward.find(beta);
-
-        if(outerIter == forward.end())
-            forward.insert({beta, std::set<Symbol>{gamma}});
-        else if(outerIter->second.find(gamma) == outerIter->second.end())
-            outerIter->second.insert(gamma);
+    Symbol createFromData(DataType src) {
+        Symbol blobType;
+        if(typeid(DataType) == typeid(uint64_t))
+            blobType = PreDef_Natural;
+        else if(typeid(DataType) == typeid(int64_t))
+            blobType = PreDef_Integer;
+        else if(typeid(DataType) == typeid(double))
+            blobType = PreDef_Float;
         else
-            return false;
+            abort();
+        Symbol symbol = create();
+        link({symbol, PreDef_BlobType, blobType});
+        getSymbolObject(symbol)->overwriteBlob(src);
+        return symbol;
+    }
 
-        if(reverseIndex) {
-            auto& reverse = subIndices[index+3];
-            outerIter = reverse.find(gamma);
-            if(outerIter == reverse.end())
-                reverse.insert({gamma, std::set<Symbol>{beta}});
-            else if(outerIter->second.find(beta) == outerIter->second.end())
-                outerIter->second.insert(beta);
+    Symbol createSymbolFromFile(const char* path) {
+        int fd = open(path, O_RDONLY);
+        if(fd < 0)
+            return PreDef_Void;
+        Symbol symbol = create();
+        link({symbol, PreDef_BlobType, PreDef_Text});
+        SymbolObject* symbolObject = getSymbolObject(symbol);
+        ArchitectureType len = lseek(fd, 0, SEEK_END);
+        symbolObject->allocateBlob(len*8);
+        lseek(fd, 0, SEEK_SET);
+        read(fd, reinterpret_cast<char*>(symbolObject->blobData.get()), len);
+        close(fd);
+        return symbol;
+    }
+
+    Symbol createFromData(const char* src, ArchitectureType len) {
+        Symbol symbol = create();
+        link({symbol, PreDef_BlobType, PreDef_Text});
+        SymbolObject* symbolObject = getSymbolObject(symbol);
+        symbolObject->allocateBlob(len*8);
+        auto dst = reinterpret_cast<uint8_t*>(symbolObject->blobData.get());
+        for(ArchitectureType i = 0; i < len; ++i)
+            dst[i] = src[i];
+        return symbol;
+    }
+
+    Symbol createFromData(const char* src) {
+        ArchitectureType len = 0;
+        while(src[len])
+            ++len;
+        return createFromData(src, len);
+    }
+
+    void checkSymbolLinkCount(Symbol symbol) {
+        auto topIter = topIndex.find(symbol);
+        ArchitectureType indexCount = (indexMode == MonoIndex) ? 1 : 3;
+        for(ArchitectureType i = 0; i < indexCount; ++i)
+            if(!topIter->second->subIndices[i].empty())
+                return;
+        topIndex.erase(topIter);
+    }
+
+    bool unlinkInternal(Triple triple, bool skipEnabled = false, Symbol skip = PreDef_Void) {
+        ArchitectureType indexCount = (indexMode == MonoIndex) ? 1 : 3;
+        bool reverseIndex = (indexMode == HexaIndex);
+        for(ArchitectureType i = 0; i < indexCount; ++i) {
+            if(skipEnabled && triple.pos[i] == skip)
+                continue;
+            auto topIter = topIndex.find(triple.pos[i]);
+            if(topIter == topIndex.end() ||
+               !topIter->second->unlink(reverseIndex, i, triple.pos[(i+1)%3], triple.pos[(i+2)%3]))
+                return false;
         }
-
+        if(triple.pos[1] == PreDef_BlobType)
+            blobIndex.eraseElement(triple.pos[0]);
         return true;
     }
 
-    bool unlink(bool reverseIndex, ArchitectureType index, Symbol beta, Symbol gamma) {
-        auto& forward = subIndices[index];
-        auto outerIter = forward.find(beta);
-        if(outerIter == forward.end())
+    bool unlink(Triple triple) {
+        if(!unlinkInternal(triple))
             return false;
-        auto innerIter = outerIter->second.find(gamma);
-        if(innerIter == outerIter->second.end())
-            return false;
-        outerIter->second.erase(innerIter);
-        if(outerIter->second.empty())
-            forward.erase(outerIter);
-
-        if(reverseIndex) {
-            auto& reverse = subIndices[index+3];
-            auto outerIter = reverse.find(gamma);
-            auto innerIter = outerIter->second.find(beta);
-            outerIter->second.erase(innerIter);
-            if(outerIter->second.empty())
-                reverse.erase(outerIter);
-        }
-
+        for(ArchitectureType i = 0; i < 3; ++i)
+            checkSymbolLinkCount(triple.pos[i]);
         return true;
-    };
+    }
+
+    void destroy(Symbol alpha) {
+        auto topIter = topIndex.find(alpha);
+        assert(topIter != topIndex.end());
+        Set<Symbol, true> symbols;
+        for(ArchitectureType i = EAV; i <= VEA; ++i)
+            for(auto& beta : topIter->second->subIndices[i])
+                for(auto gamma : beta.second) {
+                    unlinkInternal(Triple(alpha, beta.first, gamma).normalized(i), true, alpha);
+                    symbols.insertElement(beta.first);
+                    symbols.insertElement(gamma);
+                }
+        topIndex.erase(topIter);
+        symbols.iterate([&](Symbol symbol) {
+            checkSymbolLinkCount(symbol);
+        });
+    }
+
+    void init() {
+        const Symbol preDefSymbolsEnd = sizeof(PreDefSymbols)/sizeof(void*);
+        while(nextSymbol < preDefSymbolsEnd) {
+            Symbol symbol = createFromData(PreDefSymbols[nextSymbol]);
+            link({PreDef_RunTimeEnvironment, PreDef_Holds, symbol});
+        }
+        for(Symbol symbol = 0; symbol < preDefSymbolsEnd; ++symbol)
+            blobIndex.insertElement(symbol);
+        Symbol ArchitectureSizeSymbol = createFromData(ArchitectureSize);
+        link({PreDef_RunTimeEnvironment, PreDef_Holds, ArchitectureSizeSymbol});
+        link({PreDef_RunTimeEnvironment, PreDef_ArchitectureSize, ArchitectureSizeSymbol});
+    }
 };

@@ -16,9 +16,9 @@ void loadFromPath(Symbol parentPackage, bool execute, std::string path) {
 
         auto slashIndex = path.rfind('/');
         std::string name = (slashIndex != std::string::npos) ? path.substr(slashIndex+1) : path;
-        Symbol package = Context::createFromData(name.c_str());
+        Symbol package = Ontology::createFromData(name.c_str());
         if(parentPackage == PreDef_Void) parentPackage = package;
-        Context::link({package, PreDef_Holds, parentPackage});
+        thread.link({package, PreDef_Holds, parentPackage});
 
         struct dirent* entry;
         while(interfaceBuffer.empty() && (entry = readdir(dp)))
@@ -28,26 +28,26 @@ void loadFromPath(Symbol parentPackage, bool execute, std::string path) {
     } else if(s.st_mode & S_IFREG) {
         if(!stringEndsWith(path, ".sym")) return;
 
-        Symbol file = Context::createSymbolFromFile(path.c_str());
+        Symbol file = Ontology::createSymbolFromFile(path.c_str());
         if(file == PreDef_Void) {
             interfaceBuffer = "Could not open file ";
             interfaceBuffer += path;
             return;
         }
 
-        task.deserializationTask(file, parentPackage);
-        if(task.uncaughtException()) {
+        thread.deserializationTask(file, parentPackage);
+        if(thread.uncaughtException()) {
             interfaceBuffer = "Exception occurred while deserializing file ";
             interfaceBuffer += path;
             return;
         }
 
         if(!execute) return;
-        if(!task.executeDeserialized()) {
+        if(!thread.executeDeserialized()) {
             interfaceBuffer = "Nothing to execute in file ";
             interfaceBuffer += path;
             return;
-        } else if(task.uncaughtException()) {
+        } else if(thread.uncaughtException()) {
             interfaceBuffer = "Exception occurred while executing file ";
             interfaceBuffer += path;
             return;
@@ -56,7 +56,7 @@ void loadFromPath(Symbol parentPackage, bool execute, std::string path) {
 }
 
 int main(int argc, const char** argv) {
-    Context::init();
+    Ontology::init();
     init();
 
     /*const std::string errorMessage = CSI+"1;31m[Error]"+CSI+"m",
@@ -88,7 +88,7 @@ int main(int argc, const char** argv) {
         }
     }
     if(interfaceBuffer.empty())
-        task.clear();
+        thread.clear();
 
     while(true) {
         render();

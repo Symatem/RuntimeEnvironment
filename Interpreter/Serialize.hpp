@@ -1,9 +1,9 @@
-#include "Task.hpp"
+#include "Thread.hpp"
 
 const char* HRLRawBegin = "raw:";
 
 struct Serialize {
-    Task& task;
+    Thread& thread;
     Symbol symbol;
     SymbolObject* symbolObject;
     ArchitectureType blobSize;
@@ -54,19 +54,19 @@ struct Serialize {
         }
     }
 
-    Serialize(Task& _task, Symbol _symbol) :task(_task), symbol(_symbol), blobSize(0) {
-        symbolObject = Context::getSymbolObject(_symbol);
-        Context::setSolitary({symbol, PreDef_BlobType, PreDef_Text});
+    Serialize(Thread& _thread, Symbol _symbol) :thread(_thread), symbol(_symbol), blobSize(0) {
+        symbolObject = Ontology::getSymbolObject(_symbol);
+        thread.setSolitary({symbol, PreDef_BlobType, PreDef_Text});
     }
 
-    Serialize(Task& _task) :Serialize(_task, Context::create()) { }
+    Serialize(Thread& _thread) :Serialize(_thread, Ontology::create()) { }
 
     void serializeBlob(Symbol symbol) {
-        auto srcSymbolObject = Context::getSymbolObject(symbol);
+        auto srcSymbolObject = Ontology::getSymbolObject(symbol);
         auto src = reinterpret_cast<const uint8_t*>(srcSymbolObject->blobData.get());
         if(srcSymbolObject->blobSize) {
             Symbol type = PreDef_Void;
-            Context::getUncertain(symbol, PreDef_BlobType, type);
+            thread.getUncertain(symbol, PreDef_BlobType, type);
             switch(type) {
                 case PreDef_Text: {
                     ArchitectureType len = srcSymbolObject->blobSize/8;
@@ -84,13 +84,13 @@ struct Serialize {
                         put('"');
                 }   break;
                 case PreDef_Natural:
-                    serializeNumber(srcSymbolObject->accessBlobAt<uint64_t>());
+                    serializeNumber(thread.accessBlobAs<uint64_t>(srcSymbolObject));
                     break;
                 case PreDef_Integer:
-                    serializeNumber(srcSymbolObject->accessBlobAt<int64_t>());
+                    serializeNumber(thread.accessBlobAs<int64_t>(srcSymbolObject));
                     break;
                 case PreDef_Float:
-                    serializeNumber(srcSymbolObject->accessBlobAt<double>());
+                    serializeNumber(thread.accessBlobAs<double>(srcSymbolObject));
                     break;
                 default: {
                     for(ArchitectureType i = 0; i < strlen(HRLRawBegin); ++i)
@@ -124,14 +124,14 @@ struct Serialize {
             put(';');
             put('\n');
 
-            Context::query(21, {entity, PreDef_Void, PreDef_Void}, [&](Triple result, ArchitectureType) {
+            thread.query(21, {entity, PreDef_Void, PreDef_Void}, [&](Triple result, ArchitectureType) {
                 if(followCallback && result.pos[0] == followAttribute) {
-                    Context::getUncertain(entity, followAttribute, followEntity);
+                    thread.getUncertain(entity, followAttribute, followEntity);
                     return;
                 }
                 put('\t');
                 serializeBlob(result.pos[0]);
-                Context::query(9, {entity, result.pos[0], PreDef_Void}, [&](Triple resultB, ArchitectureType) {
+                thread.query(9, {entity, result.pos[0], PreDef_Void}, [&](Triple resultB, ArchitectureType) {
                     put(' ');
                     serializeBlob(resultB.pos[0]);
                 });

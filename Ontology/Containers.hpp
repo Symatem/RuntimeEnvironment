@@ -1,9 +1,9 @@
-#include "Ontology.hpp"
+#include "Triple.hpp"
 
-namespace Context {
-    void destroy(Symbol alpha);
+namespace Ontology {
     SymbolObject* getSymbolObject(Symbol symbol);
     Symbol create();
+    void destroy(Symbol symbol);
 };
 
 template<typename T, bool guarded>
@@ -15,7 +15,7 @@ struct Vector {
 
     ~Vector() {
         if(guarded && symbolObject)
-            Context::destroy(symbol);
+            Ontology::destroy(symbol);
     }
 
     bool empty() const {
@@ -27,8 +27,8 @@ struct Vector {
     }
 
     T& operator[](ArchitectureType at) const {
-        assert(symbolObject);
-        return symbolObject->template accessBlobAt<T>(at);
+        assert(symbolObject && at < size());
+        return *(reinterpret_cast<T*>(symbolObject->blobData.get())+at);
     }
 
     T& front() const {
@@ -46,12 +46,12 @@ struct Vector {
 
     void setSymbol(Symbol _symbol) {
         symbol = _symbol;
-        symbolObject = Context::getSymbolObject(symbol);
+        symbolObject = Ontology::getSymbolObject(symbol);
     }
 
     void activate() {
         if(!symbolObject)
-            setSymbol(Context::create());
+            setSymbol(Ontology::create());
     }
 
     void clear() {
@@ -134,9 +134,9 @@ struct BlobIndex : public Set<Symbol, true> {
     BlobIndex() :Super() { }
 
     ArchitectureType blobFindIndexFor(Symbol key) const {
-        SymbolObject* keySymbolObject = Context::getSymbolObject(key);
+        SymbolObject* keySymbolObject = Ontology::getSymbolObject(key);
         return binarySearch<ArchitectureType>(Super::size(), [&](ArchitectureType at) {
-            SymbolObject* atSymbolObject = Context::getSymbolObject((*this)[at]);
+            SymbolObject* atSymbolObject = Ontology::getSymbolObject((*this)[at]);
             return keySymbolObject->compareBlob(*atSymbolObject) < 0;
         });
     }
@@ -145,15 +145,15 @@ struct BlobIndex : public Set<Symbol, true> {
         at = blobFindIndexFor(element);
         if(at == Super::size())
             return false;
-        SymbolObject *elementSymbolObject = Context::getSymbolObject(element),
-                     *atSymbolObject = Context::getSymbolObject((*this)[at]);
+        SymbolObject *elementSymbolObject = Ontology::getSymbolObject(element),
+                     *atSymbolObject = Ontology::getSymbolObject((*this)[at]);
         return (elementSymbolObject->compareBlob(*atSymbolObject) == 0);
     }
 
     void insertElement(Symbol& element) {
         ArchitectureType at;
         if(findElement(element, at)) {
-            Context::destroy(element);
+            Ontology::destroy(element);
             element = (*this)[at];
         } else
             Super::insert(at, element);

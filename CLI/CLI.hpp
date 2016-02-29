@@ -18,8 +18,8 @@ std::stringstream stream;
 std::string interfaceBuffer;
 ArchitectureType historyTop, historySub, linesForBlob;
 Vector<Symbol, true> history;
-struct Task task;
-decltype(Context::topIndex)::iterator topIter;
+struct Thread thread;
+decltype(Ontology::topIndex)::iterator topIter;
 SymbolObject* symbolObject;
 
 bool stringEndsWith(std::string const& value, std::string const& ending) {
@@ -127,11 +127,11 @@ ArchitectureType printStreamLimited(ArchitectureType mode = 0,
     return row;
 }
 
-void serializeBlob(Task& task, std::ostream& stream, Symbol symbol) {
-    Serialize serialize(task);
+void serializeBlob(Thread& thread, std::ostream& stream, Symbol symbol) {
+    Serialize serialize(thread);
     serialize.serializeBlob(symbol);
     symbol = serialize.finalizeSymbol();
-    SymbolObject* symbolObject = Context::getSymbolObject(symbol);
+    SymbolObject* symbolObject = Ontology::getSymbolObject(symbol);
     stream.write(reinterpret_cast<const char*>(symbolObject->blobData.get()), symbolObject->blobSize/8);
-    Context::destroy(symbol);
+    Ontology::destroy(symbol);
 }

@@ -15,7 +15,7 @@
 #define historyTop0() \
     historyTop = (history.size()-1)/4*4; \
     historySub = history.size()-1-historyTop; \
-    topIter = Context::topIndex.find(history[historyTop]); \
+    topIter = Ontology::topIndex.find(history[historyTop]); \
     symbolObject = topIter->second.get();
 
 #define historyTop2() \
@@ -38,7 +38,7 @@
 void render() {
     ioctl(STDIN_FILENO, TIOCGWINSZ, &screenSize);
     clearScreen();
-    if(screenSize.ws_row <= Context::indexMode+4) {
+    if(screenSize.ws_row <= Ontology::indexMode+4) {
         std::cout << std::endl << "Console is too small" << std::endl;
         pollKeyboard([&](bool special, uint64_t size, const char* buffer) {
             exit(0);
@@ -47,26 +47,26 @@ void render() {
     }
 
     if(history.size() == 0)
-        history.push_back(task.task);
-    ArchitectureType linesLeft = screenSize.ws_row-Context::indexMode-5,
+        history.push_back(thread.task);
+    ArchitectureType linesLeft = screenSize.ws_row-Ontology::indexMode-5,
                      pos, size, maxSize;
     linesForBlob = linesLeft;
     historyTop0()
-    if(topIter == Context::topIndex.end()) {
+    if(topIter == Ontology::topIndex.end()) {
         history.clear();
-        history.push_back(task.task);
+        history.push_back(thread.task);
         return;
     }
 
     std::cout << "Stats: ";
-    std::cout << Context::topIndex.size();
-    std::cout << " / " << Context::nextSymbol;
-    std::cout << " / " << Context::query(13, {PreDef_Void, PreDef_Void, PreDef_Void});
+    std::cout << Ontology::topIndex.size();
+    std::cout << " / " << Ontology::nextSymbol;
+    std::cout << " / " << thread.query(13, {PreDef_Void, PreDef_Void, PreDef_Void});
 
     stream << "History: ";
     if(history.size() > 4)
         for(ArchitectureType i = historyTop-4; true; i -= 4) {
-            serializeBlob(task, stream, history[i]);
+            serializeBlob(thread, stream, history[i]);
             if(i > 0)
                 stream << " / ";
             else
@@ -75,18 +75,18 @@ void render() {
     printStreamLimited();
 
     stream << history[historyTop] << ": ";
-    serializeBlob(task, stream, history[historyTop]);
+    serializeBlob(thread, stream, history[historyTop]);
     printStreamLimited(historySub == 0);
 
     stream << "Blob " << symbolObject->blobSize;
     printStreamLimited(historySub == 1 && history[historyTop+1] == 0, 2);
     if(historySub == 2 && history[historyTop+1] == 0) {
-        serializeBlob(task, stream, history[historyTop]);
+        serializeBlob(thread, stream, history[historyTop]);
         linesLeft -= printStreamLimited(1, 4, linesLeft, history[historyTop+2]);
     }
 
     const char* indexName[] = { "EAV", "AVE", "VEA", "EVA", "AEV", "VAE" };
-    for(ArchitectureType i = 0; i < Context::indexMode; ++i) {
+    for(ArchitectureType i = 0; i < Ontology::indexMode; ++i) {
         auto& subIndex = symbolObject->subIndices[i];
         stream << indexName[i] << " " << subIndex.size();
         printStreamLimited(historySub == 1 && i+1 == history[historyTop+1], 2);
@@ -97,14 +97,14 @@ void render() {
             maxSize = (size <= maxSize-3) ? maxSize-size : 3;
         }
         clippedForEachInContainer(j, subIndex, history[historyTop+2]) {
-            serializeBlob(task, stream, j->first);
+            serializeBlob(thread, stream, j->first);
             stream << " " << j->second.size();
             printStreamLimited(historySub == 2 && j->first == history[historyTop+2], 4);
             if(historySub < 3 || j->first != history[historyTop+2]) continue;
             maxSize = linesLeft;
             auto& set = subIndex.find(j->first)->second;
             clippedForEachInContainer(k, set, history[historyTop+3]) {
-                serializeBlob(task, stream, *k);
+                serializeBlob(thread, stream, *k);
                 printStreamLimited(historySub == 3 && *k == history[historyTop+3], 6);
             }
         }
@@ -149,16 +149,16 @@ uint64_t ModeBrowse(bool special, uint64_t size, const char* buffer) {
     } else {
         switch(*buffer) {
             case 'a':
-                task.clear();
+                thread.clear();
                 return 1;
             case 'n':
-                task.executeFinite(1);
-                if(!task.uncaughtException())
+                thread.executeFinite(1);
+                if(!thread.uncaughtException())
                     return 1;
                 break;
             case 'c':
-                task.executeInfinite();
-                if(!task.uncaughtException())
+                thread.executeInfinite();
+                if(!thread.uncaughtException())
                     return 1;
                 break;
             case 'h':
@@ -211,7 +211,7 @@ uint64_t ModeBrowse(bool special, uint64_t size, const char* buffer) {
         case Up:
             switch(historySub) {
                 case 0:
-                    if(topIter != Context::topIndex.begin())
+                    if(topIter != Ontology::topIndex.begin())
                         history[historyTop] = (--topIter)->first;
                     break;
                 case 1:
@@ -237,16 +237,16 @@ uint64_t ModeBrowse(bool special, uint64_t size, const char* buffer) {
             switch(historySub) {
                 case 0:
                     ++topIter;
-                    if(topIter != Context::topIndex.end())
+                    if(topIter != Ontology::topIndex.end())
                         history[historyTop] = topIter->first;
                         break;
                 case 1:
-                    if(history.back() < Context::indexMode)
+                    if(history.back() < Ontology::indexMode)
                         ++history.back();
                         break;
                 case 2: {
                     if(history[historyTop+1] == 0) {
-                        serializeBlob(task, stream, history[historyTop]);
+                        serializeBlob(thread, stream, history[historyTop]);
                         auto lines = printStreamLimited(2, 0, 0, 0);
                         if(lines > linesForBlob && history.back() < lines-linesForBlob)
                             ++history.back();
@@ -323,22 +323,22 @@ uint64_t ModeInput(bool special, uint64_t size, const char* buffer) {
                 setCursorHidden(true);
                 mode = Mode_Browse;
                 history.clear();
-                history.push_back(task.task);
+                history.push_back(thread.task);
                 if(interfaceBuffer.empty()) break;
-                task.deserializationTask(Context::createFromData(interfaceBuffer.c_str()));
-                history[0] = task.task;
-                if(task.uncaughtException()) {
+                thread.deserializationTask(Ontology::createFromData(interfaceBuffer.c_str()));
+                history[0] = thread.task;
+                if(thread.uncaughtException()) {
                     interfaceBuffer = "Exception occurred while deserializing input";
                     break;
                 }
                 interfaceBuffer.clear();
                 Symbol OutputSymbol, ExecuteSymbol;
-                if(Context::getUncertain(task.block, PreDef_Output, OutputSymbol) &&
-                   !Context::getUncertain(OutputSymbol, PreDef_Execute, ExecuteSymbol)) {
+                if(thread.getUncertain(thread.block, PreDef_Output, OutputSymbol) &&
+                   !thread.getUncertain(OutputSymbol, PreDef_Execute, ExecuteSymbol)) {
                     history[0] = OutputSymbol;
                     break;
                 }
-                if(task.executeDeserialized() && task.uncaughtException())
+                if(thread.executeDeserialized() && thread.uncaughtException())
                     interfaceBuffer = "Exception occurred while executing input";
             }   break;
             case 127:

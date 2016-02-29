@@ -1,4 +1,5 @@
 #include <sys/mman.h>
+#include <setjmp.h>
 #include <assert.h>
 #include <fcntl.h>
 #include <map>
