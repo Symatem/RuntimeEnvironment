@@ -722,7 +722,6 @@ class BpTree {
                     }
                 }
             } else {
-                frame->lowerInnerPageRef = 0;
                 frame->higherOuterPageRef = 0;
                 frame->pageRef = data.storage->aquirePage();
                 frame->index = (isLeaf) ? 0 : 1;
@@ -799,31 +798,34 @@ class BpTree {
 
     template<bool isLeaf>
     static Page* insertAdvance(Storage* storage, InsertIteratorFrame* frame) {
-        Page* page;
-        if(frame->lowerInnerPageRef) {
-            frame->pageRef = frame->lowerInnerPageRef;
-            page = getPage<false>(storage, frame->pageRef);
-            frame->index = frame->lowerInnerIndex;
-            frame->endIndex = (frame->lowerInnerPageRef == frame->higherOuterPageRef) ? frame->higherOuterEndIndex : frame->elementsPerPage;
-            frame->lowerInnerPageRef = 0;
-        } else if(frame->higherOuterPageRef && frame->pageCount == 2) {
-            frame->pageRef = frame->higherInnerPageRef;
-            page = getPage<false>(storage, frame->pageRef);
-            frame->index = 0;
-            frame->endIndex = frame->higherInnerEndIndex;
-        } else if(frame->higherOuterPageRef && frame->pageCount == 1) {
-            frame->pageRef = frame->higherOuterPageRef;
-            page = getPage<false>(storage, frame->pageRef);
-            frame->index = 0;
-            frame->endIndex = frame->higherOuterEndIndex;
-        } else {
-            frame->pageRef = storage->aquirePage();
-            page = getPage<false>(storage, frame->pageRef);
-            frame->index = 0;
-            page->template init<isLeaf>(frame->elementsPerPage, frame);
-        }
         assert(frame->pageCount > 0);
         --frame->pageCount;
+        if(frame->higherOuterPageRef) {
+            if(frame->lowerInnerPageRef) {
+                frame->pageRef = frame->lowerInnerPageRef;
+                Page* page = getPage<false>(storage, frame->pageRef);
+                frame->index = frame->lowerInnerIndex;
+                frame->endIndex = (frame->lowerInnerPageRef == frame->higherOuterPageRef) ? frame->higherOuterEndIndex : frame->elementsPerPage;
+                frame->lowerInnerPageRef = 0;
+                return page;
+            } else if(frame->pageCount == 1) {
+                frame->pageRef = frame->higherInnerPageRef;
+                Page* page = getPage<false>(storage, frame->pageRef);
+                frame->index = 0;
+                frame->endIndex = frame->higherInnerEndIndex;
+                return page;
+            } else if(frame->pageCount == 0) {
+                frame->pageRef = frame->higherOuterPageRef;
+                Page* page = getPage<false>(storage, frame->pageRef);
+                frame->index = 0;
+                frame->endIndex = frame->higherOuterEndIndex;
+                return page;
+            }
+        }
+        frame->pageRef = storage->aquirePage();
+        Page* page = getPage<false>(storage, frame->pageRef);
+        frame->index = 0;
+        page->template init<isLeaf>(frame->elementsPerPage, frame);
         return page;
     }
 

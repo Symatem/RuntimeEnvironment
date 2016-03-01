@@ -5,24 +5,26 @@ const char* HRLRawBegin = "raw:";
 struct Serialize {
     Thread& thread;
     Symbol symbol;
-    SymbolObject* symbolObject;
-    ArchitectureType blobSize;
+    ArchitectureType usedBlobSize;
 
     bool isEmpty() const {
-        return (blobSize == 0);
+        return (usedBlobSize == 0);
     }
 
     Symbol finalizeSymbol() {
-        symbolObject->reallocateBlob(blobSize);
+        Ontology::reallocateBlob(symbol, usedBlobSize);
         return symbol;
     }
 
     void put(uint8_t data) {
-        ArchitectureType nextBlobSize = blobSize+8;
-        if(nextBlobSize > symbolObject->blobSize)
-            symbolObject->reallocateBlob(std::max(nextBlobSize, symbolObject->blobSize*2));
-        reinterpret_cast<uint8_t*>(symbolObject->blobData.get())[blobSize/8] = data;
-        blobSize = nextBlobSize;
+        ArchitectureType reservedBlobSize = Ontology::accessBlobSize(symbol),
+                         nextBlobSize = usedBlobSize+8;
+        if(nextBlobSize > reservedBlobSize) {
+            reservedBlobSize = std::max(nextBlobSize, usedBlobSize*2);
+            Ontology::reallocateBlob(symbol, reservedBlobSize);
+        }
+        reinterpret_cast<uint8_t*>(Ontology::accessBlobData(symbol))[usedBlobSize/8] = data;
+        usedBlobSize = nextBlobSize;
     }
 
     template<typename NumberType>
@@ -54,22 +56,21 @@ struct Serialize {
         }
     }
 
-    Serialize(Thread& _thread, Symbol _symbol) :thread(_thread), symbol(_symbol), blobSize(0) {
-        symbolObject = Ontology::getSymbolObject(_symbol);
+    Serialize(Thread& _thread, Symbol _symbol) :thread(_thread), symbol(_symbol), usedBlobSize(0) {
         thread.setSolitary({symbol, PreDef_BlobType, PreDef_Text});
     }
 
     Serialize(Thread& _thread) :Serialize(_thread, Ontology::create()) { }
 
-    void serializeBlob(Symbol symbol) {
-        auto srcSymbolObject = Ontology::getSymbolObject(symbol);
-        auto src = reinterpret_cast<const uint8_t*>(srcSymbolObject->blobData.get());
-        if(srcSymbolObject->blobSize) {
+    void serializeBlob(Symbol srcSymbol) {
+        auto src = reinterpret_cast<const uint8_t*>(Ontology::accessBlobData(srcSymbol));
+        ArchitectureType len = Ontology::accessBlobSize(srcSymbol);
+        if(len) {
             Symbol type = PreDef_Void;
             thread.getUncertain(symbol, PreDef_BlobType, type);
             switch(type) {
                 case PreDef_Text: {
-                    ArchitectureType len = srcSymbolObject->blobSize/8;
+                    len /= 8;
                     bool spaces = false;
                     for(ArchitectureType i = 0; i < len; ++i)
                         if(src[i] == ' ' || src[i] == '\t' || src[i] == '\n') {
@@ -84,18 +85,18 @@ struct Serialize {
                         put('"');
                 }   break;
                 case PreDef_Natural:
-                    serializeNumber(thread.accessBlobAs<uint64_t>(srcSymbolObject));
+                    serializeNumber(thread.accessBlobAs<uint64_t>(srcSymbol));
                     break;
                 case PreDef_Integer:
-                    serializeNumber(thread.accessBlobAs<int64_t>(srcSymbolObject));
+                    serializeNumber(thread.accessBlobAs<int64_t>(srcSymbol));
                     break;
                 case PreDef_Float:
-                    serializeNumber(thread.accessBlobAs<double>(srcSymbolObject));
+                    serializeNumber(thread.accessBlobAs<double>(srcSymbol));
                     break;
                 default: {
                     for(ArchitectureType i = 0; i < strlen(HRLRawBegin); ++i)
                         put(HRLRawBegin[i]);
-                    ArchitectureType len = (srcSymbolObject->blobSize+3)/4;
+                    len = (len+3)/4;
                     for(ArchitectureType i = 0; i < len; ++i) {
                         uint8_t nibble = (src[i/2]>>((i%2)*4))&0x0F;
                         if(nibble < 0xA)

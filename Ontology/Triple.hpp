@@ -18,13 +18,6 @@ enum IndexType {
     EVA = 3, AEV = 4, VAE = 5
 };
 
-struct Exception {
-    const char* message;
-    std::set<std::pair<Symbol, Symbol>> links;
-    Exception(const char* _message, std::set<std::pair<Symbol, Symbol>> _links = {})
-        :message(_message), links(_links) { }
-};
-
 union Triple {
     Symbol pos[3];
     struct {
@@ -58,85 +51,12 @@ struct SymbolObject {
     std::unique_ptr<ArchitectureType> blobData;
     std::map<Symbol, std::set<Symbol>> subIndices[6];
 
-    void allocateBlob(ArchitectureType size, ArchitectureType preserve = 0) {
-        if(blobSize == size)
-            return;
-        ArchitectureType* data;
-        if(size) {
-            data = new ArchitectureType[(size+ArchitectureSize-1)/ArchitectureSize];
-            if(size%ArchitectureSize > 0)
-                data[size/ArchitectureSize] &= BitMask<ArchitectureType>::fillLSBs(size%ArchitectureSize);
-        } else
-            data = NULL;
-        ArchitectureType length = std::min(std::min(blobSize, size), preserve);
-        if(length > 0)
-            bitwiseCopy<-1>(data, blobData.get(), 0, 0, length);
-        blobSize = size;
-        blobData.reset(data);
-    }
-
-    void reallocateBlob(ArchitectureType _size) {
-        allocateBlob(_size, _size);
-    }
-
-    bool overwriteBlobPartial(const SymbolObject& src, ArchitectureType dstOffset, ArchitectureType srcOffset, ArchitectureType length) {
-        auto end = dstOffset+length;
-        if(end <= dstOffset || end > blobSize)
-            return false;
-        end = srcOffset+length;
-        if(end <= srcOffset || end > src.blobSize)
-            return false;
-        bitwiseCopy(blobData.get(), src.blobData.get(), dstOffset, srcOffset, length);
-        return true;
-    }
-
-    void overwriteBlob(const SymbolObject& src) {
-        allocateBlob(src.blobSize);
-        overwriteBlobPartial(src, 0, 0, src.blobSize);
-    }
-
-    template<typename DataType>
-    void overwriteBlob(DataType src) {
-        allocateBlob(sizeof(src)*8);
-        *reinterpret_cast<DataType*>(blobData.get()) = src;
-    }
-
-    bool eraseFromBlob(ArchitectureType begin, ArchitectureType end) {
-        if(begin >= end || end > blobSize)
-            return false;
-        auto rest = blobSize-end;
-        if(rest > 0)
-            bitwiseCopy(blobData.get(), blobData.get(), begin, end, rest);
-        reallocateBlob(rest+begin);
-        return true;
-    }
-
-    bool insertIntoBlob(const ArchitectureType* src, ArchitectureType begin, ArchitectureType length) {
-        assert(length > 0);
-        auto newBlobSize = blobSize+length, rest = blobSize-begin;
-        if(blobSize >= newBlobSize || begin > blobSize)
-            return false;
-        reallocateBlob(newBlobSize);
-        if(rest > 0)
-            bitwiseCopy(blobData.get(), blobData.get(), begin+length, begin, rest);
-        bitwiseCopy(blobData.get(), src, begin, 0, length);
-        return true;
-    }
-
-    int compareBlob(const SymbolObject& other) const {
-        if(blobSize < other.blobSize)
-            return -1;
-        if(blobSize > other.blobSize)
-            return 1;
-        return memcmp(blobData.get(), other.blobData.get(), (blobSize+7)/8);
-    }
-
     bool link(bool reverseIndex, ArchitectureType index, Symbol beta, Symbol gamma) {
         auto& forward = subIndices[index];
         auto outerIter = forward.find(beta);
 
         if(outerIter == forward.end())
-            forward.insert({beta, std::set<Symbol>{gamma}});
+            forward.insert({beta, {gamma}});
         else if(outerIter->second.find(gamma) == outerIter->second.end())
             outerIter->second.insert(gamma);
         else
@@ -146,7 +66,7 @@ struct SymbolObject {
             auto& reverse = subIndices[index+3];
             outerIter = reverse.find(gamma);
             if(outerIter == reverse.end())
-                reverse.insert({gamma, std::set<Symbol>{beta}});
+                reverse.insert({gamma, {beta}});
             else if(outerIter->second.find(beta) == outerIter->second.end())
                 outerIter->second.insert(beta);
         }
@@ -177,4 +97,114 @@ struct SymbolObject {
 
         return true;
     };
+};
+
+namespace Ontology {
+    enum IndexMode {
+        MonoIndex = 1,
+        TriIndex = 3,
+        HexaIndex = 6
+    } indexMode = HexaIndex;
+    Symbol nextSymbol = 0;
+    std::map<Symbol, std::unique_ptr<SymbolObject>> topIndex;
+
+    SymbolObject* getSymbolObject(Symbol symbol) {
+        auto topIter = topIndex.find(symbol);
+        assert(topIter != topIndex.end());
+        return topIter->second.get();
+    }
+
+    void* accessBlobData(Symbol symbol) {
+        return getSymbolObject(symbol)->blobData.get();
+    }
+
+    ArchitectureType& accessBlobSize(Symbol symbol) {
+        return getSymbolObject(symbol)->blobSize;
+    }
+
+    void allocateBlob(Symbol symbol, ArchitectureType size, ArchitectureType preserve = 0) {
+        SymbolObject* symbolObject = getSymbolObject(symbol);
+        if(symbolObject->blobSize == size)
+            return;
+        ArchitectureType* data;
+        if(size) {
+            data = new ArchitectureType[(size+ArchitectureSize-1)/ArchitectureSize];
+            if(size%ArchitectureSize > 0)
+                data[size/ArchitectureSize] &= BitMask<ArchitectureType>::fillLSBs(size%ArchitectureSize);
+        } else
+            data = NULL;
+        ArchitectureType length = std::min(std::min(symbolObject->blobSize, size), preserve);
+        if(length > 0)
+            bitwiseCopy<-1>(data, symbolObject->blobData.get(), 0, 0, length);
+        symbolObject->blobSize = size;
+        symbolObject->blobData.reset(data);
+    }
+
+    void reallocateBlob(Symbol symbol, ArchitectureType size) {
+        allocateBlob(symbol, size, size);
+    }
+
+    bool overwriteBlobPartial(Symbol dst, Symbol src, ArchitectureType dstOffset, ArchitectureType srcOffset, ArchitectureType length) {
+        SymbolObject* dstSymbolObject = getSymbolObject(dst);
+        SymbolObject* srcSymbolObject = getSymbolObject(src);
+        auto end = dstOffset+length;
+        if(end <= dstOffset || end > dstSymbolObject->blobSize)
+            return false;
+        end = srcOffset+length;
+        if(end <= srcOffset || end > srcSymbolObject->blobSize)
+            return false;
+        bitwiseCopy(dstSymbolObject->blobData.get(), srcSymbolObject->blobData.get(), dstOffset, srcOffset, length);
+        return true;
+    }
+
+    void cloneBlob(Symbol dst, Symbol src) {
+        SymbolObject* dstSymbolObject = getSymbolObject(dst);
+        SymbolObject* srcSymbolObject = getSymbolObject(src);
+        allocateBlob(dst,  srcSymbolObject->blobSize);
+        bitwiseCopy(dstSymbolObject->blobData.get(), srcSymbolObject->blobData.get(), 0, 0, srcSymbolObject->blobSize);
+    }
+
+    template<typename DataType>
+    void overwriteBlob(Symbol dst, DataType src) {
+        SymbolObject* dstSymbolObject = getSymbolObject(dst);
+        allocateBlob(dst, sizeof(src)*8);
+        *reinterpret_cast<DataType*>(dstSymbolObject->blobData.get()) = src;
+    }
+
+    bool eraseFromBlob(Symbol symbol, ArchitectureType begin, ArchitectureType end) {
+        SymbolObject* symbolObject = getSymbolObject(symbol);
+        if(begin >= end || end > symbolObject->blobSize)
+            return false;
+        auto rest = symbolObject->blobSize-end;
+        if(rest > 0)
+            bitwiseCopy(symbolObject->blobData.get(), symbolObject->blobData.get(), begin, end, rest);
+        reallocateBlob(symbol, rest+begin);
+        return true;
+    }
+
+    bool insertIntoBlob(Symbol dst, ArchitectureType* src, ArchitectureType begin, ArchitectureType length) {
+        SymbolObject* dstSymbolObject = getSymbolObject(dst);
+        assert(length > 0);
+        auto newBlobSize = dstSymbolObject->blobSize+length, rest = dstSymbolObject->blobSize-begin;
+        if(dstSymbolObject->blobSize >= newBlobSize || begin > dstSymbolObject->blobSize)
+            return false;
+        reallocateBlob(dst, newBlobSize);
+        if(rest > 0)
+            bitwiseCopy(dstSymbolObject->blobData.get(), dstSymbolObject->blobData.get(), begin+length, begin, rest);
+        bitwiseCopy(dstSymbolObject->blobData.get(), src, begin, 0, length);
+        return true;
+    }
+
+    int compareBlobs(Symbol symbolA, Symbol symbolB) {
+        SymbolObject* symbolObjectA = getSymbolObject(symbolA);
+        SymbolObject* symbolObjectB = getSymbolObject(symbolB);
+        if(symbolObjectA->blobSize < symbolObjectB->blobSize)
+            return -1;
+        if(symbolObjectA->blobSize > symbolObjectB->blobSize)
+            return 1;
+        return memcmp(symbolObjectA->blobData.get(), symbolObjectB->blobData.get(), (symbolObjectA->blobSize+7)/8);
+    }
+
+    Symbol create();
+    void destroy(Symbol symbol);
 };

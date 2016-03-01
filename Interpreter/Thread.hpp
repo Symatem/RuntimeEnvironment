@@ -207,39 +207,35 @@ struct Thread {
         return query(0, triple) == 1;
     }
 
-    bool link(Triple triple, bool exception = true) {
+    bool link(Triple triple) {
         if(!Ontology::link(triple)) {
-            if(exception) {
-                Symbol data = Ontology::create();
-                link({data, PreDef_Entity, triple.entity});
-                link({data, PreDef_Attribute, triple.attribute});
-                link({data, PreDef_Value, triple.value});
-                throwException("Already linked", data);
-            }
+            Symbol data = Ontology::create();
+            link({data, PreDef_Entity, triple.entity});
+            link({data, PreDef_Attribute, triple.attribute});
+            link({data, PreDef_Value, triple.value});
+            throwException("Already linked", data);
             return false;
         }
         return true;
     }
 
-    bool unlink(Triple triple, bool exception = true) {
+    bool unlink(Triple triple) {
         if(!Ontology::unlink(triple)) {
-            if(exception) {
-                Symbol data = Ontology::create();
-                link({data, PreDef_Entity, triple.entity});
-                link({data, PreDef_Attribute, triple.attribute});
-                link({data, PreDef_Value, triple.value});
-                throwException("Already unlinked", data);
-            }
+            Symbol data = Ontology::create();
+            link({data, PreDef_Entity, triple.entity});
+            link({data, PreDef_Attribute, triple.attribute});
+            link({data, PreDef_Value, triple.value});
+            throwException("Already unlinked", data);
             return false;
         }
         return true;
     }
 
     template <typename T>
-    T& accessBlobAs(SymbolObject* symbolObject) {
-        if(symbolObject->blobSize != sizeof(T)*8)
+    T& accessBlobAs(Symbol symbol) {
+        if(Ontology::accessBlobSize(symbol) != sizeof(T)*8)
             throwException("Invalid Blob Size");
-        return *reinterpret_cast<T*>(symbolObject->blobData.get());
+        return *reinterpret_cast<T*>(Ontology::accessBlobData(symbol));
     }
 
     void scrutinizeExistence(Symbol symbol) {
@@ -317,7 +313,7 @@ struct Thread {
             if(setBlock)
                 block = getGuaranteed(_frame, PreDef_Block);
         }
-        unlink({task, PreDef_Holds, frame}, false);
+        Ontology::unlink({task, PreDef_Holds, frame});
         if(frame != PreDef_Void)
             scrutinizeExistence(frame);
         frame = _frame;

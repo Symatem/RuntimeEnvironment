@@ -3,10 +3,6 @@
 #define getSymbolByName(Name) \
     Symbol Name##Symbol = thread.getGuaranteed(thread.block, PreDef_##Name);
 
-#define getSymbolObjectByName(Name) \
-    getSymbolByName(Name) \
-    auto Name##SymbolObject = Ontology::getSymbolObject(Name##Symbol);
-
 #define checkBlobType(Name, expectedType) \
 if(thread.query(1, {Name##Symbol, PreDef_BlobType, expectedType}) == 0) \
     thread.throwException("Invalid Blob Type");
@@ -16,7 +12,7 @@ if(thread.query(1, {Name##Symbol, PreDef_BlobType, expectedType}) == 0) \
     ArchitectureType Name##Value = DefaultValue; \
     if(thread.getUncertain(thread.block, PreDef_##Name, Name##Symbol)) { \
         checkBlobType(Name, PreDef_Natural) \
-        Name##Value = thread.accessBlobAs<ArchitectureType>(Ontology::getSymbolObject(Name##Symbol)); \
+        Name##Value = thread.accessBlobAs<ArchitectureType>(Name##Symbol); \
     }
 
 class Deserialize {
@@ -68,9 +64,8 @@ class Deserialize {
                 if(nibbleCount == 0)
                     throwException("Empty raw data");
                 symbol = Ontology::create();
-                SymbolObject* symbolObject = Ontology::getSymbolObject(symbol);
-                symbolObject->allocateBlob(nibbleCount*4);
-                char* dst = reinterpret_cast<char*>(symbolObject->blobData.get()), odd = 0, nibble;
+                Ontology::allocateBlob(symbol, nibbleCount*4);
+                char* dst = reinterpret_cast<char*>(Ontology::accessBlobData(symbol)), odd = 0, nibble;
                 while(src < pos) {
                     if(*src >= '0' && *src <= '9')
                         nibble = *src-'0';
@@ -123,7 +118,7 @@ class Deserialize {
                     symbol = Ontology::createFromData(tokenBegin, pos-tokenBegin);
                 Ontology::blobIndex.insertElement(symbol);
             }
-            thread.link({package, PreDef_Holds, symbol}, false);
+            Ontology::link({package, PreDef_Holds, symbol});
             nextSymbol(currentEntry, symbol);
         }
         tokenBegin = pos+1;
@@ -178,7 +173,7 @@ class Deserialize {
     public:
     Deserialize(Thread& _thread) :thread(_thread) {
         package = thread.getGuaranteed(thread.block, PreDef_Package);
-        getSymbolObjectByName(Input)
+        getSymbolByName(Input)
         checkBlobType(Input, PreDef_Text)
 
         currentEntry = Ontology::create();
@@ -187,8 +182,8 @@ class Deserialize {
         queue.setSymbol(currentEntry);
 
         row = column = 1;
-        tokenBegin = pos = reinterpret_cast<const char*>(InputSymbolObject->blobData.get());
-        end = pos+InputSymbolObject->blobSize/8;
+        tokenBegin = pos = reinterpret_cast<const char*>(Ontology::accessBlobData(InputSymbol));
+        end = pos+Ontology::accessBlobSize(InputSymbol)/8;
         while(pos < end) {
             switch(*pos) {
                 case '\n':

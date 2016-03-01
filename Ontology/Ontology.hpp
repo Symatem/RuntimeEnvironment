@@ -1,21 +1,8 @@
 #include "Containers.hpp"
 
 namespace Ontology {
-    enum IndexMode {
-        MonoIndex = 1,
-        TriIndex = 3,
-        HexaIndex = 6
-    } indexMode = HexaIndex;
-    Symbol nextSymbol = 0;
-    std::map<Symbol, std::unique_ptr<SymbolObject>> topIndex;
     // TODO: unindexBlob must be called at every blob mutation
     BlobIndex blobIndex;
-
-    SymbolObject* getSymbolObject(Symbol symbol) {
-        auto topIter = topIndex.find(symbol);
-        assert(topIter != topIndex.end());
-        return topIter->second.get();
-    }
 
     std::map<Symbol, std::unique_ptr<SymbolObject>>::iterator SymbolFactory(Symbol symbol) {
         return topIndex.insert(std::make_pair(symbol, std::unique_ptr<SymbolObject>(new SymbolObject()))).first;
@@ -53,7 +40,7 @@ namespace Ontology {
             abort();
         Symbol symbol = create();
         link({symbol, PreDef_BlobType, blobType});
-        getSymbolObject(symbol)->overwriteBlob(src);
+        overwriteBlob(symbol, src);
         return symbol;
     }
 
@@ -63,11 +50,10 @@ namespace Ontology {
             return PreDef_Void;
         Symbol symbol = create();
         link({symbol, PreDef_BlobType, PreDef_Text});
-        SymbolObject* symbolObject = getSymbolObject(symbol);
         ArchitectureType len = lseek(fd, 0, SEEK_END);
-        symbolObject->allocateBlob(len*8);
+        allocateBlob(symbol, len*8);
         lseek(fd, 0, SEEK_SET);
-        read(fd, reinterpret_cast<char*>(symbolObject->blobData.get()), len);
+        read(fd, reinterpret_cast<char*>(accessBlobData(symbol)), len);
         close(fd);
         return symbol;
     }
@@ -75,9 +61,8 @@ namespace Ontology {
     Symbol createFromData(const char* src, ArchitectureType len) {
         Symbol symbol = create();
         link({symbol, PreDef_BlobType, PreDef_Text});
-        SymbolObject* symbolObject = getSymbolObject(symbol);
-        symbolObject->allocateBlob(len*8);
-        auto dst = reinterpret_cast<uint8_t*>(symbolObject->blobData.get());
+        allocateBlob(symbol, len*8);
+        auto dst = reinterpret_cast<uint8_t*>(accessBlobData(symbol));
         for(ArchitectureType i = 0; i < len; ++i)
             dst[i] = src[i];
         return symbol;
@@ -140,7 +125,7 @@ namespace Ontology {
         });
     }
 
-    void init() {
+    void fillPreDef() {
         const Symbol preDefSymbolsEnd = sizeof(PreDefSymbols)/sizeof(void*);
         while(nextSymbol < preDefSymbolsEnd) {
             Symbol symbol = createFromData(PreDefSymbols[nextSymbol]);

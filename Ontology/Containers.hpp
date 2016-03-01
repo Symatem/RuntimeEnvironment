@@ -1,34 +1,27 @@
 #include "Triple.hpp"
 
-namespace Ontology {
-    SymbolObject* getSymbolObject(Symbol symbol);
-    Symbol create();
-    void destroy(Symbol symbol);
-};
-
 template<typename T, bool guarded>
 struct Vector {
     Symbol symbol;
-    SymbolObject* symbolObject;
 
-    Vector() :symbol(PreDef_Void), symbolObject(NULL) { }
+    Vector() :symbol(PreDef_Void) { }
 
     ~Vector() {
-        if(guarded && symbolObject)
+        if(guarded && symbol != PreDef_Void)
             Ontology::destroy(symbol);
     }
 
     bool empty() const {
-        return (!symbolObject || symbolObject->blobSize == 0);
+        return (symbol == PreDef_Void || Ontology::accessBlobSize(symbol) == 0);
     }
 
     ArchitectureType size() const {
-        return (symbolObject) ? symbolObject->blobSize/(sizeof(T)*8) : 0;
+        return (symbol != PreDef_Void) ? Ontology::accessBlobSize(symbol)/(sizeof(T)*8) : 0;
     }
 
     T& operator[](ArchitectureType at) const {
-        assert(symbolObject && at < size());
-        return *(reinterpret_cast<T*>(symbolObject->blobData.get())+at);
+        assert(symbol != PreDef_Void && at < size());
+        return *(reinterpret_cast<T*>(Ontology::accessBlobData(symbol))+at);
     }
 
     T& front() const {
@@ -46,46 +39,46 @@ struct Vector {
 
     void setSymbol(Symbol _symbol) {
         symbol = _symbol;
-        symbolObject = Ontology::getSymbolObject(symbol);
     }
 
     void activate() {
-        if(!symbolObject)
+        if(symbol == PreDef_Void)
             setSymbol(Ontology::create());
     }
 
     void clear() {
-        if(symbolObject)
-            symbolObject->allocateBlob(0);
+        if(symbol != PreDef_Void)
+            Ontology::allocateBlob(symbol, 0);
     }
 
     void push_back(T element) {
         activate();
-        symbolObject->reallocateBlob(symbolObject->blobSize+sizeof(T)*8);
+        Ontology::reallocateBlob(symbol, Ontology::accessBlobSize(symbol)+sizeof(T)*8);
         back() = element;
     }
 
     T pop_back() {
         activate();
-        assert(symbolObject->blobSize >= sizeof(T)*8);
+        assert(Ontology::accessBlobSize(symbol) >= sizeof(T)*8);
         T element = back();
-        symbolObject->reallocateBlob(symbolObject->blobSize-sizeof(T)*8);
+        Ontology::reallocateBlob(symbol, Ontology::accessBlobSize(symbol)-sizeof(T)*8);
         return element;
     }
 
     void insert(ArchitectureType at, T element) {
         activate();
-        symbolObject->insertIntoBlob(reinterpret_cast<ArchitectureType*>(&element), at*sizeof(T)*8, sizeof(T)*8);
+        Ontology::insertIntoBlob(symbol, reinterpret_cast<ArchitectureType*>(&element), at*sizeof(T)*8, sizeof(T)*8);
     }
 
     void erase(ArchitectureType begin, ArchitectureType end) {
-        assert(symbolObject);
-        symbolObject->eraseFromBlob(begin*sizeof(T)*8, end*sizeof(T)*8);
+        activate();
+        assert(begin < end);
+        assert(Ontology::accessBlobSize(symbol) >= (end-begin)*sizeof(T)*8);
+        Ontology::eraseFromBlob(symbol, begin*sizeof(T)*8, end*sizeof(T)*8);
     }
 
     void erase(ArchitectureType at) {
-        assert(symbolObject);
-        symbolObject->eraseFromBlob(at, at+1);
+        erase(at, at+1);
     }
 };
 
@@ -134,10 +127,8 @@ struct BlobIndex : public Set<Symbol, true> {
     BlobIndex() :Super() { }
 
     ArchitectureType blobFindIndexFor(Symbol key) const {
-        SymbolObject* keySymbolObject = Ontology::getSymbolObject(key);
         return binarySearch<ArchitectureType>(Super::size(), [&](ArchitectureType at) {
-            SymbolObject* atSymbolObject = Ontology::getSymbolObject((*this)[at]);
-            return keySymbolObject->compareBlob(*atSymbolObject) < 0;
+            return Ontology::compareBlobs(key, (*this)[at]) < 0;
         });
     }
 
@@ -145,9 +136,7 @@ struct BlobIndex : public Set<Symbol, true> {
         at = blobFindIndexFor(element);
         if(at == Super::size())
             return false;
-        SymbolObject *elementSymbolObject = Ontology::getSymbolObject(element),
-                     *atSymbolObject = Ontology::getSymbolObject((*this)[at]);
-        return (elementSymbolObject->compareBlob(*atSymbolObject) == 0);
+        return (Ontology::compareBlobs(element, (*this)[at]) == 0);
     }
 
     void insertElement(Symbol& element) {
