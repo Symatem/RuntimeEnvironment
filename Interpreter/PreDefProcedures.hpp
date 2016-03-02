@@ -6,7 +6,7 @@ PreDefProcedure(Search) {
     Triple triple;
     uint8_t modes[3] = {2, 2, 2};
     Symbol posNames[3] = {PreDef_Entity, PreDef_Attribute, PreDef_Value};
-    thread.query(9, {thread.block, PreDef_Varying, PreDef_Void}, [&](Triple result, ArchitectureType) {
+    Ontology::query(9, {thread.block, PreDef_Varying, PreDef_Void}, [&](Triple result, ArchitectureType) {
         for(ArchitectureType index = 0; index < 3; ++index)
             if(result.pos[0] == posNames[index]) {
                 modes[index] = 1;
@@ -23,8 +23,8 @@ PreDefProcedure(Search) {
     getSymbolByName(Output)
 
     Vector<Symbol, false> output;
-    output.setSymbol(OutputSymbol);
-    auto count = thread.query(modes[0] + modes[1]*3 + modes[2]*9, triple, [&](Triple result, ArchitectureType size) {
+    output.symbol = OutputSymbol;
+    auto count = Ontology::query(modes[0] + modes[1]*3 + modes[2]*9, triple, [&](Triple result, ArchitectureType size) {
         for(ArchitectureType i = 0; i < size; ++i)
             output.push_back(result.pos[i]);
     });
@@ -67,7 +67,7 @@ PreDefProcedure(Create) {
         ValueSymbol = thread.accessBlobAs<ArchitectureType>(InputSymbol);
 
     Symbol TargetSymbol = thread.getTargetSymbol();
-    if(thread.query(9, {thread.block, PreDef_Output, PreDef_Void}, [&](Triple result, ArchitectureType) {
+    if(Ontology::query(9, {thread.block, PreDef_Output, PreDef_Void}, [&](Triple result, ArchitectureType) {
         Symbol OutputSymbol = result.pos[0];
         if(!input)
             ValueSymbol = Ontology::create();
@@ -79,8 +79,10 @@ PreDefProcedure(Create) {
 }
 
 PreDefProcedure(Destroy) {
-    Set<Symbol, true> symbols;
-    if(thread.query(9, {thread.block, PreDef_Input, PreDef_Void}, [&](Triple result, ArchitectureType) {
+    Set<Symbol, false> symbols;
+    symbols.symbol = Ontology::create();
+    Ontology::link({thread.block, PreDef_Holds, symbols.symbol});
+    if(Ontology::query(9, {thread.block, PreDef_Input, PreDef_Void}, [&](Triple result, ArchitectureType) {
         symbols.insertElement(result.pos[0]);
     }) == 0)
         thread.throwException("Expected more Inputs");
@@ -141,7 +143,6 @@ PreDefProcedure(Exception) {
 PreDefProcedure(Serialize) {
     getSymbolByName(Input)
     getSymbolByName(Output)
-    Ontology::blobIndex.eraseElement(OutputSymbol);
     Serialize serialize(thread, OutputSymbol);
     serialize.serializeBlob(InputSymbol);
     serialize.finalizeSymbol();
@@ -158,7 +159,6 @@ PreDefProcedure(SliceBlob) {
     getUncertainValueByName(Count, Ontology::accessBlobSize(InputSymbol))
     getUncertainValueByName(Destination, 0)
     getUncertainValueByName(Source, 0)
-    Ontology::blobIndex.eraseElement(TargetSymbol);
     if(!Ontology::overwriteBlobPartial(TargetSymbol, InputSymbol, DestinationValue, SourceValue, CountValue))
         thread.throwException("Invalid Count, Destination or SrcOffset Value");
     thread.popCallStack();
@@ -169,7 +169,6 @@ PreDefProcedure(AllocateBlob) {
     getUncertainValueByName(Preserve, 0)
     getSymbolByName(Target)
     checkBlobType(Input, PreDef_Natural)
-    Ontology::blobIndex.eraseElement(TargetSymbol);
     Ontology::allocateBlob(TargetSymbol, thread.accessBlobAs<ArchitectureType>(InputSymbol), PreserveValue);
     thread.popCallStack();
 }
@@ -239,7 +238,7 @@ PreDefProcedure(Equal) {
     uint64_t OutputValue = 1;
     bool first = true;
 
-    if(thread.query(9, {thread.block, PreDef_Input, PreDef_Void}, [&](Triple result, ArchitectureType) {
+    if(Ontology::query(9, {thread.block, PreDef_Input, PreDef_Void}, [&](Triple result, ArchitectureType) {
         if(OutputValue == 0)
             return;
         Symbol InputSymbol = result.pos[0], _type = PreDef_Void;
@@ -391,7 +390,7 @@ PreDefProcedure(AssociativeCommutativeBitwise) {
     uint64_t OutputValue;
     bool first = true;
 
-    if(thread.query(9, {thread.block, PreDef_Input, PreDef_Void}, [&](Triple result, ArchitectureType) {
+    if(Ontology::query(9, {thread.block, PreDef_Input, PreDef_Void}, [&](Triple result, ArchitectureType) {
         Symbol InputSymbol = result.pos[0];
         if(first) {
             first = false;
@@ -429,7 +428,7 @@ PreDefProcedure(AssociativeCommutativeArithmetic) {
     } aux;
     bool first = true;
 
-    if(thread.query(9, {thread.block, PreDef_Input, PreDef_Void}, [&](Triple result, ArchitectureType) {
+    if(Ontology::query(9, {thread.block, PreDef_Input, PreDef_Void}, [&](Triple result, ArchitectureType) {
         Symbol InputSymbol = result.pos[0];
         Symbol _type = thread.getGuaranteed(InputSymbol, PreDef_BlobType);
         if(first) {

@@ -125,14 +125,14 @@ struct Serialize {
             put(';');
             put('\n');
 
-            thread.query(21, {entity, PreDef_Void, PreDef_Void}, [&](Triple result, ArchitectureType) {
+            Ontology::query(21, {entity, PreDef_Void, PreDef_Void}, [&](Triple result, ArchitectureType) {
                 if(followCallback && result.pos[0] == followAttribute) {
                     thread.getUncertain(entity, followAttribute, followEntity);
                     return;
                 }
                 put('\t');
                 serializeBlob(result.pos[0]);
-                thread.query(9, {entity, result.pos[0], PreDef_Void}, [&](Triple resultB, ArchitectureType) {
+                Ontology::query(9, {entity, result.pos[0], PreDef_Void}, [&](Triple resultB, ArchitectureType) {
                     put(' ');
                     serializeBlob(resultB.pos[0]);
                 });

@@ -4,7 +4,7 @@
     Symbol Name##Symbol = thread.getGuaranteed(thread.block, PreDef_##Name);
 
 #define checkBlobType(Name, expectedType) \
-if(thread.query(1, {Name##Symbol, PreDef_BlobType, expectedType}) == 0) \
+if(Ontology::query(1, {Name##Symbol, PreDef_BlobType, expectedType}) == 0) \
     thread.throwException("Invalid Blob Type");
 
 #define getUncertainValueByName(Name, DefaultValue) \
@@ -32,16 +32,16 @@ class Deserialize {
         thread.throwException(message, data);
     }
 
-    Vector<Symbol, true> stack;
+    Vector<Symbol, false> stack;
     Vector<Symbol, false> queue;
     BlobIndex locals;
     Symbol parentEntry, currentEntry;
 
     void nextSymbol(Symbol stackEntry, Symbol symbol) {
         if(thread.valueCountIs(stackEntry, PreDef_UnnestEntity, 0)) {
-            queue.setSymbol(stackEntry);
+            queue.symbol = stackEntry;
             queue.insert(0, symbol);
-            queue.setSymbol(currentEntry);
+            queue.symbol = currentEntry;
         } else {
             Symbol entity = thread.getGuaranteed(stackEntry, PreDef_UnnestEntity),
                    attribute = thread.getGuaranteed(stackEntry, PreDef_UnnestAttribute);
@@ -176,10 +176,12 @@ class Deserialize {
         getSymbolByName(Input)
         checkBlobType(Input, PreDef_Text)
 
+        stack.symbol = Ontology::create();
+        thread.link({thread.block, PreDef_Holds, stack.symbol});
         currentEntry = Ontology::create();
         thread.link({thread.block, PreDef_Holds, currentEntry});
         stack.push_back(currentEntry);
-        queue.setSymbol(currentEntry);
+        queue.symbol = currentEntry;
 
         row = column = 1;
         tokenBegin = pos = reinterpret_cast<const char*>(Ontology::accessBlobData(InputSymbol));
@@ -218,7 +220,7 @@ class Deserialize {
                     currentEntry = Ontology::create();
                     thread.link({thread.block, PreDef_Holds, currentEntry});
                     stack.push_back(currentEntry);
-                    queue.setSymbol(currentEntry);
+                    queue.symbol = currentEntry;
                     break;
                 case ';':
                     if(stack.size() == 1)
@@ -233,7 +235,7 @@ class Deserialize {
                     seperateTokens(false);
                     if(stack.size() == 2 && thread.valueCountIs(parentEntry, PreDef_UnnestEntity, 0)) {
                         locals.clear();
-                        if(thread.query(12, {thread.getGuaranteed(currentEntry, PreDef_Entity), PreDef_Void, PreDef_Void}) == 0)
+                        if(Ontology::query(12, {thread.getGuaranteed(currentEntry, PreDef_Entity), PreDef_Void, PreDef_Void}) == 0)
                             throwException("Nothing declared");
                     }
                     if(!thread.valueCountIs(currentEntry, PreDef_UnnestEntity, 0))
@@ -241,7 +243,7 @@ class Deserialize {
                     Ontology::destroy(currentEntry);
                     stack.pop_back();
                     currentEntry = parentEntry;
-                    queue.setSymbol(currentEntry);
+                    queue.symbol = currentEntry;
                     parentEntry = (stack.size() < 2) ? PreDef_Void : stack[stack.size()-2];
                 }   break;
             }

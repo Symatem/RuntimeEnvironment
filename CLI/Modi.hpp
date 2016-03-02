@@ -61,7 +61,7 @@ void render() {
     std::cout << "Stats: ";
     std::cout << Ontology::topIndex.size();
     std::cout << " / " << Ontology::nextSymbol;
-    std::cout << " / " << thread.query(13, {PreDef_Void, PreDef_Void, PreDef_Void});
+    std::cout << " / " << Ontology::query(13, {PreDef_Void, PreDef_Void, PreDef_Void});
 
     stream << "History: ";
     if(history.size() > 4)

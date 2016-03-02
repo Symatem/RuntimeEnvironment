@@ -1,4 +1,4 @@
-#include "Triple.hpp"
+#include "Blob.hpp"
 
 template<typename T, bool guarded>
 struct Vector {
@@ -37,13 +37,11 @@ struct Vector {
             callback((*this)[at]);
     }
 
-    void setSymbol(Symbol _symbol) {
-        symbol = _symbol;
-    }
-
     void activate() {
-        if(symbol == PreDef_Void)
-            setSymbol(Ontology::create());
+        if(symbol == PreDef_Void) {
+            assert(guarded);
+            symbol = Ontology::create();
+        }
     }
 
     void clear() {
@@ -58,7 +56,7 @@ struct Vector {
     }
 
     T pop_back() {
-        activate();
+        assert(symbol != PreDef_Void);
         assert(Ontology::accessBlobSize(symbol) >= sizeof(T)*8);
         T element = back();
         Ontology::reallocateBlob(symbol, Ontology::accessBlobSize(symbol)-sizeof(T)*8);
@@ -71,7 +69,7 @@ struct Vector {
     }
 
     void erase(ArchitectureType begin, ArchitectureType end) {
-        activate();
+        assert(symbol != PreDef_Void);
         assert(begin < end);
         assert(Ontology::accessBlobSize(symbol) >= (end-begin)*sizeof(T)*8);
         Ontology::eraseFromBlob(symbol, begin*sizeof(T)*8, end*sizeof(T)*8);

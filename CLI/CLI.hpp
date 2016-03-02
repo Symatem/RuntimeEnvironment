@@ -20,7 +20,7 @@ ArchitectureType historyTop, historySub, linesForBlob;
 Vector<Symbol, true> history;
 struct Thread thread;
 decltype(Ontology::topIndex)::iterator topIter;
-SymbolObject* symbolObject;
+Ontology::SymbolObject* symbolObject;
 
 bool stringEndsWith(std::string const& value, std::string const& ending) {
     if(ending.size() > value.size()) return false;
@@ -131,7 +131,6 @@ void serializeBlob(Thread& thread, std::ostream& stream, Symbol symbol) {
     Serialize serialize(thread);
     serialize.serializeBlob(symbol);
     symbol = serialize.finalizeSymbol();
-    SymbolObject* symbolObject = Ontology::getSymbolObject(symbol);
-    stream.write(reinterpret_cast<const char*>(symbolObject->blobData.get()), symbolObject->blobSize/8);
+    stream.write(reinterpret_cast<const char*>(Ontology::accessBlobData(symbol)), Ontology::accessBlobSize(symbol)/8);
     Ontology::destroy(symbol);
 }
