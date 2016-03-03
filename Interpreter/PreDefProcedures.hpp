@@ -5,7 +5,7 @@
 PreDefProcedure(Search) {
     Triple triple;
     uint8_t modes[3] = {2, 2, 2};
-    Symbol posNames[3] = {PreDef_Entity, PreDef_Attribute, PreDef_Value};
+    Identifier posNames[3] = {PreDef_Entity, PreDef_Attribute, PreDef_Value};
     Ontology::query(9, {thread.block, PreDef_Varying, PreDef_Void}, [&](Triple result, ArchitectureType) {
         for(ArchitectureType index = 0; index < 3; ++index)
             if(result.pos[0] == posNames[index]) {
@@ -22,17 +22,17 @@ PreDefProcedure(Search) {
             }
     getSymbolByName(Output)
 
-    Vector<Symbol, false> output;
+    Vector<false, Identifier> output;
     output.symbol = OutputSymbol;
     auto count = Ontology::query(modes[0] + modes[1]*3 + modes[2]*9, triple, [&](Triple result, ArchitectureType size) {
         for(ArchitectureType i = 0; i < size; ++i)
             output.push_back(result.pos[i]);
     });
 
-    Symbol CountSymbol;
+    Identifier CountSymbol;
     if(thread.getUncertain(thread.block, PreDef_Count, CountSymbol)) {
         thread.setSolitary({CountSymbol, PreDef_BlobType, PreDef_Natural});
-        Ontology::overwriteBlob(CountSymbol, count);
+        Storage::overwriteBlob(CountSymbol, count);
     }
 
     thread.popCallStack();
@@ -52,25 +52,25 @@ PreDefProcedure(Triple) {
     getSymbolByName(Attribute)
     getSymbolByName(Value)
     ArchitectureType result = op::e(thread, {EntitySymbol, AttributeSymbol, ValueSymbol});
-    Symbol OutputSymbol;
+    Identifier OutputSymbol;
     if(thread.getUncertain(thread.block, PreDef_Output, OutputSymbol)) {
         thread.setSolitary({OutputSymbol, PreDef_BlobType, PreDef_Natural});
-        Ontology::overwriteBlob(OutputSymbol, result);
+        Storage::overwriteBlob(OutputSymbol, result);
     }
     thread.popCallStack();
 }
 
 PreDefProcedure(Create) {
-    Symbol InputSymbol, ValueSymbol;
+    Identifier InputSymbol, ValueSymbol;
     bool input = thread.getUncertain(thread.block, PreDef_Input, InputSymbol);
     if(input)
         ValueSymbol = thread.accessBlobAs<ArchitectureType>(InputSymbol);
 
-    Symbol TargetSymbol = thread.getTargetSymbol();
+    Identifier TargetSymbol = thread.getTargetSymbol();
     if(Ontology::query(9, {thread.block, PreDef_Output, PreDef_Void}, [&](Triple result, ArchitectureType) {
-        Symbol OutputSymbol = result.pos[0];
+        Identifier OutputSymbol = result.pos[0];
         if(!input)
-            ValueSymbol = Ontology::create();
+            ValueSymbol = Storage::createIdentifier();
         thread.setSolitary({TargetSymbol, OutputSymbol, ValueSymbol});
         thread.link({TargetSymbol, PreDef_Holds, ValueSymbol});
     }) == 0)
@@ -79,14 +79,14 @@ PreDefProcedure(Create) {
 }
 
 PreDefProcedure(Destroy) {
-    Set<Symbol, false> symbols;
-    symbols.symbol = Ontology::create();
+    Set<false, Identifier> symbols;
+    symbols.symbol = Storage::createIdentifier();
     Ontology::link({thread.block, PreDef_Holds, symbols.symbol});
     if(Ontology::query(9, {thread.block, PreDef_Input, PreDef_Void}, [&](Triple result, ArchitectureType) {
         symbols.insertElement(result.pos[0]);
     }) == 0)
         thread.throwException("Expected more Inputs");
-    symbols.iterate([&](Symbol symbol) {
+    symbols.iterate([&](Identifier symbol) {
         Ontology::destroy(symbol);
     });
     thread.popCallStack();
@@ -118,14 +118,14 @@ PreDefProcedure(Branch) {
 }
 
 PreDefProcedure(Exception) {
-    Symbol ExceptionSymbol = thread.frame;
+    Identifier ExceptionSymbol = thread.frame;
     if(thread.getUncertain(thread.block, PreDef_Exception, ExceptionSymbol)) {
-        Symbol currentFrame = ExceptionSymbol;
+        Identifier currentFrame = ExceptionSymbol;
         while(thread.getUncertain(currentFrame, PreDef_Parent, currentFrame));
         thread.link({currentFrame, PreDef_Parent, thread.frame});
     }
 
-    Symbol execute, currentFrame = thread.frame, prevFrame = currentFrame;
+    Identifier execute, currentFrame = thread.frame, prevFrame = currentFrame;
     do {
         if(currentFrame != prevFrame && thread.getUncertain(currentFrame, PreDef_Catch, execute)) {
             thread.setSolitary({prevFrame, PreDef_Parent, PreDef_Void});
@@ -156,10 +156,10 @@ PreDefProcedure(Deserialize) {
 PreDefProcedure(SliceBlob) {
     getSymbolByName(Input)
     getSymbolByName(Target)
-    getUncertainValueByName(Count, Ontology::accessBlobSize(InputSymbol))
+    getUncertainValueByName(Count, Storage::getBlobSize(InputSymbol))
     getUncertainValueByName(Destination, 0)
     getUncertainValueByName(Source, 0)
-    if(!Ontology::overwriteBlobPartial(TargetSymbol, InputSymbol, DestinationValue, SourceValue, CountValue))
+    if(!Storage::overwriteBlobPartial(TargetSymbol, InputSymbol, DestinationValue, SourceValue, CountValue))
         thread.throwException("Invalid Count, Destination or SrcOffset Value");
     thread.popCallStack();
 }
@@ -169,15 +169,15 @@ PreDefProcedure(AllocateBlob) {
     getUncertainValueByName(Preserve, 0)
     getSymbolByName(Target)
     checkBlobType(Input, PreDef_Natural)
-    Ontology::allocateBlob(TargetSymbol, thread.accessBlobAs<ArchitectureType>(InputSymbol), PreserveValue);
+    Storage::setBlobSize(TargetSymbol, thread.accessBlobAs<ArchitectureType>(InputSymbol), PreserveValue);
     thread.popCallStack();
 }
 
 PreDefProcedure(CloneBlob) {
     getSymbolByName(Input)
     getSymbolByName(Output)
-    Ontology::cloneBlob(OutputSymbol, InputSymbol);
-    Symbol type = PreDef_Void;
+    Storage::cloneBlob(OutputSymbol, InputSymbol);
+    Identifier type = PreDef_Void;
     thread.getUncertain(InputSymbol, PreDef_BlobType, type);
     thread.setSolitary({OutputSymbol, PreDef_BlobType, type});
     thread.popCallStack();
@@ -187,21 +187,21 @@ PreDefProcedure(GetBlobLength) {
     getSymbolByName(Input)
     getSymbolByName(Output)
     thread.setSolitary({OutputSymbol, PreDef_BlobType, PreDef_Natural});
-    Ontology::overwriteBlob(OutputSymbol, Ontology::accessBlobSize(InputSymbol));
+    Storage::overwriteBlob(OutputSymbol, Storage::getBlobSize(InputSymbol));
     thread.popCallStack();
 }
 
 template<typename T>
-void PreDefProcedure_NumericCastTo(Thread& thread, Symbol type, Symbol OutputSymbol, Symbol InputSymbol) {
+void PreDefProcedure_NumericCastTo(Thread& thread, Identifier type, Identifier OutputSymbol, Identifier InputSymbol) {
     switch(type) {
         case PreDef_Natural:
-            Ontology::overwriteBlob(OutputSymbol, static_cast<T>(thread.accessBlobAs<uint64_t>(InputSymbol)));
+            Storage::overwriteBlob(OutputSymbol, static_cast<T>(thread.accessBlobAs<uint64_t>(InputSymbol)));
             break;
         case PreDef_Integer:
-            Ontology::overwriteBlob(OutputSymbol, static_cast<T>(thread.accessBlobAs<int64_t>(InputSymbol)));
+            Storage::overwriteBlob(OutputSymbol, static_cast<T>(thread.accessBlobAs<int64_t>(InputSymbol)));
             break;
         case PreDef_Float:
-            Ontology::overwriteBlob(OutputSymbol, static_cast<T>(thread.accessBlobAs<double>(InputSymbol)));
+            Storage::overwriteBlob(OutputSymbol, static_cast<T>(thread.accessBlobAs<double>(InputSymbol)));
             break;
         default:
             thread.throwException("Invalid Input");
@@ -213,7 +213,7 @@ PreDefProcedure(NumericCast) {
     getSymbolByName(To)
     getSymbolByName(Output)
 
-    Symbol type;
+    Identifier type;
     if(!thread.getUncertain(InputSymbol, PreDef_BlobType, type))
         thread.throwException("Invalid Input");
     thread.setSolitary({OutputSymbol, PreDef_BlobType, ToSymbol});
@@ -234,14 +234,14 @@ PreDefProcedure(NumericCast) {
 }
 
 PreDefProcedure(Equal) {
-    Symbol type, FirstSymbol;
+    Identifier type, FirstSymbol;
     uint64_t OutputValue = 1;
     bool first = true;
 
     if(Ontology::query(9, {thread.block, PreDef_Input, PreDef_Void}, [&](Triple result, ArchitectureType) {
         if(OutputValue == 0)
             return;
-        Symbol InputSymbol = result.pos[0], _type = PreDef_Void;
+        Identifier InputSymbol = result.pos[0], _type = PreDef_Void;
         thread.getUncertain(InputSymbol, PreDef_BlobType, _type);
         if(first) {
             first = false;
@@ -251,7 +251,7 @@ PreDefProcedure(Equal) {
             if(type == PreDef_Float) {
                 if(thread.accessBlobAs<double>(InputSymbol) != thread.accessBlobAs<double>(FirstSymbol))
                     OutputValue = 0;
-            } else if(Ontology::compareBlobs(InputSymbol, FirstSymbol) != 0)
+            } else if(Storage::compareBlobs(InputSymbol, FirstSymbol) != 0)
                 OutputValue = 0;
         } else
             thread.throwException("Inputs have different types");
@@ -260,7 +260,7 @@ PreDefProcedure(Equal) {
 
     getSymbolByName(Output)
     thread.setSolitary({OutputSymbol, PreDef_BlobType, PreDef_Natural});
-    Ontology::overwriteBlob(OutputSymbol, OutputValue);
+    Storage::overwriteBlob(OutputSymbol, OutputValue);
     thread.popCallStack();
 }
 
@@ -268,14 +268,14 @@ struct PreDefProcedure_LessThan {
     static bool n(uint64_t i, uint64_t c) { return i < c; };
     static bool i(int64_t i, int64_t c) { return i < c; };
     static bool f(double i, double c) { return i < c; };
-    static bool s(Symbol i, Symbol c) { return Ontology::compareBlobs(i, c) < 0; };
+    static bool s(Identifier i, Identifier c) { return Storage::compareBlobs(i, c) < 0; };
 };
 
 struct PreDefProcedure_LessEqual {
     static bool n(uint64_t i, uint64_t c) { return i <= c; };
     static bool i(int64_t i, int64_t c) { return i <= c; };
     static bool f(double i, double c) { return i <= c; };
-    static bool s(Symbol i, Symbol c) { return Ontology::compareBlobs(i, c) <= 0; };
+    static bool s(Identifier i, Identifier c) { return Storage::compareBlobs(i, c) <= 0; };
 };
 
 template<class op>
@@ -284,7 +284,7 @@ PreDefProcedure(CompareLogic) {
     getSymbolByName(Comparandum)
     getSymbolByName(Output)
 
-    Symbol type, _type;
+    Identifier type, _type;
     thread.getUncertain(InputSymbol, PreDef_BlobType, type);
     thread.getUncertain(ComparandumSymbol, PreDef_BlobType, _type);
     if(type != _type)
@@ -306,7 +306,7 @@ PreDefProcedure(CompareLogic) {
             break;
     }
     thread.setSolitary({OutputSymbol, PreDef_BlobType, PreDef_Natural});
-    Ontology::overwriteBlob(OutputSymbol, result);
+    Storage::overwriteBlob(OutputSymbol, result);
     thread.popCallStack();
 }
 
@@ -360,7 +360,7 @@ PreDefProcedure(BitShift) {
     }
 
     thread.setSolitary({OutputSymbol, PreDef_BlobType, PreDef_Void});
-    Ontology::overwriteBlob(OutputSymbol, result);
+    Storage::overwriteBlob(OutputSymbol, result);
     thread.popCallStack();
 }
 
@@ -369,7 +369,7 @@ PreDefProcedure(BitwiseComplement) {
     getSymbolByName(Output)
 
     thread.setSolitary({OutputSymbol, PreDef_BlobType, PreDef_Void});
-    Ontology::overwriteBlob(OutputSymbol, ~thread.accessBlobAs<uint64_t>(InputSymbol));
+    Storage::overwriteBlob(OutputSymbol, ~thread.accessBlobAs<uint64_t>(InputSymbol));
     thread.popCallStack();
 }
 
@@ -391,7 +391,7 @@ PreDefProcedure(AssociativeCommutativeBitwise) {
     bool first = true;
 
     if(Ontology::query(9, {thread.block, PreDef_Input, PreDef_Void}, [&](Triple result, ArchitectureType) {
-        Symbol InputSymbol = result.pos[0];
+        Identifier InputSymbol = result.pos[0];
         if(first) {
             first = false;
             OutputValue = thread.accessBlobAs<uint64_t>(InputSymbol);
@@ -402,7 +402,7 @@ PreDefProcedure(AssociativeCommutativeBitwise) {
 
     getSymbolByName(Output)
     thread.setSolitary({OutputSymbol, PreDef_BlobType, PreDef_Void});
-    Ontology::overwriteBlob(OutputSymbol, OutputValue);
+    Storage::overwriteBlob(OutputSymbol, OutputValue);
     thread.popCallStack();
 }
 
@@ -420,7 +420,7 @@ struct PreDefProcedure_Multiply {
 
 template<class op>
 PreDefProcedure(AssociativeCommutativeArithmetic) {
-    Symbol type;
+    Identifier type;
     union {
         uint64_t n;
         int64_t i;
@@ -429,8 +429,8 @@ PreDefProcedure(AssociativeCommutativeArithmetic) {
     bool first = true;
 
     if(Ontology::query(9, {thread.block, PreDef_Input, PreDef_Void}, [&](Triple result, ArchitectureType) {
-        Symbol InputSymbol = result.pos[0];
-        Symbol _type = thread.getGuaranteed(InputSymbol, PreDef_BlobType);
+        Identifier InputSymbol = result.pos[0];
+        Identifier _type = thread.getGuaranteed(InputSymbol, PreDef_BlobType);
         if(first) {
             first = false;
             type = _type;
@@ -466,7 +466,7 @@ PreDefProcedure(AssociativeCommutativeArithmetic) {
 
     getSymbolByName(Output)
     thread.setSolitary({OutputSymbol, PreDef_BlobType, type});
-    Ontology::overwriteBlob(OutputSymbol, aux.n);
+    Storage::overwriteBlob(OutputSymbol, aux.n);
     thread.popCallStack();
 }
 
@@ -475,21 +475,21 @@ PreDefProcedure(Subtract) {
     getSymbolByName(Subtrahend)
     getSymbolByName(Output)
 
-    Symbol type = thread.getGuaranteed(MinuendSymbol, PreDef_BlobType);
-    Symbol _type = thread.getGuaranteed(SubtrahendSymbol, PreDef_BlobType);
+    Identifier type = thread.getGuaranteed(MinuendSymbol, PreDef_BlobType);
+    Identifier _type = thread.getGuaranteed(SubtrahendSymbol, PreDef_BlobType);
     if(type != _type)
         thread.throwException("Minuend and Subtrahend have different types");
 
     thread.setSolitary({OutputSymbol, PreDef_BlobType, type});
     switch(type) {
         case PreDef_Natural:
-            Ontology::overwriteBlob(OutputSymbol, thread.accessBlobAs<uint64_t>(MinuendSymbol)-thread.accessBlobAs<uint64_t>(SubtrahendSymbol));
+            Storage::overwriteBlob(OutputSymbol, thread.accessBlobAs<uint64_t>(MinuendSymbol)-thread.accessBlobAs<uint64_t>(SubtrahendSymbol));
             break;
         case PreDef_Integer:
-            Ontology::overwriteBlob(OutputSymbol, thread.accessBlobAs<int64_t>(MinuendSymbol)-thread.accessBlobAs<int64_t>(SubtrahendSymbol));
+            Storage::overwriteBlob(OutputSymbol, thread.accessBlobAs<int64_t>(MinuendSymbol)-thread.accessBlobAs<int64_t>(SubtrahendSymbol));
             break;
         case PreDef_Float:
-            Ontology::overwriteBlob(OutputSymbol, thread.accessBlobAs<double>(MinuendSymbol)-thread.accessBlobAs<double>(SubtrahendSymbol));
+            Storage::overwriteBlob(OutputSymbol, thread.accessBlobAs<double>(MinuendSymbol)-thread.accessBlobAs<double>(SubtrahendSymbol));
             break;
         default:
             thread.throwException("Invalid Minuend or Subtrahend");
@@ -501,22 +501,22 @@ PreDefProcedure(Divide) {
     getSymbolByName(Dividend)
     getSymbolByName(Divisor)
 
-    Symbol type = thread.getGuaranteed(DividendSymbol, PreDef_BlobType);
-    Symbol _type = thread.getGuaranteed(DivisorSymbol, PreDef_BlobType);
+    Identifier type = thread.getGuaranteed(DividendSymbol, PreDef_BlobType);
+    Identifier _type = thread.getGuaranteed(DivisorSymbol, PreDef_BlobType);
     if(type != _type)
         thread.throwException("Dividend and Divisor have different types");
 
-    Symbol RestSymbol, QuotientSymbol;
+    Identifier RestSymbol, QuotientSymbol;
     bool rest = thread.getUncertain(thread.block, PreDef_Rest, RestSymbol),
          quotient = thread.getUncertain(thread.block, PreDef_Quotient, QuotientSymbol);
     if(rest) {
         thread.setSolitary({RestSymbol, PreDef_BlobType, type});
-        if(Ontology::accessBlobSize(RestSymbol) != ArchitectureSize)
+        if(Storage::getBlobSize(RestSymbol) != ArchitectureSize)
             thread.throwException("Invalid Rest");
     }
     if(quotient) {
         thread.setSolitary({QuotientSymbol, PreDef_BlobType, type});
-        if(Ontology::accessBlobSize(QuotientSymbol) != ArchitectureSize)
+        if(Storage::getBlobSize(QuotientSymbol) != ArchitectureSize)
             thread.throwException("Invalid Quotient");
     }
 
@@ -530,9 +530,9 @@ PreDefProcedure(Divide) {
             if(DivisorValue == 0)
                 thread.throwException("Division by Zero");
             if(rest)
-                Ontology::overwriteBlob(RestSymbol, DividendValue%DivisorValue);
+                Storage::overwriteBlob(RestSymbol, DividendValue%DivisorValue);
             if(quotient)
-                Ontology::overwriteBlob(QuotientSymbol, DividendValue/DivisorValue);
+                Storage::overwriteBlob(QuotientSymbol, DividendValue/DivisorValue);
         }   break;
         case PreDef_Integer: {
             auto DividendValue = thread.accessBlobAs<int64_t>(DividendSymbol),
@@ -540,9 +540,9 @@ PreDefProcedure(Divide) {
             if(DivisorValue == 0)
                 thread.throwException("Division by Zero");
             if(rest)
-                Ontology::overwriteBlob(RestSymbol, DividendValue%DivisorValue);
+                Storage::overwriteBlob(RestSymbol, DividendValue%DivisorValue);
             if(quotient)
-                Ontology::overwriteBlob(QuotientSymbol, DividendValue/DivisorValue);
+                Storage::overwriteBlob(QuotientSymbol, DividendValue/DivisorValue);
         }   break;
         case PreDef_Float: {
             auto DividendValue = thread.accessBlobAs<double>(DividendSymbol),
@@ -552,11 +552,11 @@ PreDefProcedure(Divide) {
                 thread.throwException("Division by Zero");
             if(rest) {
                 double integerPart = static_cast<int64_t>(QuotientValue);
-                Ontology::overwriteBlob(RestSymbol, QuotientValue-integerPart);
+                Storage::overwriteBlob(RestSymbol, QuotientValue-integerPart);
                 QuotientValue = integerPart;
             }
             if(quotient)
-                Ontology::overwriteBlob(QuotientSymbol, QuotientValue);
+                Storage::overwriteBlob(QuotientSymbol, QuotientValue);
         }   break;
         default:
             thread.throwException("Invalid Dividend or Divisor");
@@ -574,7 +574,7 @@ PreDefProcedure(Divide) {
         PreDefProcedure_##GroupName<PreDefProcedure_##Name>(thread); \
         return true;
 
-bool executePreDefProcedure(Thread& thread, Symbol procedure) {
+bool executePreDefProcedure(Thread& thread, Identifier procedure) {
     switch(procedure) {
         PreDefProcedureEntry(Search)
         PreDefProcedureGroup(Triple, Link)

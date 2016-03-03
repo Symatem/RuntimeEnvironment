@@ -1,5 +1,25 @@
 #include "Storage.hpp"
 
+template <typename T>
+T min(T a, T b) {
+    return (a < b) ? a : b;
+}
+
+template<typename T, typename... Args>
+T min(T c, Args... args) {
+    return min(c, min(args...));
+}
+
+template <typename T>
+T max(T a, T b) {
+    return (a > b) ? a : b;
+}
+
+template<typename T, typename... Args>
+T max(T c, Args... args) {
+    return max(c, max(args...));
+}
+
 template<typename IndexType>
 IndexType binarySearch(IndexType end, std::function<bool(IndexType)> compare) {
     IndexType begin = 0, mid;
@@ -13,7 +33,7 @@ IndexType binarySearch(IndexType end, std::function<bool(IndexType)> compare) {
     return begin;
 }
 
-template<class TemplateKeyType, class TemplateValueType>
+/*template<class TemplateKeyType, class TemplateValueType>
 class BpTree {
     public:
     typedef TemplateKeyType KeyType;
@@ -46,6 +66,7 @@ class BpTree {
             KeysBitOffset = architecturePadding(HeaderBits),
             BranchPageRefsBitOffset = architecturePadding(KeysBitOffset+BranchKeyCount*KeyBits),
             LeafValuesBitOffset = architecturePadding(KeysBitOffset+LeafKeyCount*KeyBits);
+        // TODO: Interleave Key, Value in pairs
 
         template<bool isLeaf>
         static ArchitectureType capacity() {
@@ -569,10 +590,10 @@ class BpTree {
                 FrameType* frame = fromBegin(layer);
                 ArchitectureType stepsToTake;
                 if(dir == 1) {
-                    stepsToTake = std::min((ArchitectureType)(frame->endIndex-1-frame->index), steps);
+                    stepsToTake = min((ArchitectureType)(frame->endIndex-1-frame->index), steps);
                     frame->index += stepsToTake;
                 } else {
-                    stepsToTake = std::min((ArchitectureType)frame->index, steps);
+                    stepsToTake = min((ArchitectureType)frame->index, steps);
                     frame->index -= stepsToTake;
                 }
                 steps -= stepsToTake;
@@ -976,4 +997,4 @@ class BpTree {
         if(eraseLayer<true>(data))
             while(eraseLayer<false>(data));
     }
-};
+};*/

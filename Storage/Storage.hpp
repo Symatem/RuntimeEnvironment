@@ -1,22 +1,10 @@
+#include <functional>
 #include <sys/mman.h>
 #include <setjmp.h>
 #include <assert.h>
 #include <fcntl.h>
-#include <map>
-#include <set>
 
-/* TODO: Activate to check and later disable heap
-
-void* operator new(size_t num) {
-    void* ptr = malloc(num);
-    printf("new %zu %p\n", num, ptr);
-    return ptr;
-}
-
-void operator delete(void* ptr) noexcept {
-    printf("free %p\n", ptr);
-    free(ptr);
-}*/
+#include <map> // TODO: Remove dependencies
 
 typedef uint64_t ArchitectureType;
 const ArchitectureType ArchitectureSize = sizeof(ArchitectureType)*8;
@@ -139,7 +127,7 @@ class BasePage {
 #define MMAP_FUNC mmap64
 #endif
 
-class Storage {
+/*namespace Storage {
     int file;
     uint8_t* ptr;
     public:
@@ -150,9 +138,13 @@ class Storage {
     }
 
     Storage() {
-        file = open("storage", O_RDWR|O_CREAT);
+        file = open("/Volumes/Untitled/storage", O_RDWR|O_CREAT);
         if(file < 0) {
             perror("open failed");
+            exit(1);
+        }
+        if(ftruncate(file, 0) != 0) { // TODO: Debugging
+            perror("ftruncate failed");
             exit(1);
         }
         maxPageRef = lseek(file, 0, SEEK_END)/(bitsPerPage/8);
@@ -238,7 +230,7 @@ class PagePool {
             return false;
         }
 
-        /*void debugPrint() {
+        void debugPrint() {
             printf("%hu\n", count);
             for(ArchitectureType i = 0; i < count; ++i) {
                 if(i > 0)
@@ -246,7 +238,7 @@ class PagePool {
                 printf("%llu", pageRefs[i]);
             }
             printf("\n");
-        }*/
+        }
 
         void push(PageRefType pageRef) {
             assert(count < Capacity);
@@ -278,7 +270,7 @@ class PagePool {
         return false;
     }
 
-    /*void debugPrint(Storage* storage) {
+    void debugPrint(Storage* storage) {
         PageRefType pageRef = rootPageRef;
         while(pageRef != 0) {
             auto page = storage->template dereferencePage<Page>(pageRef);
@@ -286,7 +278,7 @@ class PagePool {
             page->debugPrint();
             pageRef = page->chain;
         }
-    }*/
+    }
 
     void push(Storage* storage, PageRefType pageRef) {
         if(rootPageRef == 0) {
@@ -339,3 +331,4 @@ void Storage::releasePage(PageRefType pageRef) {
     else
         dereferencePage<SuperPage>(0)->freePool.push(this, pageRef);
 }
+*/

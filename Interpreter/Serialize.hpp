@@ -4,26 +4,26 @@ const char* HRLRawBegin = "raw:";
 
 struct Serialize {
     Thread& thread;
-    Symbol symbol;
+    Identifier symbol;
     ArchitectureType usedBlobSize;
 
     bool isEmpty() const {
         return (usedBlobSize == 0);
     }
 
-    Symbol finalizeSymbol() {
-        Ontology::reallocateBlob(symbol, usedBlobSize);
+    Identifier finalizeSymbol() {
+        Storage::setBlobSizePreservingData(symbol, usedBlobSize);
         return symbol;
     }
 
     void put(uint8_t data) {
-        ArchitectureType reservedBlobSize = Ontology::accessBlobSize(symbol),
+        ArchitectureType reservedBlobSize = Storage::getBlobSize(symbol),
                          nextBlobSize = usedBlobSize+8;
         if(nextBlobSize > reservedBlobSize) {
-            reservedBlobSize = std::max(nextBlobSize, usedBlobSize*2);
-            Ontology::reallocateBlob(symbol, reservedBlobSize);
+            reservedBlobSize = max(nextBlobSize, usedBlobSize*2);
+            Storage::setBlobSizePreservingData(symbol, reservedBlobSize);
         }
-        reinterpret_cast<uint8_t*>(Ontology::accessBlobData(symbol))[usedBlobSize/8] = data;
+        reinterpret_cast<uint8_t*>(Storage::accessBlobData(symbol))[usedBlobSize/8] = data;
         usedBlobSize = nextBlobSize;
     }
 
@@ -56,17 +56,17 @@ struct Serialize {
         }
     }
 
-    Serialize(Thread& _thread, Symbol _symbol) :thread(_thread), symbol(_symbol), usedBlobSize(0) {
+    Serialize(Thread& _thread, Identifier _symbol) :thread(_thread), symbol(_symbol), usedBlobSize(0) {
         thread.setSolitary({symbol, PreDef_BlobType, PreDef_Text});
     }
 
-    Serialize(Thread& _thread) :Serialize(_thread, Ontology::create()) { }
+    Serialize(Thread& _thread) :Serialize(_thread, Storage::createIdentifier()) { }
 
-    void serializeBlob(Symbol srcSymbol) {
-        auto src = reinterpret_cast<const uint8_t*>(Ontology::accessBlobData(srcSymbol));
-        ArchitectureType len = Ontology::accessBlobSize(srcSymbol);
+    void serializeBlob(Identifier srcSymbol) {
+        auto src = reinterpret_cast<const uint8_t*>(Storage::accessBlobData(srcSymbol));
+        ArchitectureType len = Storage::getBlobSize(symbol);
         if(len) {
-            Symbol type = PreDef_Void;
+            Identifier type = PreDef_Void;
             thread.getUncertain(symbol, PreDef_BlobType, type);
             switch(type) {
                 case PreDef_Text: {
@@ -112,9 +112,9 @@ struct Serialize {
         }
     }
 
-    void serializeEntity(Symbol entity, std::function<Symbol(Symbol)> followCallback = nullptr) {
+    void serializeEntity(Identifier entity, std::function<Identifier(Identifier)> followCallback = nullptr) {
         while(true) {
-            Symbol followAttribute, followEntity = PreDef_Void;
+            Identifier followAttribute, followEntity = PreDef_Void;
             if(followCallback)
                 followAttribute = followCallback(entity);
 

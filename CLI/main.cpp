@@ -1,7 +1,15 @@
-#include "Modi.hpp"
+#include "../Interpreter/PreDefProcedures.hpp"
+#include <string> // TODO: Remove dependencies
 #include <dirent.h>
+#include <sys/stat.h>
 
-void loadFromPath(Symbol parentPackage, bool execute, std::string path) {
+struct Thread thread;
+
+bool stringEndsWith(const char* str, const char* end) {
+    return strcmp(str+strlen(str)-strlen(end), end) == 0;
+}
+
+void loadFromPath(Identifier parentPackage, bool execute, std::string path) {
     if(path[path.size()-1] == '/') path.resize(path.size()-1);
 
     struct stat s;
@@ -9,98 +17,63 @@ void loadFromPath(Symbol parentPackage, bool execute, std::string path) {
     if(s.st_mode & S_IFDIR) {
         DIR* dp = opendir(path.c_str());
         if(dp == NULL) {
-            interfaceBuffer = "Could not open directory ";
-            interfaceBuffer += path;
-            return;
+            printf("Could not open directory %s\n", path.c_str());
+            exit(1);
         }
 
         auto slashIndex = path.rfind('/');
         std::string name = (slashIndex != std::string::npos) ? path.substr(slashIndex+1) : path;
-        Symbol package = Ontology::createFromData(name.c_str());
+        Identifier package = Ontology::createFromData(name.c_str());
         if(parentPackage == PreDef_Void) parentPackage = package;
         thread.link({package, PreDef_Holds, parentPackage});
 
         struct dirent* entry;
-        while(interfaceBuffer.empty() && (entry = readdir(dp)))
+        while((entry = readdir(dp)))
             if(entry->d_name[0] != '.')
                 loadFromPath(package, execute, path+'/'+entry->d_name);
         closedir(dp);
     } else if(s.st_mode & S_IFREG) {
-        if(!stringEndsWith(path, ".sym")) return;
+        if(!stringEndsWith(path.c_str(), ".sym")) return;
 
-        Symbol file = Ontology::createSymbolFromFile(path.c_str());
+        Identifier file = Ontology::createFromFile(path.c_str());
         if(file == PreDef_Void) {
-            interfaceBuffer = "Could not open file ";
-            interfaceBuffer += path;
-            return;
+            printf("Could not open file %s\n", path.c_str());
+            exit(2);
         }
 
         thread.deserializationTask(file, parentPackage);
         if(thread.uncaughtException()) {
-            interfaceBuffer = "Exception occurred while deserializing file ";
-            interfaceBuffer += path;
-            return;
+            printf("Exception occurred while deserializing file %s\n", path.c_str());
+            exit(3);
         }
 
         if(!execute) return;
         if(!thread.executeDeserialized()) {
-            interfaceBuffer = "Nothing to execute in file ";
-            interfaceBuffer += path;
-            return;
+            printf("Nothing to execute in file %s\n", path.c_str());
+            exit(4);
         } else if(thread.uncaughtException()) {
-            interfaceBuffer = "Exception occurred while executing file ";
-            interfaceBuffer += path;
-            return;
+            printf("Exception occurred while executing file %s\n", path.c_str());
+            exit(5);
         }
     }
 }
 
 int main(int argc, const char** argv) {
     Ontology::fillPreDef();
-    init();
 
-    /*const std::string errorMessage = CSI+"1;31m[Error]"+CSI+"m",
-                      warningMessage = CSI+"1;33m[Warning]"+CSI+"m",
-                      successMessage = CSI+"1;32m[Success]"+CSI+"m",
-                      infoMessage = CSI+"1;36m[Info]"+CSI+"m";*/
-
-    bool execute = false, terminateAfterwards  = false;
-    for(ArchitectureType i = 1; interfaceBuffer.empty() && i < argc; ++i) {
+    bool execute = false;
+    for(ArchitectureType i = 1; i < argc; ++i) {
         if(strcmp(argv[i], "-h") == 0) {
-            std::cout << "This is not the help page you are looking for." << std::endl;
-            std::cout << "No, seriously, RTFM." << std::endl;
-            terminate(2);
+            printf("This is not the help page you are looking for.\n");
+            printf("No, seriously, RTFM.\n");
+            exit(6);
         } else if(strcmp(argv[i], "-e") == 0) {
             execute = true;
-            continue;
-        } else if(strcmp(argv[i], "-t") == 0) {
-            terminateAfterwards = true;
             continue;
         }
         loadFromPath(PreDef_Void, execute, argv[i]);
     }
-    if(terminateAfterwards) {
-        if(interfaceBuffer.empty())
-            terminate(0);
-        else {
-            std::cout << interfaceBuffer << std::endl;
-            terminate(1);
-        }
-    }
-    if(interfaceBuffer.empty())
-        thread.clear();
-
-    while(true) {
-        render();
-        switch(mode) {
-            case Mode_Browse:
-                pollKeyboard(ModeBrowse);
-                break;
-            case Mode_Input:
-                pollKeyboard(ModeInput);
-                break;
-        }
-    }
+    thread.clear();
 
     return 0;
 }

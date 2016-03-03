@@ -11,11 +11,8 @@ $(TARGET):
 	mkdir -p $(BUILDDIR)
 	$(CXX) ${CPPOPTIONS} -o $(TARGET) CLI/main.cpp
 
-run: $(TARGET)
-	$(TARGET) $(STDPATH)/Foundation/
-
 test: $(TARGET)
-	$(TARGET) -t $(STDPATH)/Foundation/ -e $(STDPATH)/Tests/
+	$(TARGET) $(STDPATH)/Foundation/ -e $(STDPATH)/Tests/
 
 clear:
 	rm -fr $(BUILDDIR)

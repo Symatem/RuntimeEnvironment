@@ -1,154 +1,163 @@
-#include "Blob.hpp"
+#include "../Storage/Blob.hpp"
 
-template<typename T, bool guarded>
+namespace Ontology {
+    void destroy(Identifier symbol);
+};
+
+template<bool guarded, typename ElementType>
 struct Vector {
-    Symbol symbol;
+    Identifier symbol;
 
-    Vector() :symbol(PreDef_Void) { }
+    Vector() :symbol(0) { }
 
     ~Vector() {
-        if(guarded && symbol != PreDef_Void)
+        if(guarded && symbol)
             Ontology::destroy(symbol);
     }
 
     bool empty() const {
-        return (symbol == PreDef_Void || Ontology::accessBlobSize(symbol) == 0);
+        return (!symbol || Storage::getBlobSize(symbol) == 0);
     }
 
     ArchitectureType size() const {
-        return (symbol != PreDef_Void) ? Ontology::accessBlobSize(symbol)/(sizeof(T)*8) : 0;
+        return (symbol) ? Storage::getBlobSize(symbol)/(sizeof(ElementType)*8) : 0;
     }
 
-    T& operator[](ArchitectureType at) const {
-        assert(symbol != PreDef_Void && at < size());
-        return *(reinterpret_cast<T*>(Ontology::accessBlobData(symbol))+at);
+    ElementType& operator[](ArchitectureType at) const {
+        assert(symbol && at < size());
+        return *(reinterpret_cast<ElementType*>(Storage::accessBlobData(symbol))+at);
     }
 
-    T& front() const {
+    ElementType& front() const {
         return (*this)[0];
     }
 
-    T& back() const {
+    ElementType& back() const {
         return (*this)[size()-1];
     }
 
-    void iterate(std::function<void(T)> callback) const {
+    void iterate(std::function<void(ElementType)> callback) const {
         for(ArchitectureType at = 0; at < size(); ++at)
             callback((*this)[at]);
     }
 
     void activate() {
-        if(symbol == PreDef_Void) {
+        if(!symbol) {
             assert(guarded);
-            symbol = Ontology::create();
+            symbol = Storage::createIdentifier();
         }
     }
 
     void clear() {
-        if(symbol != PreDef_Void)
-            Ontology::allocateBlob(symbol, 0);
+        if(symbol) {
+            Storage::setBlobSize(symbol, 0);
+            symbol = 0;
+        }
     }
 
-    void push_back(T element) {
+    void insert(ArchitectureType at, ElementType element) {
         activate();
-        Ontology::reallocateBlob(symbol, Ontology::accessBlobSize(symbol)+sizeof(T)*8);
-        back() = element;
-    }
-
-    T pop_back() {
-        assert(symbol != PreDef_Void);
-        assert(Ontology::accessBlobSize(symbol) >= sizeof(T)*8);
-        T element = back();
-        Ontology::reallocateBlob(symbol, Ontology::accessBlobSize(symbol)-sizeof(T)*8);
-        return element;
-    }
-
-    void insert(ArchitectureType at, T element) {
-        activate();
-        Ontology::insertIntoBlob(symbol, reinterpret_cast<ArchitectureType*>(&element), at*sizeof(T)*8, sizeof(T)*8);
+        Storage::insertIntoBlob(symbol, reinterpret_cast<ArchitectureType*>(&element), at*sizeof(ElementType)*8, sizeof(ElementType)*8);
     }
 
     void erase(ArchitectureType begin, ArchitectureType end) {
-        assert(symbol != PreDef_Void);
+        assert(symbol);
         assert(begin < end);
-        assert(Ontology::accessBlobSize(symbol) >= (end-begin)*sizeof(T)*8);
-        Ontology::eraseFromBlob(symbol, begin*sizeof(T)*8, end*sizeof(T)*8);
+        assert(Storage::getBlobSize(symbol) >= end*sizeof(ElementType)*8);
+        Storage::eraseFromBlob(symbol, begin*sizeof(ElementType)*8, end*sizeof(ElementType)*8);
     }
 
     void erase(ArchitectureType at) {
         erase(at, at+1);
     }
+
+    void push_back(ElementType element) {
+        insert(size(), element);
+    }
+
+    ElementType pop_back() {
+        assert(!empty());
+        ElementType element = back();
+        erase(size()-1);
+        return element;
+    }
 };
 
-template<typename T, bool guarded>
-struct Set : public Vector<T, guarded> {
-    typedef Vector<T, guarded> Super;
+template<typename KeyType, typename ValueType>
+struct Pair {
+    KeyType key;
+    ValueType value;
+    Pair(KeyType _key) :key(_key) { }
+    operator KeyType() {
+        return key;
+    }
+};
+
+template<bool guarded, typename KeyType, typename ValueType = ArchitectureType[0]>
+struct Set : public Vector<guarded, Pair<KeyType, ValueType>> {
+    typedef Pair<KeyType, ValueType> ElementType;
+    typedef Vector<guarded, ElementType> Super;
 
     Set() :Super() { }
 
-    ArchitectureType blobFindIndexFor(T key) const {
+    ArchitectureType findIndexFor(KeyType key) const {
         return binarySearch<ArchitectureType>(Super::size(), [&](ArchitectureType at) {
             return key > (*this)[at];
         });
     }
 
-    bool findElement(T element, ArchitectureType& at) const {
-        at = blobFindIndexFor(element);
-        return (at < Super::size() && (*this)[at] == element);
+    bool findExisting(KeyType key, ArchitectureType& at) const {
+        at = findIndexFor(key);
+        return (at < Super::size() && (*this)[at] == key);
     }
 
-    /*bool containsElement(T element) const {
-        ArchitectureType at = blobFindIndexFor(element);
-        return (at < Super:size() && (*this)[at] == element);
-    }*/
-
-    bool insertElement(T element) {
+    bool insertElement(ElementType element) {
         ArchitectureType at;
-        if(findElement(element, at))
+        if(findExisting(element.key, at))
             return false;
         Super::insert(at, element);
         return true;
     }
 
-    bool eraseElement(T element) {
+    bool eraseElement(ElementType element) {
         ArchitectureType at;
-        if(!findElement(element, at))
+        if(!findExisting(element.key, at))
             return false;
         Super::erase(at);
         return true;
     }
 };
 
-struct BlobIndex : public Set<Symbol, true> {
-    typedef Set<Symbol, true> Super;
+struct BlobIndex : public Set<true, Identifier> {
+    typedef Set<true, Identifier> Super;
 
     BlobIndex() :Super() { }
 
-    ArchitectureType blobFindIndexFor(Symbol key) const {
+    ArchitectureType findIndexFor(Identifier key) const {
         return binarySearch<ArchitectureType>(Super::size(), [&](ArchitectureType at) {
-            return Ontology::compareBlobs(key, (*this)[at]) < 0;
+            return Storage::compareBlobs(key, (*this)[at]) < 0;
         });
     }
 
-    bool findElement(Symbol element, ArchitectureType& at) const {
-        at = blobFindIndexFor(element);
+    bool findElement(Identifier element, ArchitectureType& at) const {
+        at = findIndexFor(element);
         if(at == Super::size())
             return false;
-        return (Ontology::compareBlobs(element, (*this)[at]) == 0);
+        return (Storage::compareBlobs(element, (*this)[at]) == 0);
     }
 
-    void insertElement(Symbol& element) {
+    void insertElement(Identifier& element) {
         ArchitectureType at;
-        if(findElement(element, at)) {
+        if(findExisting(element, at)) {
             Ontology::destroy(element);
             element = (*this)[at];
         } else
             Super::insert(at, element);
     }
 
-    bool eraseElement(Symbol element) {
+    bool eraseElement(Identifier element) {
         ArchitectureType at;
-        if(!Super::findElement(element, at))
+        if(!Super::findExisting(element, at))
             return false;
         Super::erase(at);
         return true;

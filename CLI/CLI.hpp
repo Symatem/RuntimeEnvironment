@@ -1,11 +1,11 @@
 #include "../Interpreter/PreDefProcedures.hpp"
-#include <iostream>
 #include <sstream>
-#include <sys/ioctl.h>
-#include <sys/types.h>
-#include <sys/stat.h>
 #include <termios.h>
 
+const std::string errorMessage = CSI+"1;31m[Error]"+CSI+"m",
+                  warningMessage = CSI+"1;33m[Warning]"+CSI+"m",
+                  successMessage = CSI+"1;32m[Success]"+CSI+"m",
+                  infoMessage = CSI+"1;36m[Info]"+CSI+"m";
 const std::string CSI = "\33["; // "\e["
 const ArchitectureType historyLimit = 8;
 struct termios termiosOld, termiosNew;
@@ -15,16 +15,17 @@ enum {
     Mode_Input
 } mode = Mode_Browse;
 std::stringstream stream;
-std::string interfaceBuffer;
 ArchitectureType historyTop, historySub, linesForBlob;
-Vector<Symbol, true> history;
-struct Thread thread;
+Vector<true, Identifier> history;
 decltype(Ontology::topIndex)::iterator topIter;
 Ontology::SymbolObject* symbolObject;
 
-bool stringEndsWith(std::string const& value, std::string const& ending) {
-    if(ending.size() > value.size()) return false;
-    return std::equal(ending.rbegin(), ending.rend(), value.rbegin());
+void serializeBlob(Thread& thread, std::ostream& stream, Identifier symbol) {
+    Serialize serialize(thread);
+    serialize.serializeBlob(symbol);
+    symbol = serialize.finalizeSymbol();
+    stream.write(reinterpret_cast<const char*>(Storage::accessBlobData(symbol)), Storage::getBlobSize(symbol)/8);
+    Ontology::destroy(symbol);
 }
 
 void replaceAllInString(std::string& str, const std::string& oldStr, const std::string& newStr) {
@@ -125,12 +126,4 @@ ArchitectureType printStreamLimited(ArchitectureType mode = 0,
         end = (pos >= str.size());
     }
     return row;
-}
-
-void serializeBlob(Thread& thread, std::ostream& stream, Symbol symbol) {
-    Serialize serialize(thread);
-    serialize.serializeBlob(symbol);
-    symbol = serialize.finalizeSymbol();
-    stream.write(reinterpret_cast<const char*>(Ontology::accessBlobData(symbol)), Ontology::accessBlobSize(symbol)/8);
-    Ontology::destroy(symbol);
 }
