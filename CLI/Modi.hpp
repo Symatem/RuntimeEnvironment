@@ -333,8 +333,8 @@ uint64_t ModeInput(bool special, uint64_t size, const char* buffer) {
                 }
                 interfaceBuffer.clear();
                 Identifier OutputSymbol, ExecuteSymbol;
-                if(thread.getUncertain(thread.block, PreDef_Output, OutputSymbol) &&
-                   !thread.getUncertain(OutputSymbol, PreDef_Execute, ExecuteSymbol)) {
+                if(Ontology::getUncertain(thread.block, PreDef_Output, OutputSymbol) &&
+                   !Ontology::getUncertain(OutputSymbol, PreDef_Execute, ExecuteSymbol)) {
                     history[0] = OutputSymbol;
                     break;
                 }

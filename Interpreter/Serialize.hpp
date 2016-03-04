@@ -17,6 +17,7 @@ struct Serialize {
     }
 
     void put(uint8_t data) {
+        // TODO: Refactor blob size reserve
         ArchitectureType reservedBlobSize = Storage::getBlobSize(symbol),
                          nextBlobSize = usedBlobSize+8;
         if(nextBlobSize > reservedBlobSize) {
@@ -57,17 +58,17 @@ struct Serialize {
     }
 
     Serialize(Thread& _thread, Identifier _symbol) :thread(_thread), symbol(_symbol), usedBlobSize(0) {
-        thread.setSolitary({symbol, PreDef_BlobType, PreDef_Text});
+        Ontology::setSolitary({symbol, PreDef_BlobType, PreDef_Text});
     }
 
     Serialize(Thread& _thread) :Serialize(_thread, Storage::createIdentifier()) { }
 
     void serializeBlob(Identifier srcSymbol) {
         auto src = reinterpret_cast<const uint8_t*>(Storage::accessBlobData(srcSymbol));
-        ArchitectureType len = Storage::getBlobSize(symbol);
+        ArchitectureType len = Storage::getBlobSize(srcSymbol);
         if(len) {
             Identifier type = PreDef_Void;
-            thread.getUncertain(symbol, PreDef_BlobType, type);
+            Ontology::getUncertain(srcSymbol, PreDef_BlobType, type);
             switch(type) {
                 case PreDef_Text: {
                     len /= 8;
@@ -108,7 +109,7 @@ struct Serialize {
             }
         } else {
             put('#');
-            serializeNumber(symbol);
+            serializeNumber(srcSymbol);
         }
     }
 
@@ -127,7 +128,7 @@ struct Serialize {
 
             Ontology::query(21, {entity, PreDef_Void, PreDef_Void}, [&](Triple result, ArchitectureType) {
                 if(followCallback && result.pos[0] == followAttribute) {
-                    thread.getUncertain(entity, followAttribute, followEntity);
+                    Ontology::getUncertain(entity, followAttribute, followEntity);
                     return;
                 }
                 put('\t');

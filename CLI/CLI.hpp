@@ -25,7 +25,7 @@ void serializeBlob(Thread& thread, std::ostream& stream, Identifier symbol) {
     serialize.serializeBlob(symbol);
     symbol = serialize.finalizeSymbol();
     stream.write(reinterpret_cast<const char*>(Storage::accessBlobData(symbol)), Storage::getBlobSize(symbol)/8);
-    Ontology::destroy(symbol);
+    Ontology::unlink(symbol);
 }
 
 void replaceAllInString(std::string& str, const std::string& oldStr, const std::string& newStr) {

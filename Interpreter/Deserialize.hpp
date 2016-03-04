@@ -10,7 +10,7 @@ if(Ontology::query(1, {Name##Symbol, PreDef_BlobType, expectedType}) == 0) \
 #define getUncertainValueByName(Name, DefaultValue) \
     Identifier Name##Symbol; \
     ArchitectureType Name##Value = DefaultValue; \
-    if(thread.getUncertain(thread.block, PreDef_##Name, Name##Symbol)) { \
+    if(Ontology::getUncertain(thread.block, PreDef_##Name, Name##Symbol)) { \
         checkBlobType(Name, PreDef_Natural) \
         Name##Value = thread.accessBlobAs<ArchitectureType>(Name##Symbol); \
     }
@@ -43,7 +43,7 @@ class Deserialize {
             Identifier entity = thread.getGuaranteed(stackEntry, PreDef_UnnestEntity),
                        attribute = thread.getGuaranteed(stackEntry, PreDef_UnnestAttribute);
             thread.link({entity, attribute, symbol});
-            thread.setSolitary({stackEntry, PreDef_UnnestEntity, PreDef_Void});
+            Ontology::setSolitary({stackEntry, PreDef_UnnestEntity, PreDef_Void});
         }
     }
 
@@ -134,7 +134,7 @@ class Deserialize {
         parseToken();
 
         Identifier entity = PreDef_Void;
-        thread.getUncertain(currentEntry, PreDef_Entity, entity);
+        Ontology::getUncertain(currentEntry, PreDef_Entity, entity);
 
         if(queue.empty()) {
             if(semicolon) {
@@ -157,11 +157,11 @@ class Deserialize {
 
         fillInAnonymous(entity);
         if(semicolon)
-            thread.setSolitary({parentEntry, PreDef_UnnestEntity, PreDef_Void});
+            Ontology::setSolitary({parentEntry, PreDef_UnnestEntity, PreDef_Void});
         else
-            thread.setSolitary({parentEntry, PreDef_UnnestEntity, entity}, true);
+            Ontology::setSolitary({parentEntry, PreDef_UnnestEntity, entity}, true);
         Identifier attribute = queue.pop_back();
-        thread.setSolitary({parentEntry, PreDef_UnnestAttribute, attribute}, true);
+        Ontology::setSolitary({parentEntry, PreDef_UnnestAttribute, attribute}, true);
 
         while(!queue.empty())
             thread.link({entity, attribute, queue.pop_back()});
@@ -237,7 +237,7 @@ class Deserialize {
                     }
                     if(!thread.valueCountIs(currentEntry, PreDef_UnnestEntity, 0))
                         throwException("Unnesting failed");
-                    Ontology::destroy(currentEntry);
+                    Ontology::unlink(currentEntry);
                     stack.pop_back();
                     currentEntry = parentEntry;
                     queue.symbol = currentEntry;
@@ -257,9 +257,9 @@ class Deserialize {
             throwException("Empty Input");
 
         Identifier OutputSymbol;
-        if(thread.getUncertain(thread.block, PreDef_Output, OutputSymbol)) {
+        if(Ontology::getUncertain(thread.block, PreDef_Output, OutputSymbol)) {
             Identifier TargetSymbol = thread.getTargetSymbol();
-            thread.setSolitary({TargetSymbol, OutputSymbol, PreDef_Void});
+            Ontology::setSolitary({TargetSymbol, OutputSymbol, PreDef_Void});
             while(!queue.empty())
                 thread.link({TargetSymbol, OutputSymbol, queue.pop_back()});
         }

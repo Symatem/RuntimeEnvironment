@@ -54,41 +54,13 @@ struct Thread {
             Ontology::query(9, {symbol, PreDef_Holds, PreDef_Void}, [&](Triple result, ArchitectureType) {
                 symbols.insertElement(result.pos[0]);
             });
-            Ontology::destroy(symbol);
+            Ontology::unlink(symbol);
         }
-    }
-
-    void setSolitary(Triple triple, bool linkVoid = false) {
-        bool toLink = (linkVoid || triple.value != PreDef_Void);
-        Set<true, Identifier> symbols;
-        Ontology::query(9, triple, [&](Triple result, ArchitectureType) {
-            if((triple.pos[2] == result.pos[0]) && (linkVoid || result.pos[0] != PreDef_Void))
-                toLink = false;
-            else
-                symbols.insertElement(result.pos[0]);
-        });
-        if(toLink)
-            link(triple);
-        symbols.iterate([&](Identifier symbol) {
-            Ontology::unlinkInternal({triple.pos[0], triple.pos[1], symbol});
-        });
-        if(!linkVoid)
-            symbols.insertElement(triple.pos[0]);
-        symbols.insertElement(triple.pos[1]);
-        symbols.iterate([&](Identifier symbol) {
-            Ontology::checkSymbolLinkCount(symbol);
-        });
-    }
-
-    bool getUncertain(Identifier alpha, Identifier beta, Identifier& gamma) {
-        return (Ontology::query(9, {alpha, beta, PreDef_Void}, [&](Triple result, ArchitectureType) {
-            gamma = result.pos[0];
-        }) == 1);
     }
 
     Identifier getGuaranteed(Identifier entity, Identifier attribute) {
         Identifier value;
-        if(!getUncertain(entity, attribute, value)) {
+        if(!Ontology::getUncertain(entity, attribute, value)) {
             Identifier data = Storage::createIdentifier();
             link({data, PreDef_Entity, entity});
             link({data, PreDef_Attribute, attribute});
@@ -105,7 +77,7 @@ struct Thread {
 
     void setStatus(Identifier _status) {
         status = _status;
-        setSolitary({task, PreDef_Status, status});
+        Ontology::setSolitary({task, PreDef_Status, status});
     }
 
     void setFrame(Identifier _frame, bool setBlock) {
@@ -114,7 +86,7 @@ struct Thread {
             block = PreDef_Void;
         else {
             link({task, PreDef_Holds, _frame});
-            setSolitary({task, PreDef_Frame, _frame});
+            Ontology::setSolitary({task, PreDef_Frame, _frame});
             if(setBlock)
                 block = getGuaranteed(_frame, PreDef_Block);
         }
@@ -148,7 +120,7 @@ struct Thread {
         if(frame == PreDef_Void)
             return false;
         Identifier parentFrame = PreDef_Void;
-        bool parentExists = getUncertain(frame, PreDef_Parent, parentFrame);
+        bool parentExists = Ontology::getUncertain(frame, PreDef_Parent, parentFrame);
         if(parentFrame == PreDef_Void)
             setStatus(PreDef_Done);
         setFrame(parentFrame, true);
@@ -157,7 +129,7 @@ struct Thread {
 
     Identifier getTargetSymbol() {
         Identifier result;
-        if(!getUncertain(block, PreDef_Target, result)) {
+        if(!Ontology::getUncertain(block, PreDef_Target, result)) {
             Identifier parentFrame = getGuaranteed(frame, PreDef_Parent);
             result = getGuaranteed(parentFrame, PreDef_Block);
         }
@@ -168,7 +140,7 @@ struct Thread {
         if(task == PreDef_Void)
             return;
         while(popCallStack());
-        Ontology::destroy(task);
+        Ontology::unlink(task);
         task = status = frame = block = PreDef_Void;
     }
 
@@ -178,7 +150,7 @@ struct Thread {
 
         Identifier parentBlock = block, parentFrame = frame, execute,
                procedure, next = PreDef_Void, catcher, staticParams, dynamicParams;
-        if(!getUncertain(parentFrame, PreDef_Execute, execute)) {
+        if(!Ontology::getUncertain(parentFrame, PreDef_Execute, execute)) {
             popCallStack();
             return true;
         }
@@ -189,12 +161,12 @@ struct Thread {
             pushCallStack();
             link({frame, PreDef_Procedure, procedure}); // TODO: debugging
 
-            if(getUncertain(execute, PreDef_Static, staticParams))
+            if(Ontology::getUncertain(execute, PreDef_Static, staticParams))
                 Ontology::query(12, {staticParams, PreDef_Void, PreDef_Void}, [&](Triple result, ArchitectureType) {
                     link({block, result.pos[0], result.pos[1]});
                 });
 
-            if(getUncertain(execute, PreDef_Dynamic, dynamicParams))
+            if(Ontology::getUncertain(execute, PreDef_Dynamic, dynamicParams))
                 Ontology::query(12, {dynamicParams, PreDef_Void, PreDef_Void}, [&](Triple result, ArchitectureType) {
                     switch(result.pos[1]) {
                         case PreDef_Task:
@@ -214,10 +186,10 @@ struct Thread {
                     }
                 });
 
-            getUncertain(execute, PreDef_Next, next);
-            setSolitary({parentFrame, PreDef_Execute, next});
+            Ontology::getUncertain(execute, PreDef_Next, next);
+            Ontology::setSolitary({parentFrame, PreDef_Execute, next});
 
-            if(getUncertain(execute, PreDef_Catch, catcher))
+            if(Ontology::getUncertain(execute, PreDef_Catch, catcher))
                 link({frame, PreDef_Catch, catcher});
 
             if(!executePreDefProcedure(*this, procedure))
@@ -287,7 +259,7 @@ struct Thread {
             Identifier next = Storage::createIdentifier();
             link({next, PreDef_Procedure, result.pos[0]});
             if(prev == PreDef_Void)
-                setSolitary({frame, PreDef_Execute, next});
+                Ontology::setSolitary({frame, PreDef_Execute, next});
             else
                 link({prev, PreDef_Next, next});
             prev = next;

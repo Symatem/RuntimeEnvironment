@@ -3,13 +3,12 @@
 typedef ArchitectureType Identifier;
 
 namespace Storage {
-    Identifier nextIdentifier = 0;
+    Identifier maxIdentifier = 0;
     std::map<Identifier, ArchitectureType*> blobs; // TODO: Use B+Tree instead
-    std::map<Identifier, Identifier[6]> identifiers; // TODO: Use B+Tree instead
 
     Identifier createIdentifier() {
         // TODO
-        return nextIdentifier++;
+        return ++maxIdentifier;
     }
 
     void modifiedBlob(Identifier identifier) {
@@ -20,14 +19,13 @@ namespace Storage {
     void setBlobSize(Identifier identifier, ArchitectureType size, ArchitectureType preserve = 0) {
         auto iter = blobs.find(identifier);
         if(size == 0) {
-            assert(iter != blobs.end());
-            free(iter->second);
-            blobs.erase(iter);
+            if(iter != blobs.end()) {
+                free(iter->second);
+                blobs.erase(iter);
+            }
             return;
         }
         ArchitectureType* newBlob = reinterpret_cast<ArchitectureType*>(malloc((size+2*ArchitectureSize-1)/ArchitectureSize*ArchitectureSize));
-        if(size%ArchitectureSize > 0)
-            newBlob[size/ArchitectureSize] &= BitMask<ArchitectureType>::fillLSBs(size%ArchitectureSize);
         if(iter == blobs.end()) {
             assert(size > 0);
             iter = blobs.insert({identifier, newBlob}).first;
@@ -37,6 +35,8 @@ namespace Storage {
                 bitwiseCopy<-1>(newBlob+1, iter->second+1, 0, 0, length);
             free(iter->second);
         }
+        if(size%ArchitectureSize > 0)
+            newBlob[size/ArchitectureSize+1] &= BitMask<ArchitectureType>::fillLSBs(size%ArchitectureSize);
         *newBlob = size;
         iter->second = newBlob;
     }
@@ -52,16 +52,21 @@ namespace Storage {
 
     ArchitectureType* accessBlobData(Identifier identifier) {
         auto iter = blobs.find(identifier);
-        return (iter == blobs.end()) ? NULL : iter->second+1;
+        assert(iter != blobs.end());
+        return iter->second+1;
     }
 
     int compareBlobs(Identifier a, Identifier b) {
+        if(a == b)
+            return 0;
         ArchitectureType sizeA = getBlobSize(a),
                          sizeB = getBlobSize(b);
         if(sizeA < sizeB)
             return -1;
         if(sizeA > sizeB)
             return 1;
+        if(sizeA == 0)
+            return 0;
         return memcmp(accessBlobData(a), accessBlobData(b), (sizeA+7)/8);
     }
 
@@ -80,6 +85,8 @@ namespace Storage {
     }
 
     void cloneBlob(Identifier dst, Identifier src) {
+        if(dst == src) // TODO: Workaround, Find bug in bitwiseCopy
+            return;
         ArchitectureType srcSize = getBlobSize(src);
         setBlobSize(dst, srcSize);
         bitwiseCopy(accessBlobData(dst), accessBlobData(src), 0, 0, srcSize);
@@ -121,7 +128,7 @@ namespace Storage {
         return true;
     }
 
-    void destroyIdentifier(Identifier identifier) {
+    void releaseIdentifier(Identifier identifier) {
         // TODO
         setBlobSize(identifier, 0);
     }

@@ -1,7 +1,7 @@
 #include "../Storage/Blob.hpp"
 
 namespace Ontology {
-    void destroy(Identifier symbol);
+    bool unlink(Identifier symbol);
 };
 
 template<bool guarded, typename ElementType>
@@ -12,7 +12,7 @@ struct Vector {
 
     ~Vector() {
         if(guarded && symbol)
-            Ontology::destroy(symbol);
+            Ontology::unlink(symbol);
     }
 
     bool empty() const {
@@ -36,7 +36,7 @@ struct Vector {
         return (*this)[size()-1];
     }
 
-    void iterate(std::function<void(ElementType)> callback) const {
+    void iterate(std::function<void(ElementType&)> callback) const {
         for(ArchitectureType at = 0; at < size(); ++at)
             callback((*this)[at]);
     }
@@ -88,6 +88,7 @@ struct Pair {
     KeyType key;
     ValueType value;
     Pair(KeyType _key) :key(_key) { }
+    Pair(KeyType _key, ValueType _value) :key(_key), value(_value) { }
     operator KeyType() {
         return key;
     }
@@ -100,20 +101,20 @@ struct Set : public Vector<guarded, Pair<KeyType, ValueType>> {
 
     Set() :Super() { }
 
-    ArchitectureType findIndexFor(KeyType key) const {
+    ArchitectureType find(KeyType key) const {
         return binarySearch<ArchitectureType>(Super::size(), [&](ArchitectureType at) {
             return key > (*this)[at];
         });
     }
 
-    bool findExisting(KeyType key, ArchitectureType& at) const {
-        at = findIndexFor(key);
+    bool find(KeyType key, ArchitectureType& at) const {
+        at = find(key);
         return (at < Super::size() && (*this)[at] == key);
     }
 
     bool insertElement(ElementType element) {
         ArchitectureType at;
-        if(findExisting(element.key, at))
+        if(find(element.key, at))
             return false;
         Super::insert(at, element);
         return true;
@@ -121,7 +122,7 @@ struct Set : public Vector<guarded, Pair<KeyType, ValueType>> {
 
     bool eraseElement(ElementType element) {
         ArchitectureType at;
-        if(!findExisting(element.key, at))
+        if(!find(element.key, at))
             return false;
         Super::erase(at);
         return true;
@@ -133,14 +134,14 @@ struct BlobIndex : public Set<true, Identifier> {
 
     BlobIndex() :Super() { }
 
-    ArchitectureType findIndexFor(Identifier key) const {
+    ArchitectureType find(Identifier key) const {
         return binarySearch<ArchitectureType>(Super::size(), [&](ArchitectureType at) {
             return Storage::compareBlobs(key, (*this)[at]) < 0;
         });
     }
 
-    bool findElement(Identifier element, ArchitectureType& at) const {
-        at = findIndexFor(element);
+    bool find(Identifier element, ArchitectureType& at) const {
+        at = find(element);
         if(at == Super::size())
             return false;
         return (Storage::compareBlobs(element, (*this)[at]) == 0);
@@ -148,8 +149,8 @@ struct BlobIndex : public Set<true, Identifier> {
 
     void insertElement(Identifier& element) {
         ArchitectureType at;
-        if(findExisting(element, at)) {
-            Ontology::destroy(element);
+        if(find(element, at)) {
+            Ontology::unlink(element);
             element = (*this)[at];
         } else
             Super::insert(at, element);
@@ -157,7 +158,7 @@ struct BlobIndex : public Set<true, Identifier> {
 
     bool eraseElement(Identifier element) {
         ArchitectureType at;
-        if(!Super::findExisting(element, at))
+        if(!Super::find(element, at))
             return false;
         Super::erase(at);
         return true;

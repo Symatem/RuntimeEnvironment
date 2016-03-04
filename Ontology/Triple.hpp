@@ -12,6 +12,10 @@ const char* PreDefSymbols[] = {
 };
 #undef PreDefWrapper
 
+#define forEachSubIndex \
+    ArchitectureType indexCount = (indexMode == MonoIndex) ? 1 : 3; \
+    for(ArchitectureType i = 0; i < indexCount; ++i)
+
 union Triple {
     Identifier pos[3];
     struct {
@@ -20,6 +24,12 @@ union Triple {
     Triple() {};
     Triple(Identifier _entity, Identifier _attribute, Identifier _value)
         :entity(_entity), attribute(_attribute), value(_value) {}
+    Triple forwardIndex(ArchitectureType* subIndices, ArchitectureType to) {
+        return {subIndices[to], pos[(to+1)%3], pos[(to+2)%3]};
+    }
+    Triple reverseIndex(ArchitectureType* subIndices, ArchitectureType to) {
+        return {subIndices[to+3], pos[(to+2)%3], pos[(to+1)%3]};
+    }
     Triple reordered(ArchitectureType to) {
         ArchitectureType alpha[] = { 0, 1, 2, 0, 1, 2 },
                           beta[] = { 1, 2, 0, 2, 0, 1 },
@@ -35,6 +45,7 @@ union Triple {
 };
 
 namespace Ontology {
+    Set<true, Identifier, Identifier[6]> symbols;
     BlobIndex blobIndex;
 
     enum IndexType {
@@ -48,259 +59,181 @@ namespace Ontology {
         HexaIndex = 6
     } indexMode = HexaIndex;
 
-    bool subLink(Identifier symbol, ArchitectureType index, Identifier beta, Identifier gamma) {
-        // TODO: Reimplement using Blobs
-        /*auto& forward = subIndices[index];
-        auto outerIter = forward.find(beta);
-
-        if(outerIter == forward.end())
-            forward.insert({beta, {gamma}});
-        else if(outerIter->second.find(gamma) == outerIter->second.end())
-            outerIter->second.insert(gamma);
-        else
-            return false;
-
-        if(indexMode == HexaIndex) {
-            auto& reverse = subIndices[index+3];
-            outerIter = reverse.find(gamma);
-            if(outerIter == reverse.end())
-                reverse.insert({gamma, {beta}});
-            else if(outerIter->second.find(beta) == outerIter->second.end())
-                outerIter->second.insert(beta);
+    bool linkInSubIndex(Triple triple) {
+        Set<false, Identifier, Identifier> beta;
+        beta.symbol = triple.pos[0];
+        ArchitectureType betaIndex;
+        Set<false, Identifier> gamma;
+        if(beta.find(triple.pos[1], betaIndex))
+            gamma.symbol = beta[betaIndex].value;
+        else {
+            gamma.symbol = Storage::createIdentifier();
+            beta.insert(betaIndex, {triple.pos[1], gamma.symbol});
         }
-
-        return true;*/
-        return false;
-    }
-
-    bool subUnlink(Identifier symbol, ArchitectureType index, Identifier beta, Identifier gamma) {
-        // TODO: Reimplement using Blobs
-        /*auto& forward = subIndices[index];
-        auto outerIter = forward.find(beta);
-        if(outerIter == forward.end())
-            return false;
-        auto innerIter = outerIter->second.find(gamma);
-        if(innerIter == outerIter->second.end())
-            return false;
-        outerIter->second.erase(innerIter);
-        if(outerIter->second.empty())
-            forward.erase(outerIter);
-
-        if(indexMode == HexaIndex) {
-            auto& reverse = subIndices[index+3];
-            auto outerIter = reverse.find(gamma);
-            auto innerIter = outerIter->second.find(beta);
-            outerIter->second.erase(innerIter);
-            if(outerIter->second.empty())
-                reverse.erase(outerIter);
-        }
-
-        return true;*/
-        return false;
+        bool result = gamma.insertElement(triple.pos[2]);
+        return result;
     }
 
     bool link(Triple triple) {
-        // TODO: Reimplement using Blobs
-        /*ArchitectureType indexCount = (indexMode == MonoIndex) ? 1 : 3;
-        for(ArchitectureType i = 0; i < indexCount; ++i) {
-            auto topIter = topIndex.find(triple.pos[i]);
-            if(topIter == topIndex.end())
-                topIter = SymbolFactory(triple.pos[i]);
-            if(!subLink(topIter->second.get(), i, triple.pos[(i+1)%3], triple.pos[(i+2)%3]))
+        ArchitectureType alphaIndex;
+        forEachSubIndex {
+            if(!symbols.find(triple.pos[i], alphaIndex)) {
+                symbols.insert(alphaIndex, triple.pos[i]);
+                for(ArchitectureType j = 0; j < indexMode; ++j)
+                    symbols[alphaIndex].value[j] = Storage::createIdentifier();
+            }
+            if(!linkInSubIndex(triple.forwardIndex(symbols[alphaIndex].value, i)))
                 return false;
+            if(indexMode == HexaIndex)
+                assert(linkInSubIndex(triple.reverseIndex(symbols[alphaIndex].value, i)));
         }
         if(triple.pos[1] == PreDef_BlobType)
             Storage::modifiedBlob(triple.pos[0]);
-        return true;*/
-        return false;
-    }
-
-    bool unlinkInternal(Triple triple, bool skipEnabled = false, Identifier skip = PreDef_Void) {
-        // TODO: Reimplement using Blobs
-        /*ArchitectureType indexCount = (indexMode == MonoIndex) ? 1 : 3;
-        for(ArchitectureType i = 0; i < indexCount; ++i) {
-            if(skipEnabled && triple.pos[i] == skip)
-                continue;
-            auto topIter = topIndex.find(triple.pos[i]);
-            if(topIter == topIndex.end() ||
-               !subUnlink(topIter->second.get(), i, triple.pos[(i+1)%3], triple.pos[(i+2)%3]))
-                return false;
-        }
-        if(triple.pos[1] == PreDef_BlobType)
-            Storage::modifiedBlob(triple.pos[0]);
-        return true;*/
-        return false;
-    }
-
-    void checkSymbolLinkCount(Identifier symbol) {
-        // TODO: Reimplement using Blobs
-        /*auto topIter = topIndex.find(symbol);
-        ArchitectureType indexCount = (indexMode == MonoIndex) ? 1 : 3;
-        for(ArchitectureType i = 0; i < indexCount; ++i)
-            if(!topIter->second->subIndices[i].empty())
-                return;
-        topIndex.erase(topIter);*/
-    }
-
-    void destroy(Identifier alpha) {
-        // TODO: Reimplement using Blobs
-        /*auto topIter = topIndex.find(alpha);
-        assert(topIter != topIndex.end());
-        Set<true, Identifier> symbols;
-        for(ArchitectureType i = EAV; i <= VEA; ++i)
-            for(auto& beta : topIter->second->subIndices[i])
-                for(auto gamma : beta.second) {
-                    unlinkInternal(Triple(alpha, beta.first, gamma).normalized(i), true, alpha);
-                    symbols.insertElement(beta.first);
-                    symbols.insertElement(gamma);
-                }
-        topIndex.erase(topIter);
-        symbols.iterate([&](Identifier symbol) {
-            checkSymbolLinkCount(symbol);
-        });*/
-    }
-
-    bool unlink(Triple triple) {
-        if(!unlinkInternal(triple))
-            return false;
-        for(ArchitectureType i = 0; i < 3; ++i)
-            checkSymbolLinkCount(triple.pos[i]);
         return true;
     }
 
     ArchitectureType searchGGG(ArchitectureType index, Triple& triple, std::function<void()> callback) {
-        // TODO: Reimplement using Blobs
-        /*auto topIter = topIndex.find(triple.pos[0]);
-        assert(topIter != topIndex.end());
-        auto& subIndex = topIter->second->subIndices[0];
-        auto betaIter = subIndex.find(triple.pos[1]);
-        if(betaIter == subIndex.end())
+        ArchitectureType alphaIndex, betaIndex, gammaIndex;
+        assert(symbols.find(triple.pos[0], alphaIndex));
+
+        Set<false, Identifier, Identifier> beta;
+        beta.symbol = symbols[alphaIndex].value[index];
+        if(!beta.find(triple.pos[1], betaIndex))
             return 0;
-        auto gammaIter = betaIter->second.find(triple.pos[2]);
-        if(gammaIter == betaIter->second.end())
+
+        Set<false, Identifier> gamma;
+        gamma.symbol = beta[betaIndex].value;
+        if(!gamma.find(triple.pos[2], gammaIndex))
             return 0;
         if(callback)
             callback();
-        return 1;*/
-        return 0;
+        return 1;
     }
 
     ArchitectureType searchGGV(ArchitectureType index, Triple& triple, std::function<void()> callback) {
-        // TODO: Reimplement using Blobs
-        /*auto topIter = topIndex.find(triple.pos[0]);
-        assert(topIter != topIndex.end());
-        auto& subIndex = topIter->second->subIndices[index];
-        auto betaIter = subIndex.find(triple.pos[1]);
-        if(betaIter == subIndex.end())
+        ArchitectureType alphaIndex, betaIndex;
+        assert(symbols.find(triple.pos[0], alphaIndex));
+
+        Set<false, Identifier, Identifier> beta;
+        beta.symbol = symbols[alphaIndex].value[index];
+        if(!beta.find(triple.pos[1], betaIndex))
             return 0;
+
+        Set<false, Identifier> gamma;
+        gamma.symbol = beta[betaIndex].value;
         if(callback)
-            for(auto gamma : betaIter->second) {
-                triple.pos[2] = gamma;
+            gamma.iterate([&](Pair<Identifier, ArchitectureType[0]>& gammaResult) {
+                triple.pos[2] = gammaResult;
                 callback();
-            }
-        return betaIter->second.size();*/
-        return 0;
+            });
+        return gamma.size();
     }
 
     ArchitectureType searchGVV(ArchitectureType index, Triple& triple, std::function<void()> callback) {
-        // TODO: Reimplement using Blobs
-        /*auto topIter = topIndex.find(triple.pos[0]);
-        assert(topIter != topIndex.end());
-        auto& subIndex = topIter->second->subIndices[index];
-        ArchitectureType count = 0;
-        for(auto& beta : subIndex) {
-            count += beta.second.size();
+        ArchitectureType alphaIndex, count = 0;
+        assert(symbols.find(triple.pos[0], alphaIndex));
+
+        Set<false, Identifier, Identifier> beta;
+        beta.symbol = symbols[alphaIndex].value[index];
+        beta.iterate([&](Pair<Identifier, Identifier>& betaResult) {
+            Set<false, Identifier> gamma;
+            gamma.symbol = betaResult.value;
             if(callback) {
-                triple.pos[1] = beta.first;
-                for(auto gamma : beta.second) {
-                    triple.pos[2] = gamma;
+                triple.pos[1] = betaResult.key;
+                gamma.iterate([&](Pair<Identifier, ArchitectureType[0]>& gammaResult) {
+                    triple.pos[2] = gammaResult;
                     callback();
-                }
+                });
             }
-        }
-        return count;*/
-        return 0;
+            count += gamma.size();
+        });
+
+        return count;
     }
 
     ArchitectureType searchGIV(ArchitectureType index, Triple& triple, std::function<void()> callback) {
-        // TODO: Reimplement using Blobs
-        /*auto topIter = topIndex.find(triple.pos[0]);
-        assert(topIter != topIndex.end());
-        auto& subIndex = topIter->second->subIndices[index];
+        ArchitectureType alphaIndex;
+        assert(symbols.find(triple.pos[0], alphaIndex));
         Set<true, Identifier> result;
-        for(auto& beta : subIndex)
-            for(auto& gamma : beta.second)
-                result.insertElement(gamma);
+
+        Set<false, Identifier, Identifier> beta;
+        beta.symbol = symbols[alphaIndex].value[index];
+        beta.iterate([&](Pair<Identifier, Identifier>& betaResult) {
+            Set<false, Identifier> gamma;
+            gamma.symbol = betaResult.value;
+            gamma.iterate([&](Pair<Identifier, ArchitectureType[0]>& gammaResult) {
+                result.insertElement(gammaResult);
+            });
+        });
+
         if(callback)
             result.iterate([&](Identifier gamma) {
                 triple.pos[2] = gamma;
                 callback();
             });
-        return result.size();*/
-        return 0;
+        return result.size();
     }
 
     ArchitectureType searchGVI(ArchitectureType index, Triple& triple, std::function<void()> callback) {
-        // TODO: Reimplement using Blobs
-        /*auto topIter = topIndex.find(triple.pos[0]);
-        assert(topIter != topIndex.end());
-        auto& subIndex = topIter->second->subIndices[index];
+        ArchitectureType alphaIndex;
+        assert(symbols.find(triple.pos[0], alphaIndex));
+
+        Set<false, Identifier, Identifier> beta;
+        beta.symbol = symbols[alphaIndex].value[index];
         if(callback)
-            for(auto& beta : subIndex) {
-                triple.pos[1] = beta.first;
+            beta.iterate([&](Pair<Identifier, Identifier>& betaResult) {
+                triple.pos[1] = betaResult.key;
                 callback();
-            }
-        return subIndex.size();*/
-        return 0;
+            });
+        return beta.size();
     }
 
     ArchitectureType searchVII(ArchitectureType index, Triple& triple, std::function<void()> callback) {
-        // TODO: Reimplement using Blobs
-        /*if(callback)
-            for(auto& alpha : topIndex) {
-                triple.pos[0] = alpha.first;
+        if(callback)
+            symbols.iterate([&](Pair<Identifier, Identifier[6]>& alphaResult) {
+                triple.pos[0] = alphaResult.key;
                 callback();
-            }
-        return topIndex.size();*/
-        return 0;
+            });
+        return symbols.size();
     }
 
     ArchitectureType searchVVI(ArchitectureType index, Triple& triple, std::function<void()> callback) {
-        // TODO: Reimplement using Blobs
-        /*ArchitectureType count = 0;
-        for(auto& alpha : topIndex) {
-            auto& subIndex = alpha.second->subIndices[index];
-            count += subIndex.size();
+        ArchitectureType count = 0;
+        symbols.iterate([&](Pair<Identifier, Identifier[6]>& alphaResult) {
+            Set<false, Identifier, Identifier> beta;
+            beta.symbol = alphaResult.value[index];
             if(callback) {
-                triple.pos[0] = alpha.first;
-                for(auto& beta : subIndex) {
-                    triple.pos[1] = beta.first;
+                triple.pos[0] = alphaResult.key;
+                beta.iterate([&](Pair<Identifier, Identifier>& betaResult) {
+                    triple.pos[1] = betaResult.key;
                     callback();
-                }
+                });
             }
-        }
-        return count;*/
-        return 0;
+            count += beta.size();
+        });
+        return count;
     }
 
     ArchitectureType searchVVV(ArchitectureType index, Triple& triple, std::function<void()> callback) {
-        // TODO: Reimplement using Blobs
-        /*ArchitectureType count = 0;
-        for(auto& alpha : topIndex) {
-            triple.pos[0] = alpha.first;
-            for(auto& beta : alpha.second->subIndices[0]) {
-                count += beta.second.size();
+        ArchitectureType count = 0;
+        symbols.iterate([&](Pair<Identifier, Identifier[6]>& alphaResult) {
+            triple.pos[0] = alphaResult.key;
+            Set<false, Identifier, Identifier> beta;
+            beta.symbol = alphaResult.value[index];
+            beta.iterate([&](Pair<Identifier, Identifier>& betaResult) {
+                Set<false, Identifier> gamma;
+                gamma.symbol = betaResult.value;
                 if(callback) {
-                    triple.pos[1] = beta.first;
-                    for(auto gamma : beta.second) {
-                        triple.pos[2] = gamma;
+                    triple.pos[1] = betaResult.key;
+                    gamma.iterate([&](Pair<Identifier, ArchitectureType[0]>& gammaResult) {
+                        triple.pos[2] = gammaResult;
                         callback();
-                    }
+                    });
                 }
-            }
-        }
-        return count;*/
-        return 0;
+                count += gamma.size();
+            });
+        });
+        return count;
     }
 
     ArchitectureType query(ArchitectureType mode, Triple triple, std::function<void(Triple, ArchitectureType)> callback = nullptr) {
@@ -378,6 +311,129 @@ namespace Ontology {
         return (*method.function)(method.index, triple, handleNext);
     }
 
+    bool unlinkInSubIndex(Triple triple) {
+        Set<false, Identifier, Identifier> alpha;
+        alpha.symbol = triple.pos[0];
+        ArchitectureType alphaIndex, betaIndex;
+        if(!alpha.find(triple.pos[1], alphaIndex))
+            return false;
+        Set<false, Identifier> beta;
+        beta.symbol = alpha[alphaIndex].value;
+        if(!beta.find(triple.pos[2], betaIndex))
+            return false;
+        beta.erase(betaIndex);
+        if(beta.empty()) {
+            alpha.erase(alphaIndex);
+            Storage::releaseIdentifier(beta.symbol);
+        }
+        return true;
+    }
+
+    bool unlinkWithoutReleasing(Triple triple, bool skipEnabled = false, Identifier skip = PreDef_Void) {
+        ArchitectureType alphaIndex;
+        forEachSubIndex {
+            if(skipEnabled && triple.pos[i] == skip)
+                continue;
+            if(!symbols.find(triple.pos[i], alphaIndex))
+                return false;
+            if(!unlinkInSubIndex(triple.forwardIndex(symbols[alphaIndex].value, i)))
+                return false;
+            if(indexMode == HexaIndex)
+                assert(unlinkInSubIndex(triple.reverseIndex(symbols[alphaIndex].value, i)));
+        }
+        if(triple.pos[1] == PreDef_BlobType)
+            Storage::modifiedBlob(triple.pos[0]);
+        return true;
+    }
+
+    void tryToReleaseSymbol(Identifier symbol) {
+        ArchitectureType alphaIndex;
+        assert(symbols.find(symbol, alphaIndex));
+        forEachSubIndex {
+            Set<false, Identifier, Identifier> beta;
+            beta.symbol = symbols[alphaIndex].value[i];
+            if(!beta.empty())
+                return;
+        }
+        for(ArchitectureType i = 0; i < indexCount; ++i)
+            Storage::releaseIdentifier(symbols[alphaIndex].value[i]);
+        Storage::releaseIdentifier(symbol);
+    }
+
+    bool unlink(Triple triple) {
+        if(!unlinkWithoutReleasing(triple))
+            return false;
+        for(ArchitectureType i = 0; i < 3; ++i)
+            tryToReleaseSymbol(triple.pos[i]);
+        return true;
+    }
+
+    bool unlink(Identifier symbol) {
+        ArchitectureType alphaIndex;
+        if(!symbols.find(symbol, alphaIndex)) {
+            Storage::releaseIdentifier(symbol);
+            return false;
+        }
+        Set<true, Identifier> dirty;
+        forEachSubIndex {
+            Set<false, Identifier, Identifier> beta;
+            beta.symbol = symbols[alphaIndex].value[i];
+            beta.iterate([&](Pair<Identifier, Identifier>& betaResult) {
+                dirty.insertElement(betaResult.key);
+                Set<false, Identifier> gamma;
+                gamma.symbol = betaResult.value;
+                gamma.iterate([&](Pair<Identifier, ArchitectureType[0]>& gammaResult) {
+                    dirty.insertElement(gammaResult.key);
+                    unlinkWithoutReleasing(Triple(symbol, betaResult.key, gammaResult.key).normalized(i), true, symbol);
+                });
+            });
+        }
+        dirty.iterate([&](Identifier symbol) {
+            tryToReleaseSymbol(symbol);
+        });
+        for(ArchitectureType i = 0; i < indexCount; ++i)
+            Storage::releaseIdentifier(symbols[alphaIndex].value[i]);
+        Storage::releaseIdentifier(symbol);
+        return true;
+    }
+
+    void setSolitary(Triple triple, bool linkVoid = false) {
+        // TODO: What if result.pos[0] non existent/empty?
+        Set<true, Identifier> dirty;
+        bool toLink = (linkVoid || triple.value != PreDef_Void);
+        query(9, triple, [&](Triple result, ArchitectureType) {
+            if((triple.pos[2] == result.pos[0]) && (linkVoid || result.pos[0] != PreDef_Void))
+                toLink = false;
+            else
+                dirty.insertElement(result.pos[0]);
+        });
+        if(toLink)
+            link(triple);
+        dirty.iterate([&](Identifier symbol) {
+            unlinkWithoutReleasing({triple.pos[0], triple.pos[1], symbol});
+        });
+        if(!linkVoid)
+            dirty.insertElement(triple.pos[0]);
+        dirty.insertElement(triple.pos[1]);
+        dirty.iterate([&](Identifier symbol) {
+            tryToReleaseSymbol(symbol);
+        });
+    }
+
+    bool getUncertain(Identifier alpha, Identifier beta, Identifier& gamma) {
+        return (query(9, {alpha, beta, PreDef_Void}, [&](Triple result, ArchitectureType) {
+            gamma = result.pos[0];
+        }) == 1);
+    }
+
+    void overwriteBlobWithString(Identifier symbol, const char* src, ArchitectureType len) {
+        link({symbol, PreDef_BlobType, PreDef_Text});
+        Storage::setBlobSize(symbol, len*8);
+        auto dst = reinterpret_cast<uint8_t*>(Storage::accessBlobData(symbol));
+        for(ArchitectureType i = 0; i < len; ++i)
+            dst[i] = src[i];
+    }
+
     template<typename DataType>
     Identifier createFromData(DataType src) {
         Identifier blobType;
@@ -411,29 +467,23 @@ namespace Ontology {
 
     Identifier createFromData(const char* src, ArchitectureType len) {
         Identifier symbol = Storage::createIdentifier();
-        link({symbol, PreDef_BlobType, PreDef_Text});
-        Storage::setBlobSize(symbol, len*8);
-        auto dst = reinterpret_cast<uint8_t*>(Storage::accessBlobData(symbol));
-        for(ArchitectureType i = 0; i < len; ++i)
-            dst[i] = src[i];
+        overwriteBlobWithString(symbol, src, len);
         return symbol;
     }
 
     Identifier createFromData(const char* src) {
-        ArchitectureType len = 0;
-        while(src[len])
-            ++len;
-        return createFromData(src, len);
+        return createFromData(src, strlen(src));
     }
 
     void fillPreDef() {
         const Identifier preDefSymbolsEnd = sizeof(PreDefSymbols)/sizeof(void*);
-        while(Storage::nextIdentifier < preDefSymbolsEnd) {
-            Identifier symbol = createFromData(PreDefSymbols[Storage::nextIdentifier]);
+        Storage::maxIdentifier = preDefSymbolsEnd;
+        for(Identifier symbol = 0; symbol < preDefSymbolsEnd; ++symbol) {
+            const char* str = PreDefSymbols[symbol];
+            overwriteBlobWithString(symbol, str, strlen(str));
             link({PreDef_RunTimeEnvironment, PreDef_Holds, symbol});
-        }
-        for(Identifier symbol = 0; symbol < preDefSymbolsEnd; ++symbol)
             blobIndex.insertElement(symbol);
+        }
         Identifier ArchitectureSizeSymbol = createFromData(ArchitectureSize);
         link({PreDef_RunTimeEnvironment, PreDef_Holds, ArchitectureSizeSymbol});
         link({PreDef_RunTimeEnvironment, PreDef_ArchitectureSize, ArchitectureSizeSymbol});
