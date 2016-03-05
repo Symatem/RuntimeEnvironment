@@ -1,5 +1,4 @@
 #include "../Interpreter/PreDefProcedures.hpp"
-#include <string> // TODO: Remove dependencies
 #include <dirent.h>
 #include <sys/stat.h>
 
@@ -9,56 +8,68 @@ bool stringEndsWith(const char* str, const char* end) {
     return strcmp(str+strlen(str)-strlen(end), end) == 0;
 }
 
-void loadFromPath(Identifier parentPackage, bool execute, std::string path) {
-    if(path[path.size()-1] == '/') path.resize(path.size()-1);
+void loadFromPath(Identifier parentPackage, bool execute, char* path) {
+    if(path[strlen(path)-1] == '/')
+        path[strlen(path)-1] = 0;
 
     struct stat s;
-    if(stat(path.c_str(), &s) != 0) return;
+    char buffer[64];
+    if(stat(path, &s) != 0) return;
     if(s.st_mode & S_IFDIR) {
-        DIR* dp = opendir(path.c_str());
+        DIR* dp = opendir(path);
         if(dp == NULL) {
-            printf("Could not open directory %s\n", path.c_str());
+            printf("Could not open directory %s\n", path);
             exit(1);
         }
 
-        auto slashIndex = path.rfind('/');
-        std::string name = (slashIndex != std::string::npos) ? path.substr(slashIndex+1) : path;
-        Identifier package = Ontology::createFromData(name.c_str());
-        if(parentPackage == PreDef_Void) parentPackage = package;
+        ArchitectureType slashIndex = 0;
+        for(ArchitectureType i = strlen(path)-1; i > 0; --i)
+            if(path[i] == '/') {
+                slashIndex = i+1;
+                break;
+            }
+
+        strcpy(buffer, path+slashIndex);
+        Identifier package = Ontology::createFromData(const_cast<const char*>(buffer));
+        Ontology::blobIndex.insertElement(package);
+        if(parentPackage == PreDef_Void)
+            parentPackage = package;
         thread.link({package, PreDef_Holds, parentPackage});
 
         struct dirent* entry;
         while((entry = readdir(dp)))
-            if(entry->d_name[0] != '.')
-                loadFromPath(package, execute, path+'/'+entry->d_name);
+            if(entry->d_name[0] != '.') {
+                sprintf(buffer, "%s/%s", path, entry->d_name);
+                loadFromPath(package, execute, buffer);
+            }
         closedir(dp);
     } else if(s.st_mode & S_IFREG) {
-        if(!stringEndsWith(path.c_str(), ".sym")) return;
+        if(!stringEndsWith(path, ".sym")) return;
 
-        Identifier file = Ontology::createFromFile(path.c_str());
+        Identifier file = Ontology::createFromFile(path);
         if(file == PreDef_Void) {
-            printf("Could not open file %s\n", path.c_str());
+            printf("Could not open file %s\n", path);
             exit(2);
         }
 
         thread.deserializationTask(file, parentPackage);
         if(thread.uncaughtException()) {
-            printf("Exception occurred while deserializing file %s\n", path.c_str());
+            printf("Exception occurred while deserializing file %s\n", path);
             exit(3);
         }
 
         if(!execute) return;
         if(!thread.executeDeserialized()) {
-            printf("Nothing to execute in file %s\n", path.c_str());
+            printf("Nothing to execute in file %s\n", path);
             exit(4);
         } else if(thread.uncaughtException()) {
-            printf("Exception occurred while executing file %s\n", path.c_str());
+            printf("Exception occurred while executing file %s\n", path);
             exit(5);
         }
     }
 }
 
-int main(int argc, const char** argv) {
+int main(int argc, char** argv) {
     Ontology::fillPreDef();
 
     bool execute = false;

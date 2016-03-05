@@ -14,7 +14,7 @@ const char* PreDefSymbols[] = {
 
 #define forEachSubIndex \
     ArchitectureType indexCount = (indexMode == MonoIndex) ? 1 : 3; \
-    for(ArchitectureType i = 0; i < indexCount; ++i)
+    for(ArchitectureType subIndex = 0; subIndex < indexCount; ++subIndex)
 
 union Triple {
     Identifier pos[3];
@@ -24,23 +24,23 @@ union Triple {
     Triple() {};
     Triple(Identifier _entity, Identifier _attribute, Identifier _value)
         :entity(_entity), attribute(_attribute), value(_value) {}
-    Triple forwardIndex(ArchitectureType* subIndices, ArchitectureType to) {
-        return {subIndices[to], pos[(to+1)%3], pos[(to+2)%3]};
+    Triple forwardIndex(ArchitectureType* subIndices, ArchitectureType subIndex) {
+        return {subIndices[subIndex], pos[(subIndex+1)%3], pos[(subIndex+2)%3]};
     }
-    Triple reverseIndex(ArchitectureType* subIndices, ArchitectureType to) {
-        return {subIndices[to+3], pos[(to+2)%3], pos[(to+1)%3]};
+    Triple reverseIndex(ArchitectureType* subIndices, ArchitectureType subIndex) {
+        return {subIndices[subIndex+3], pos[(subIndex+2)%3], pos[(subIndex+1)%3]};
     }
-    Triple reordered(ArchitectureType to) {
+    Triple reordered(ArchitectureType subIndex) {
         ArchitectureType alpha[] = { 0, 1, 2, 0, 1, 2 },
                           beta[] = { 1, 2, 0, 2, 0, 1 },
                          gamma[] = { 2, 0, 1, 1, 2, 0 };
-        return {pos[alpha[to]], pos[beta[to]], pos[gamma[to]]};
+        return {pos[alpha[subIndex]], pos[beta[subIndex]], pos[gamma[subIndex]]};
     }
-    Triple normalized(ArchitectureType from) {
+    Triple normalized(ArchitectureType subIndex) {
         ArchitectureType alpha[] = { 0, 2, 1, 0, 1, 2 },
                           beta[] = { 1, 0, 2, 2, 0, 1 },
                          gamma[] = { 2, 1, 0, 1, 2, 0 };
-        return {pos[alpha[from]], pos[beta[from]], pos[gamma[from]]};
+        return {pos[alpha[subIndex]], pos[beta[subIndex]], pos[gamma[subIndex]]};
     }
 };
 
@@ -77,15 +77,15 @@ namespace Ontology {
     bool link(Triple triple) {
         ArchitectureType alphaIndex;
         forEachSubIndex {
-            if(!symbols.find(triple.pos[i], alphaIndex)) {
-                symbols.insert(alphaIndex, triple.pos[i]);
-                for(ArchitectureType j = 0; j < indexMode; ++j)
-                    symbols[alphaIndex].value[j] = Storage::createIdentifier();
+            if(!symbols.find(triple.pos[subIndex], alphaIndex)) {
+                symbols.insert(alphaIndex, triple.pos[subIndex]);
+                for(ArchitectureType i = 0; i < indexMode; ++i)
+                    symbols[alphaIndex].value[i] = Storage::createIdentifier();
             }
-            if(!linkInSubIndex(triple.forwardIndex(symbols[alphaIndex].value, i)))
+            if(!linkInSubIndex(triple.forwardIndex(symbols[alphaIndex].value, subIndex)))
                 return false;
             if(indexMode == HexaIndex)
-                assert(linkInSubIndex(triple.reverseIndex(symbols[alphaIndex].value, i)));
+                assert(linkInSubIndex(triple.reverseIndex(symbols[alphaIndex].value, subIndex)));
         }
         if(triple.pos[1] == PreDef_BlobType)
             Storage::modifiedBlob(triple.pos[0]);
@@ -94,7 +94,8 @@ namespace Ontology {
 
     ArchitectureType searchGGG(ArchitectureType index, Triple& triple, std::function<void()> callback) {
         ArchitectureType alphaIndex, betaIndex, gammaIndex;
-        assert(symbols.find(triple.pos[0], alphaIndex));
+        if(!symbols.find(triple.pos[0], alphaIndex))
+            return 0;
 
         Set<false, Identifier, Identifier> beta;
         beta.symbol = symbols[alphaIndex].value[index];
@@ -112,7 +113,8 @@ namespace Ontology {
 
     ArchitectureType searchGGV(ArchitectureType index, Triple& triple, std::function<void()> callback) {
         ArchitectureType alphaIndex, betaIndex;
-        assert(symbols.find(triple.pos[0], alphaIndex));
+        if(!symbols.find(triple.pos[0], alphaIndex))
+            return 0;
 
         Set<false, Identifier, Identifier> beta;
         beta.symbol = symbols[alphaIndex].value[index];
@@ -131,7 +133,8 @@ namespace Ontology {
 
     ArchitectureType searchGVV(ArchitectureType index, Triple& triple, std::function<void()> callback) {
         ArchitectureType alphaIndex, count = 0;
-        assert(symbols.find(triple.pos[0], alphaIndex));
+        if(!symbols.find(triple.pos[0], alphaIndex))
+            return 0;
 
         Set<false, Identifier, Identifier> beta;
         beta.symbol = symbols[alphaIndex].value[index];
@@ -153,9 +156,10 @@ namespace Ontology {
 
     ArchitectureType searchGIV(ArchitectureType index, Triple& triple, std::function<void()> callback) {
         ArchitectureType alphaIndex;
-        assert(symbols.find(triple.pos[0], alphaIndex));
-        Set<true, Identifier> result;
+        if(!symbols.find(triple.pos[0], alphaIndex))
+            return 0;
 
+        Set<true, Identifier> result;
         Set<false, Identifier, Identifier> beta;
         beta.symbol = symbols[alphaIndex].value[index];
         beta.iterate([&](Pair<Identifier, Identifier>& betaResult) {
@@ -176,7 +180,8 @@ namespace Ontology {
 
     ArchitectureType searchGVI(ArchitectureType index, Triple& triple, std::function<void()> callback) {
         ArchitectureType alphaIndex;
-        assert(symbols.find(triple.pos[0], alphaIndex));
+        if(!symbols.find(triple.pos[0], alphaIndex))
+            return 0;
 
         Set<false, Identifier, Identifier> beta;
         beta.symbol = symbols[alphaIndex].value[index];
@@ -332,14 +337,14 @@ namespace Ontology {
     bool unlinkWithoutReleasing(Triple triple, bool skipEnabled = false, Identifier skip = PreDef_Void) {
         ArchitectureType alphaIndex;
         forEachSubIndex {
-            if(skipEnabled && triple.pos[i] == skip)
+            if(skipEnabled && triple.pos[subIndex] == skip)
                 continue;
-            if(!symbols.find(triple.pos[i], alphaIndex))
+            if(!symbols.find(triple.pos[subIndex], alphaIndex))
                 return false;
-            if(!unlinkInSubIndex(triple.forwardIndex(symbols[alphaIndex].value, i)))
+            if(!unlinkInSubIndex(triple.forwardIndex(symbols[alphaIndex].value, subIndex)))
                 return false;
             if(indexMode == HexaIndex)
-                assert(unlinkInSubIndex(triple.reverseIndex(symbols[alphaIndex].value, i)));
+                assert(unlinkInSubIndex(triple.reverseIndex(symbols[alphaIndex].value, subIndex)));
         }
         if(triple.pos[1] == PreDef_BlobType)
             Storage::modifiedBlob(triple.pos[0]);
@@ -351,12 +356,12 @@ namespace Ontology {
         assert(symbols.find(symbol, alphaIndex));
         forEachSubIndex {
             Set<false, Identifier, Identifier> beta;
-            beta.symbol = symbols[alphaIndex].value[i];
+            beta.symbol = symbols[alphaIndex].value[subIndex];
             if(!beta.empty())
                 return;
         }
-        for(ArchitectureType i = 0; i < indexCount; ++i)
-            Storage::releaseIdentifier(symbols[alphaIndex].value[i]);
+        for(ArchitectureType subIndex = 0; subIndex < indexCount; ++subIndex)
+            Storage::releaseIdentifier(symbols[alphaIndex].value[subIndex]);
         Storage::releaseIdentifier(symbol);
     }
 
@@ -377,28 +382,27 @@ namespace Ontology {
         Set<true, Identifier> dirty;
         forEachSubIndex {
             Set<false, Identifier, Identifier> beta;
-            beta.symbol = symbols[alphaIndex].value[i];
+            beta.symbol = symbols[alphaIndex].value[subIndex];
             beta.iterate([&](Pair<Identifier, Identifier>& betaResult) {
                 dirty.insertElement(betaResult.key);
                 Set<false, Identifier> gamma;
                 gamma.symbol = betaResult.value;
                 gamma.iterate([&](Pair<Identifier, ArchitectureType[0]>& gammaResult) {
                     dirty.insertElement(gammaResult.key);
-                    unlinkWithoutReleasing(Triple(symbol, betaResult.key, gammaResult.key).normalized(i), true, symbol);
+                    unlinkWithoutReleasing(Triple(symbol, betaResult.key, gammaResult.key).normalized(subIndex), true, symbol);
                 });
             });
         }
         dirty.iterate([&](Identifier symbol) {
             tryToReleaseSymbol(symbol);
         });
-        for(ArchitectureType i = 0; i < indexCount; ++i)
-            Storage::releaseIdentifier(symbols[alphaIndex].value[i]);
+        for(ArchitectureType subIndex = 0; subIndex < indexCount; ++subIndex)
+            Storage::releaseIdentifier(symbols[alphaIndex].value[subIndex]);
         Storage::releaseIdentifier(symbol);
         return true;
     }
 
     void setSolitary(Triple triple, bool linkVoid = false) {
-        // TODO: What if result.pos[0] non existent/empty?
         Set<true, Identifier> dirty;
         bool toLink = (linkVoid || triple.value != PreDef_Void);
         query(9, triple, [&](Triple result, ArchitectureType) {
@@ -424,6 +428,21 @@ namespace Ontology {
         return (query(9, {alpha, beta, PreDef_Void}, [&](Triple result, ArchitectureType) {
             gamma = result.pos[0];
         }) == 1);
+    }
+
+    void scrutinizeExistence(Identifier symbol) {
+        Set<true, Identifier> symbols;
+        symbols.insertElement(symbol);
+        while(!symbols.empty()) {
+            symbol = symbols.pop_back();
+            if(query(1, {PreDef_Void, PreDef_Holds, symbol}) > 0)
+                continue;
+            query(9, {symbol, PreDef_Holds, PreDef_Void}, [&](Triple result, ArchitectureType) {
+                symbols.insertElement(result.pos[0]);
+            });
+            // TODO: Prevent double free
+            unlink(symbol);
+        }
     }
 
     void overwriteBlobWithString(Identifier symbol, const char* src, ArchitectureType len) {

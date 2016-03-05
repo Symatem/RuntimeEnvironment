@@ -1,5 +1,7 @@
 #include "BpTree.hpp"
 
+#include <map> // TODO: Remove dependencies
+
 typedef ArchitectureType Identifier;
 
 namespace Storage {
@@ -7,7 +9,7 @@ namespace Storage {
     std::map<Identifier, ArchitectureType*> blobs; // TODO: Use B+Tree instead
 
     Identifier createIdentifier() {
-        // TODO
+        // TODO: Identifier free pool
         return ++maxIdentifier;
     }
 
@@ -85,7 +87,7 @@ namespace Storage {
     }
 
     void cloneBlob(Identifier dst, Identifier src) {
-        if(dst == src) // TODO: Workaround, Find bug in bitwiseCopy
+        if(dst == src)
             return;
         ArchitectureType srcSize = getBlobSize(src);
         setBlobSize(dst, srcSize);
@@ -129,7 +131,7 @@ namespace Storage {
     }
 
     void releaseIdentifier(Identifier identifier) {
-        // TODO
+        // TODO: Identifier free pool
         setBlobSize(identifier, 0);
     }
 };

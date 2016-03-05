@@ -43,21 +43,6 @@ struct Thread {
         return *reinterpret_cast<T*>(Storage::accessBlobData(symbol));
     }
 
-    void scrutinizeExistence(Identifier symbol) {
-        Set<true, Identifier> symbols;
-        symbols.insertElement(symbol);
-        while(!symbols.empty()) {
-            symbol = symbols.pop_back();
-            // Ontology::topIndex.find(symbol) == Ontology::topIndex.end() || // TODO: Prevent not found error
-            if(Ontology::query(1, {PreDef_Void, PreDef_Holds, symbol}) > 0)
-                continue;
-            Ontology::query(9, {symbol, PreDef_Holds, PreDef_Void}, [&](Triple result, ArchitectureType) {
-                symbols.insertElement(result.pos[0]);
-            });
-            Ontology::unlink(symbol);
-        }
-    }
-
     Identifier getGuaranteed(Identifier entity, Identifier attribute) {
         Identifier value;
         if(!Ontology::getUncertain(entity, attribute, value)) {
@@ -69,7 +54,6 @@ struct Thread {
         return value;
     }
 
-    // TODO: Cleanup created symbols in case of an exception
     jmp_buf exceptionEnv;
     Identifier task, status, frame, block;
 
@@ -92,7 +76,7 @@ struct Thread {
         }
         Ontology::unlink({task, PreDef_Holds, frame});
         if(frame != PreDef_Void)
-            scrutinizeExistence(frame);
+            Ontology::scrutinizeExistence(frame);
         frame = _frame;
     }
 

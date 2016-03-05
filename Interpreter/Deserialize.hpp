@@ -19,7 +19,7 @@ class Deserialize {
     Thread& thread;
     Identifier package, parentEntry, currentEntry;
     Vector<false, Identifier> stack, queue;
-    BlobIndex locals;
+    BlobIndex locals; // TODO: Cleanup created symbol in case of an exception
     const char *pos, *end, *tokenBegin;
     ArchitectureType row, column;
 
