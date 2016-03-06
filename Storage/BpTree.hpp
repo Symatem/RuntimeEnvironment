@@ -71,20 +71,20 @@ class BpTree {
         template<typename Type, ArchitectureType bitOffset>
         void set(IndexType dst, Type content) {
             Storage::bitwiseCopy<-1>(reinterpret_cast<ArchitectureType*>(this),
-                            reinterpret_cast<const ArchitectureType*>(&content),
-                            bitOffset+dst*sizeof(Type)*8, 0, sizeof(Type)*8);
+                                     reinterpret_cast<const ArchitectureType*>(&content),
+                                     bitOffset+dst*sizeof(Type)*8, 0, sizeof(Type)*8);
         }
 
         void setKey(IndexType dst, KeyType content) {
-            return set<KeyType, KeysBitOffset>(dst, content);
+            set<KeyType, KeysBitOffset>(dst, content);
         }
 
         void setPageRef(IndexType dst, PageRefType content) {
-            return set<PageRefType, BranchPageRefsBitOffset>(dst, content);
+            set<PageRefType, BranchPageRefsBitOffset>(dst, content);
         }
 
         void setValue(IndexType dst, ValueType content) {
-            return set<ValueType, LeafValuesBitOffset>(dst, content);
+            set<ValueType, LeafValuesBitOffset>(dst, content);
         }
 
         template<bool isLeaf>
@@ -547,7 +547,7 @@ class BpTree {
         }
 
         template<int dir = 1>
-        bool advance(LayerType atLayer, ArchitectureType steps = 1) {
+        ArchitectureType advanceAtLayer(LayerType atLayer, ArchitectureType steps = 1) {
             if(steps == 0 || end == 0 || atLayer < 0 || atLayer >= end)
                 return steps;
             bool updateLower, keepRunning;
@@ -604,6 +604,31 @@ class BpTree {
             return steps;
         }
 
+        template<int dir = 1>
+        ArchitectureType advance(ArchitectureType steps = 1) {
+            return advanceAtLayer(end-1, steps);
+        }
+
+        KeyType getKey() {
+            FrameType* frame = fromEnd();
+            return getPage<writeable>(frame->pageRef)->getKey(frame->index);
+        }
+
+        ValueType getValue() {
+            FrameType* frame = fromEnd();
+            return getPage<writeable>(frame->pageRef)->getValue(frame->index);
+        }
+
+        void setKey(KeyType key) {
+            FrameType* frame = fromEnd();
+            getPage<writeable>(frame->pageRef)->setKey(frame->index, key);
+        }
+
+        void setValue(ValueType value) {
+            FrameType* frame = fromEnd();
+            getPage<writeable>(frame->pageRef)->setValue(frame->index, value);
+        }
+
         void debugPrint() {
             printf("Iterator %hd\n", static_cast<uint16_t>(end));
             for(LayerType layer = 0; layer < end; ++layer) {
@@ -621,7 +646,7 @@ class BpTree {
     template<bool writeable, bool border = false, bool lower = false>
 	bool at(Iterator<writeable>& iter, KeyType key = 0) {
         assert(iter.end == layerCount);
-		if(isEmpty())
+		if(empty())
             return false;
         LayerType layer = 0;
         PageRefType pageRef = rootPageRef;
@@ -636,7 +661,7 @@ class BpTree {
                     frame->index = (lower) ? 0 : page->count;
                 else
                     frame->index = page->template indexOfKey<true>(key);
-                return border || (frame->index < page->count);
+                return border || (frame->index < page->count && page->getKey(frame->index) == key);
 	        } else {
                 if(border)
                     frame->index = (lower) ? 0 : page->count-1;
@@ -655,7 +680,7 @@ class BpTree {
         layerCount = 0;
     }
 
-    bool isEmpty() const {
+    bool empty() const {
         return (rootPageRef == 0);
     }
 
@@ -678,7 +703,7 @@ class BpTree {
                 return false;
             page = getPage<false>(frame->pageRef);
             data.elementCount += page->count;
-        } else if(data.elementCount == 1)
+        } else if(!isLeaf && data.elementCount == 1)
             return false;
         ArchitectureType pageCount = (data.elementCount+Page::template capacity<isLeaf>()-1)/Page::template capacity<isLeaf>();
         // TODO: 1048576 element case, leads to 1048576-4112*255=16 elements on first page (less than half of the capacity)
@@ -816,7 +841,7 @@ class BpTree {
     }
 
     typedef std::function<void(Page*, IndexType, IndexType)> AquireData;
-    void insert(Iterator<false>& at, AquireData aquireData, ArchitectureType elementCount) {
+    void insert(Iterator<false>& at, ArchitectureType elementCount, AquireData aquireData) {
         assert(elementCount > 0);
         InsertData data = { 0 };
         data.startLayer = insertAux<IteratorFrame>(data, at, elementCount);
@@ -872,6 +897,13 @@ class BpTree {
         }
     }
 
+    void insert(Iterator<false>& at, KeyType key, ValueType value) {
+        insert(at, 1, [&](Page* page, IndexType index, IndexType endIndex) {
+            page->setKey(index, key);
+            page->setValue(index, value);
+        });
+    }
+
     struct EraseData {
         bool spareLowerInner, eraseHigherInner;
         LayerType layer;
@@ -881,11 +913,11 @@ class BpTree {
     template<int dir>
     static Page* eraseAdvance(EraseData& data, IndexType& parentIndex, Page*& parent) {
         data.iter.copy((dir == -1) ? data.from : data.to);
-        if(data.iter.template advance<dir>(data.data.layer-1) == 0) {
+        if(data.iter.template advanceAtLayer<dir>(data.layer-1) == 0) {
             IteratorFrame* parentFrame = ((dir == -1) ? data.from : data.iter).getParentFrame(data.layer);
             parentIndex = parentFrame->index-1;
-            parent = getPage<false>(data.parentFrame->pageRef);
-            return getPage<false>(data.data.iter.fromBegin(data.layer)->pageRef);
+            parent = getPage<false>(parentFrame->pageRef);
+            return getPage<false>(data.iter.fromBegin(data.layer)->pageRef);
         } else
             return NULL;
     }
@@ -910,8 +942,8 @@ class BpTree {
     bool eraseLayer(EraseData& data) {
         IndexType lowerInnerIndex = data.from.fromBegin(data.layer)->index+data.spareLowerInner,
                   higherInnerIndex = data.to.fromBegin(data.layer)->index+data.eraseHigherInner;
-        Page *lowerInner = getPage<false>(data.data.from.fromBegin(data.layer)->pageRef),
-             *higherInner = getPage<false>(data.data.to.fromBegin(data.layer)->pageRef);
+        Page *lowerInner = getPage<false>(data.from.fromBegin(data.layer)->pageRef),
+             *higherInner = getPage<false>(data.to.fromBegin(data.layer)->pageRef);
         data.spareLowerInner = true;
         data.eraseHigherInner = false;
         if(lowerInner == higherInner) {
@@ -925,14 +957,14 @@ class BpTree {
         } else {
             IteratorFrame* parentFrame = data.to.getParentFrame(data.layer);
             IndexType higherInnerParentIndex = parentFrame->index-1;
-            Page* higherInnerParent = getPage<false>(data.parentFrame->pageRef);
+            Page* higherInnerParent = getPage<false>(parentFrame->pageRef);
             if(Page::template erase2<isLeaf>(higherInnerParent, lowerInner, higherInner,
                                              higherInnerParentIndex, lowerInnerIndex, higherInnerIndex)) {
                 Storage::releasePage(data.to.fromBegin(data.layer)->pageRef);
                 data.eraseHigherInner = true;
             }
             data.iter.copy(data.to);
-            while(data.iter.template advance<-1>(data.data.layer-1) == 0 &&
+            while(data.iter.template advanceAtLayer<-1>(data.layer-1) == 0 &&
                   data.iter.fromBegin(data.layer)->pageRef != data.from.fromBegin(data.layer)->pageRef)
                 Storage::releasePage(data.iter.fromBegin(data.layer)->pageRef);
         }
@@ -960,5 +992,10 @@ class BpTree {
         EraseData data = { false, true, static_cast<LayerType>(to.end-1), from, to, Iterator<false>(*this) };
         if(eraseLayer<true>(data))
             while(eraseLayer<false>(data));
+    }
+
+    void erase(Iterator<false>& at) {
+        assert(at.isValid());
+        erase(at, at);
     }
 };

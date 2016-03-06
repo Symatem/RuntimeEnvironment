@@ -1,6 +1,7 @@
-#include "../Interpreter/PreDefProcedures.hpp"
-#include <dirent.h>
+#include "Interpreter/PreDefProcedures.hpp"
+#include "DummyCppABI.hpp"
 #include <sys/stat.h>
+#include <dirent.h>
 
 struct Thread thread;
 
@@ -70,6 +71,7 @@ void loadFromPath(Identifier parentPackage, bool execute, char* path) {
 }
 
 int main(int argc, char** argv) {
+    Storage::load();
     Ontology::fillPreDef();
 
     bool execute = false;

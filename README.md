@@ -8,6 +8,7 @@ This will be used for the WebAssembly, RumpRun unikernel and RISC-V bare metal p
 
 Coding Restrictions:
 - No goto
+- No virtual/polymorphism/dynamic_cast
 - No new/delete, malloc/free => heapless (WIP)
 - No recursion/alloca, fixed stack size
 - No LibStdC++ => almost zero dependency (except from LibC)
