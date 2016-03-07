@@ -3,8 +3,12 @@
 typedef ArchitectureType Identifier;
 
 namespace Storage {
+    struct Blob {
+        ArchitectureType size;
+        ArchitectureType data[0];
+    };
+    BpTree<Identifier, Blob*> blobs;
     Identifier maxIdentifier = 0;
-    BpTree<Identifier, ArchitectureType*> blobs;
 
     Identifier createIdentifier() {
         // TODO: Identifier free pool
@@ -17,7 +21,7 @@ namespace Storage {
     }
 
     void setBlobSize(Identifier identifier, ArchitectureType size, ArchitectureType preserve = 0) {
-        BpTree<Identifier, ArchitectureType*>::Iterator<false> iter(blobs);
+        BpTree<Identifier, Blob*>::Iterator<false> iter(blobs);
         bool existing = blobs.at(iter, identifier);
         if(size == 0) {
             if(existing) {
@@ -26,24 +30,25 @@ namespace Storage {
             }
             return;
         }
-        ArchitectureType* newBlob = reinterpret_cast<ArchitectureType*>(malloc((size+2*ArchitectureSize-1)/ArchitectureSize*ArchitectureSize));
+        Blob* newBlob = reinterpret_cast<Blob*>(malloc((size+2*ArchitectureSize-1)/ArchitectureSize*ArchitectureSize));
         if(existing) {
-            ArchitectureType* oldBlob = iter.getValue();
-            if(*oldBlob > 0) {
-                ArchitectureType length = min(*oldBlob, size, preserve);
+            Blob* oldBlob = iter.getValue();
+            if(oldBlob->size > 0) {
+                ArchitectureType length = min(oldBlob->size, size, preserve);
                 if(length > 0)
-                    bitwiseCopy<-1>(newBlob+1, oldBlob+1, 0, 0, length);
+                    bitwiseCopy<-1>(reinterpret_cast<ArchitectureType*>(&newBlob->data),
+                                    reinterpret_cast<ArchitectureType*>(&oldBlob->data),
+                                    0, 0, length);
                 free(oldBlob);
             }
         } else {
-            assert(size > 0);
             blobs.insert(iter, identifier, newBlob);
             iter.end = blobs.layerCount; // TODO
             assert(blobs.at(iter, identifier));
         }
+        newBlob->size = size;
         if(size%ArchitectureSize > 0)
-            newBlob[size/ArchitectureSize+1] &= BitMask<ArchitectureType>::fillLSBs(size%ArchitectureSize);
-        *newBlob = size;
+            newBlob->data[size/ArchitectureSize] &= BitMask<ArchitectureType>::fillLSBs(size%ArchitectureSize);
         iter.setValue(newBlob);
     }
 
@@ -52,14 +57,14 @@ namespace Storage {
     }
 
     ArchitectureType getBlobSize(Identifier identifier) {
-        BpTree<Identifier, ArchitectureType*>::Iterator<false> iter(blobs);
-        return (blobs.at(iter, identifier)) ? *iter.getValue() : 0;
+        BpTree<Identifier, Blob*>::Iterator<false> iter(blobs);
+        return (blobs.at(iter, identifier)) ? iter.getValue()->size : 0;
     }
 
     ArchitectureType* accessBlobData(Identifier identifier) {
-        BpTree<Identifier, ArchitectureType*>::Iterator<false> iter(blobs);
+        BpTree<Identifier, Blob*>::Iterator<false> iter(blobs);
         assert(blobs.at(iter, identifier));
-        return iter.getValue()+1;
+        return reinterpret_cast<ArchitectureType*>(&iter.getValue()->data);
     }
 
     int compareBlobs(Identifier a, Identifier b) {

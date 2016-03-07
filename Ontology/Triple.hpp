@@ -92,7 +92,7 @@ namespace Ontology {
         return true;
     }
 
-    ArchitectureType searchGGG(ArchitectureType index, Triple& triple, std::function<void()> callback) {
+    ArchitectureType searchGGG(ArchitectureType index, Triple& triple, Closure<void> callback) {
         ArchitectureType alphaIndex, betaIndex, gammaIndex;
         if(!symbols.find(triple.pos[0], alphaIndex))
             return 0;
@@ -111,7 +111,7 @@ namespace Ontology {
         return 1;
     }
 
-    ArchitectureType searchGGV(ArchitectureType index, Triple& triple, std::function<void()> callback) {
+    ArchitectureType searchGGV(ArchitectureType index, Triple& triple, Closure<void> callback) {
         ArchitectureType alphaIndex, betaIndex;
         if(!symbols.find(triple.pos[0], alphaIndex))
             return 0;
@@ -131,7 +131,7 @@ namespace Ontology {
         return gamma.size();
     }
 
-    ArchitectureType searchGVV(ArchitectureType index, Triple& triple, std::function<void()> callback) {
+    ArchitectureType searchGVV(ArchitectureType index, Triple& triple, Closure<void> callback) {
         ArchitectureType alphaIndex, count = 0;
         if(!symbols.find(triple.pos[0], alphaIndex))
             return 0;
@@ -154,7 +154,7 @@ namespace Ontology {
         return count;
     }
 
-    ArchitectureType searchGIV(ArchitectureType index, Triple& triple, std::function<void()> callback) {
+    ArchitectureType searchGIV(ArchitectureType index, Triple& triple, Closure<void> callback) {
         ArchitectureType alphaIndex;
         if(!symbols.find(triple.pos[0], alphaIndex))
             return 0;
@@ -178,7 +178,7 @@ namespace Ontology {
         return result.size();
     }
 
-    ArchitectureType searchGVI(ArchitectureType index, Triple& triple, std::function<void()> callback) {
+    ArchitectureType searchGVI(ArchitectureType index, Triple& triple, Closure<void> callback) {
         ArchitectureType alphaIndex;
         if(!symbols.find(triple.pos[0], alphaIndex))
             return 0;
@@ -193,7 +193,7 @@ namespace Ontology {
         return beta.size();
     }
 
-    ArchitectureType searchVII(ArchitectureType index, Triple& triple, std::function<void()> callback) {
+    ArchitectureType searchVII(ArchitectureType index, Triple& triple, Closure<void> callback) {
         if(callback)
             symbols.iterate([&](Pair<Identifier, Identifier[6]>& alphaResult) {
                 triple.pos[0] = alphaResult.key;
@@ -202,7 +202,7 @@ namespace Ontology {
         return symbols.size();
     }
 
-    ArchitectureType searchVVI(ArchitectureType index, Triple& triple, std::function<void()> callback) {
+    ArchitectureType searchVVI(ArchitectureType index, Triple& triple, Closure<void> callback) {
         ArchitectureType count = 0;
         symbols.iterate([&](Pair<Identifier, Identifier[6]>& alphaResult) {
             Set<false, Identifier, Identifier> beta;
@@ -219,7 +219,7 @@ namespace Ontology {
         return count;
     }
 
-    ArchitectureType searchVVV(ArchitectureType index, Triple& triple, std::function<void()> callback) {
+    ArchitectureType searchVVV(ArchitectureType index, Triple& triple, Closure<void> callback) {
         ArchitectureType count = 0;
         symbols.iterate([&](Pair<Identifier, Identifier[6]>& alphaResult) {
             triple.pos[0] = alphaResult.key;
@@ -241,10 +241,10 @@ namespace Ontology {
         return count;
     }
 
-    ArchitectureType query(ArchitectureType mode, Triple triple, std::function<void(Triple, ArchitectureType)> callback = nullptr) {
+    ArchitectureType query(ArchitectureType mode, Triple triple, Closure<void, Triple> callback = nullptr) {
         struct QueryMethod {
             uint8_t index, pos, size;
-            ArchitectureType(*function)(ArchitectureType, Triple&, std::function<void()>);
+            ArchitectureType(*function)(ArchitectureType, Triple&, Closure<void>);
         };
 
         const QueryMethod lookup[] = {
@@ -282,11 +282,11 @@ namespace Ontology {
         if(method.function == nullptr)
             return 0;
 
-        std::function<void()> handleNext = [&]() {
+        Closure<void> handleNext = [&]() {
             Triple result;
             for(ArchitectureType i = 0; i < method.size; ++i)
                 result.pos[i] = triple.pos[method.pos+i];
-            callback(result, method.size);
+            callback(result);
         };
 
         if(indexMode == MonoIndex) {
@@ -302,7 +302,7 @@ namespace Ontology {
                     }
                     if(mode >= 9 && mode < 18)
                         triple.pos[index] = triple.pos[2];
-                    callback(triple, method.size);
+                    callback(triple);
                 };
             }
         } else if(indexMode == TriIndex && method.index >= 3) {
@@ -405,7 +405,7 @@ namespace Ontology {
     void setSolitary(Triple triple, bool linkVoid = false) {
         Set<true, Identifier> dirty;
         bool toLink = (linkVoid || triple.value != PreDef_Void);
-        query(9, triple, [&](Triple result, ArchitectureType) {
+        query(9, triple, [&](Triple result) {
             if((triple.pos[2] == result.pos[0]) && (linkVoid || result.pos[0] != PreDef_Void))
                 toLink = false;
             else
@@ -425,7 +425,7 @@ namespace Ontology {
     }
 
     bool getUncertain(Identifier alpha, Identifier beta, Identifier& gamma) {
-        return (query(9, {alpha, beta, PreDef_Void}, [&](Triple result, ArchitectureType) {
+        return (query(9, {alpha, beta, PreDef_Void}, [&](Triple result) {
             gamma = result.pos[0];
         }) == 1);
     }
@@ -437,7 +437,7 @@ namespace Ontology {
             symbol = symbols.pop_back();
             if(query(1, {PreDef_Void, PreDef_Holds, symbol}) > 0)
                 continue;
-            query(9, {symbol, PreDef_Holds, PreDef_Void}, [&](Triple result, ArchitectureType) {
+            query(9, {symbol, PreDef_Holds, PreDef_Void}, [&](Triple result) {
                 symbols.insertElement(result.pos[0]);
             });
             // TODO: Prevent double free

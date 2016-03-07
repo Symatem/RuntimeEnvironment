@@ -1,4 +1,4 @@
-#include <functional>
+#include "CppDummy.hpp"
 #include <sys/mman.h>
 #include <setjmp.h>
 #include <assert.h>
@@ -18,28 +18,8 @@ constexpr ArchitectureType architecturePadding(ArchitectureType bits) {
     return (bits+ArchitectureSize-1)/ArchitectureSize*ArchitectureSize;
 }
 
-template <typename T>
-T min(T a, T b) {
-    return (a < b) ? a : b;
-}
-
-template<typename T, typename... Args>
-T min(T c, Args... args) {
-    return min(c, min(args...));
-}
-
-template <typename T>
-T max(T a, T b) {
-    return (a > b) ? a : b;
-}
-
-template<typename T, typename... Args>
-T max(T c, Args... args) {
-    return max(c, max(args...));
-}
-
 template<typename IndexType>
-IndexType binarySearch(IndexType end, std::function<bool(IndexType)> compare) {
+IndexType binarySearch(IndexType end, Closure<bool, IndexType> compare) {
     IndexType begin = 0, mid;
     while(begin < end) {
         mid = (begin+end)/2;
@@ -281,7 +261,7 @@ class PagePool {
         rootPageRef = 0;
     }
 
-    bool isEmpty() const {
+    bool empty() const {
         return (rootPageRef == 0);
     }
 
@@ -324,7 +304,7 @@ class PagePool {
     }
 
     PageRefType pop() {
-        assert(!isEmpty());
+        assert(!empty());
         auto page = Storage::dereferencePage<Page>(rootPageRef);
         if(page->count == 0) {
             PageRefType pageRef = rootPageRef;
@@ -342,9 +322,10 @@ class SuperPage : public BasePage {
 
 namespace Storage {
     PageRefType aquirePage() {
+        assert(ptr);
         PageRefType pageRef;
         auto superPage = dereferencePage<SuperPage>(0);
-        if(superPage->freePool.isEmpty()) {
+        if(superPage->freePool.empty()) {
             mapPages(maxPageRef+1);
             pageRef = maxPageRef-1;
         } else
@@ -353,6 +334,7 @@ namespace Storage {
     }
 
     void releasePage(PageRefType pageRef) {
+        assert(ptr);
         if(pageRef == maxPageRef-1)
             mapPages(maxPageRef-1);
         else

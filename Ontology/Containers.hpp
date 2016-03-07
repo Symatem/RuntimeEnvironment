@@ -36,7 +36,7 @@ struct Vector {
         return (*this)[size()-1];
     }
 
-    void iterate(std::function<void(ElementType&)> callback) const {
+    void iterate(Closure<void, ElementType&> callback) const {
         for(ArchitectureType at = 0; at < size(); ++at)
             callback((*this)[at]);
     }

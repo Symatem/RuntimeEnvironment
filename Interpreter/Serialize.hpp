@@ -5,27 +5,11 @@ const char* HRLRawBegin = "raw:";
 struct Serialize {
     Thread& thread;
     Identifier symbol;
-    ArchitectureType usedBlobSize;
-
-    bool isEmpty() const {
-        return (usedBlobSize == 0);
-    }
-
-    Identifier finalizeSymbol() {
-        Storage::setBlobSizePreservingData(symbol, usedBlobSize);
-        return symbol;
-    }
 
     void put(uint8_t data) {
-        // TODO: Refactor blob size reserve
-        ArchitectureType reservedBlobSize = Storage::getBlobSize(symbol),
-                         nextBlobSize = usedBlobSize+8;
-        if(nextBlobSize > reservedBlobSize) {
-            reservedBlobSize = max(nextBlobSize, usedBlobSize*2);
-            Storage::setBlobSizePreservingData(symbol, reservedBlobSize);
-        }
-        reinterpret_cast<uint8_t*>(Storage::accessBlobData(symbol))[usedBlobSize/8] = data;
-        usedBlobSize = nextBlobSize;
+        ArchitectureType size = Storage::getBlobSize(symbol);
+        Storage::setBlobSizePreservingData(symbol, size+8);
+        reinterpret_cast<uint8_t*>(Storage::accessBlobData(symbol))[size/8] = data;
     }
 
     template<typename NumberType>
@@ -57,7 +41,7 @@ struct Serialize {
         }
     }
 
-    Serialize(Thread& _thread, Identifier _symbol) :thread(_thread), symbol(_symbol), usedBlobSize(0) {
+    Serialize(Thread& _thread, Identifier _symbol) :thread(_thread), symbol(_symbol) {
         Ontology::setSolitary({symbol, PreDef_BlobType, PreDef_Text});
     }
 
@@ -113,7 +97,7 @@ struct Serialize {
         }
     }
 
-    void serializeEntity(Identifier entity, std::function<Identifier(Identifier)> followCallback = nullptr) {
+    void serializeEntity(Identifier entity, Closure<Identifier, Identifier> followCallback = nullptr) {
         while(true) {
             Identifier followAttribute, followEntity = PreDef_Void;
             if(followCallback)
@@ -126,14 +110,14 @@ struct Serialize {
             put(';');
             put('\n');
 
-            Ontology::query(21, {entity, PreDef_Void, PreDef_Void}, [&](Triple result, ArchitectureType) {
+            Ontology::query(21, {entity, PreDef_Void, PreDef_Void}, [&](Triple result) {
                 if(followCallback && result.pos[0] == followAttribute) {
                     Ontology::getUncertain(entity, followAttribute, followEntity);
                     return;
                 }
                 put('\t');
                 serializeBlob(result.pos[0]);
-                Ontology::query(9, {entity, result.pos[0], PreDef_Void}, [&](Triple resultB, ArchitectureType) {
+                Ontology::query(9, {entity, result.pos[0], PreDef_Void}, [&](Triple resultB) {
                     put(' ');
                     serializeBlob(resultB.pos[0]);
                 });

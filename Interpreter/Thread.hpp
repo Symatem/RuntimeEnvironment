@@ -146,12 +146,12 @@ struct Thread {
             link({frame, PreDef_Procedure, procedure}); // TODO: debugging
 
             if(Ontology::getUncertain(execute, PreDef_Static, staticParams))
-                Ontology::query(12, {staticParams, PreDef_Void, PreDef_Void}, [&](Triple result, ArchitectureType) {
+                Ontology::query(12, {staticParams, PreDef_Void, PreDef_Void}, [&](Triple result) {
                     link({block, result.pos[0], result.pos[1]});
                 });
 
             if(Ontology::getUncertain(execute, PreDef_Dynamic, dynamicParams))
-                Ontology::query(12, {dynamicParams, PreDef_Void, PreDef_Void}, [&](Triple result, ArchitectureType) {
+                Ontology::query(12, {dynamicParams, PreDef_Void, PreDef_Void}, [&](Triple result) {
                     switch(result.pos[1]) {
                         case PreDef_Task:
                             link({block, result.pos[0], task});
@@ -163,7 +163,7 @@ struct Thread {
                             link({block, result.pos[0], parentBlock});
                             break;
                         default:
-                            Ontology::query(9, {parentBlock, result.pos[1], PreDef_Void}, [&](Triple resultB, ArchitectureType) {
+                            Ontology::query(9, {parentBlock, result.pos[1], PreDef_Void}, [&](Triple resultB) {
                                 link({block, result.pos[0], resultB.pos[0]});
                             });
                             break;
@@ -239,7 +239,7 @@ struct Thread {
 
     bool executeDeserialized() {
         Identifier prev = PreDef_Void;
-        if(Ontology::query(9, {block, PreDef_Output, PreDef_Void}, [&](Triple result, ArchitectureType) {
+        if(Ontology::query(9, {block, PreDef_Output, PreDef_Void}, [&](Triple result) {
             Identifier next = Storage::createIdentifier();
             link({next, PreDef_Procedure, result.pos[0]});
             if(prev == PreDef_Void)

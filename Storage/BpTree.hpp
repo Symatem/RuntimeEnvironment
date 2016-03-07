@@ -840,7 +840,7 @@ class BpTree {
         return page;
     }
 
-    typedef std::function<void(Page*, IndexType, IndexType)> AquireData;
+    typedef Closure<void, Page*, IndexType, IndexType> AquireData;
     void insert(Iterator<false>& at, ArchitectureType elementCount, AquireData aquireData) {
         assert(elementCount > 0);
         InsertData data = { 0 };

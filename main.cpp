@@ -1,5 +1,4 @@
 #include "Interpreter/PreDefProcedures.hpp"
-#include "DummyCppABI.hpp"
 #include <sys/stat.h>
 #include <dirent.h>
 
