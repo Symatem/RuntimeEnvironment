@@ -1,17 +1,28 @@
-#include <typeinfo>
-#include <stdlib.h>
-#include <stdio.h>
-#include <cstring>
 #include <new>
+#include <typeinfo>
+#include <setjmp.h>
+#include <stdlib.h> // TODO: Remove malloc and free
+#include <stdio.h>
+
+[[ noreturn ]] void crash(const char* message) {
+    perror(message);
+    _exit(1);
+}
+
+#undef assert
+#define tokenToString(x) #x
+#define macroToString(x) tokenToString(x)
+#define assert(condition) if(!(condition)) { \
+    perror("Assertion failed in " __FILE__ ":" macroToString(__LINE__)); \
+    _exit(1); \
+}
 
 void* operator new(size_t size) {
-    printf("operator new %zu\n", size);
-    abort();
+    crash("operator new called");
 }
 
 void operator delete(void* ptr) noexcept {
-    printf("operator delete %p\n", ptr);
-    abort();
+    crash("operator delete called");
 }
 
 namespace std {
@@ -38,14 +49,12 @@ namespace __cxxabiv1 {
 
         __attribute__((noreturn))
         void __cxa_pure_virtual(void) {
-            printf("Pure virtual function called!");
-            abort();
+            crash("pure virtual function called");
         }
 
         __attribute__((noreturn))
         void __cxa_deleted_virtual(void) {
-            printf("Deleted virtual function called!");
-            abort();
+            crash("deleted virtual function called");
         }
 
         /*void* __dynamic_cast(const void* srcPtr, const __class_type_info* srcType, const __class_type_info* dstType, ptrdiff_t src2dstOffset) {
@@ -103,10 +112,40 @@ struct Closure {
         return payload[1];
     }
     ReturnType operator()(Arguments... arguments) {
-        if(!*this) {
-            printf("Empty closure called!\n");
-            abort();
-        }
+        if(!*this)
+            crash("empty closure called");
         return reinterpret_cast<CallableContainer<ReturnType, Arguments...>&>(payload)(arguments...);
     }
 };
+
+typedef uint64_t ArchitectureType;
+typedef ArchitectureType PageRefType;
+const ArchitectureType ArchitectureSize = sizeof(ArchitectureType)*8;
+
+constexpr ArchitectureType architecturePadding(ArchitectureType bits) {
+    return (bits+ArchitectureSize-1)/ArchitectureSize*ArchitectureSize;
+}
+
+ArchitectureType strlen(const char* str) {
+    const char* pos;
+    for(pos = str; *pos; ++pos);
+    return pos-str;
+}
+
+int memcmp(const void* a, const void* b, ArchitectureType length) {
+    const uint8_t *posA = reinterpret_cast<const uint8_t*>(a),
+                  *posB = reinterpret_cast<const uint8_t*>(b),
+                  *end = posA+length;
+    while(posA < end) {
+        if(*posA != *posB)
+            return *posA-*posB;
+        ++posA;
+        ++posB;
+    }
+    return 0;
+}
+
+bool stringEndsWith(const char* str, const char* end) {
+    ArchitectureType endLen = strlen(end);
+    return memcmp(str+strlen(str)-endLen, end, endLen) == 0;
+}

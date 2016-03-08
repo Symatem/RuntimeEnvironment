@@ -463,7 +463,7 @@ namespace Ontology {
         else if(typeid(DataType) == typeid(double))
             blobType = PreDef_Float;
         else
-            abort();
+            crash("createFromData<InvalidType>");
         Identifier symbol = Storage::createIdentifier();
         link({symbol, PreDef_BlobType, blobType});
         Storage::overwriteBlob(symbol, src);
@@ -471,6 +471,7 @@ namespace Ontology {
     }
 
     Identifier createFromFile(const char* path) {
+        // TODO: Move to POSIX API
         int fd = open(path, O_RDONLY);
         if(fd < 0)
             return PreDef_Void;

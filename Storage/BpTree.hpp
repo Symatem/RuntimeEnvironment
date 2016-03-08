@@ -518,7 +518,7 @@ class BpTree {
                 if(frame->index > 0)
                     return frame;
             }
-            return NULL;
+            return nullptr;
         }
 
         bool isValid() {
@@ -919,7 +919,7 @@ class BpTree {
             parent = getPage<false>(parentFrame->pageRef);
             return getPage<false>(data.iter.fromBegin(data.layer)->pageRef);
         } else
-            return NULL;
+            return nullptr;
     }
 
     template<bool isLeaf>

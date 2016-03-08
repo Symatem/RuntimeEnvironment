@@ -1,22 +1,4 @@
-#include "CppDummy.hpp"
-#include <sys/mman.h>
-#include <setjmp.h>
-#include <assert.h>
-#include <fcntl.h>
-
-#ifdef __APPLE__
-#define MMAP_FUNC mmap
-#else
-#define MMAP_FUNC mmap64
-#endif
-
-typedef uint64_t ArchitectureType;
-typedef ArchitectureType PageRefType;
-const ArchitectureType ArchitectureSize = sizeof(ArchitectureType)*8;
-
-constexpr ArchitectureType architecturePadding(ArchitectureType bits) {
-    return (bits+ArchitectureSize-1)/ArchitectureSize*ArchitectureSize;
-}
+#include "../Platform/POSIX.hpp"
 
 template<typename IndexType>
 IndexType binarySearch(IndexType end, Closure<bool, IndexType> compare) {
@@ -138,7 +120,8 @@ namespace Storage {
     const ArchitectureType
           bitsPerPage = 1<<15,
           mmapBucketSize = 1<<24,
-          mmapMaxPageCount = 2000*512;
+          minPageCount = 1,
+          maxPageCount = 2000*512;
 
     ArchitectureType bytesForPages(ArchitectureType pageCount) {
         return (pageCount*bitsPerPage+mmapBucketSize-1)/mmapBucketSize*mmapBucketSize/8;
@@ -149,52 +132,42 @@ namespace Storage {
     PageRefType maxPageRef;
 
     void mapPages(ArchitectureType pageCount) {
+        // TODO: Move to POSIX API
         if(maxPageRef)
             munmap(ptr, bytesForPages(maxPageRef));
-        if(pageCount >= mmapMaxPageCount) {
-            perror("memory exhausted");
-            exit(1);
-        }
+        if(pageCount >= maxPageCount)
+            crash("memory exhausted");
         maxPageRef = pageCount;
-        if(ftruncate(file, bytesForPages(maxPageRef)) != 0) {
-            perror("ftruncate failed");
-            exit(1);
-        }
+        if(ftruncate(file, bytesForPages(maxPageRef)) != 0)
+            crash("ftruncate failed");
         if(MMAP_FUNC(ptr, bytesForPages(maxPageRef),
                      PROT_READ|PROT_WRITE, MAP_FIXED|MAP_FILE|MAP_SHARED,
-                     file, 0) != ptr) {
-            perror("re mmap failed");
-            exit(1);
-        }
+                     file, 0) != ptr)
+            crash("re mmap failed");
     }
 
     void load() {
+        // TODO: Move to POSIX API
         file = open("storage", O_RDWR|O_CREAT);
-        if(file < 0) {
-            perror("open failed");
-            exit(1);
-        }
+        if(file < 0)
+            crash("open failed");
         maxPageRef = lseek(file, 0, SEEK_END)/(bitsPerPage/8);
-        if(maxPageRef == 0) maxPageRef = 1;
-        ptr = reinterpret_cast<uint8_t*>(MMAP_FUNC(NULL, bytesForPages(mmapMaxPageCount), PROT_NONE, MAP_FILE|MAP_SHARED, file, 0));
-        if(ptr == MAP_FAILED) {
-            perror("mmap failed");
-            exit(1);
-        }
+        if(maxPageRef < minPageCount)
+            maxPageRef = minPageCount;
+        ptr = reinterpret_cast<uint8_t*>(MMAP_FUNC(nullptr, bytesForPages(maxPageCount), PROT_NONE, MAP_FILE|MAP_SHARED, file, 0));
+        if(ptr == MAP_FAILED)
+            crash("mmap failed");
         mapPages(maxPageRef);
     }
 
     void unload() {
+        // TODO: Move to POSIX API
         if(maxPageRef)
             munmap(ptr, bytesForPages(maxPageRef));
-        if(ftruncate(file, bytesForPages(maxPageRef)) != 0) {
-            perror("ftruncate failed");
-            exit(1);
-        }
-        if(close(file) < 0) {
-            perror("close failed");
-            exit(1);
-        }
+        if(ftruncate(file, bytesForPages(maxPageRef)) != 0)
+            crash("ftruncate failed");
+        if(close(file) < 0)
+            crash("close failed");
     }
 
     template<typename PageType>
