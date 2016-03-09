@@ -1,28 +1,28 @@
 #include "BpTree.hpp"
 
-typedef ArchitectureType Identifier;
+typedef ArchitectureType Symbol;
 
 namespace Storage {
     struct Blob {
         ArchitectureType size;
         ArchitectureType data[0];
     };
-    BpTree<Identifier, Blob*> blobs;
-    Identifier maxIdentifier = 0;
+    BpTree<Symbol, Blob*> blobs;
+    Symbol maxSymbol = 0;
 
-    Identifier createIdentifier() {
-        // TODO: Identifier free pool
-        return ++maxIdentifier;
+    Symbol createSymbol() {
+        // TODO: Symbol free pool
+        return ++maxSymbol;
     }
 
-    void modifiedBlob(Identifier identifier) {
+    void modifiedBlob(Symbol symbol) {
         // TODO
         // blobIndex.eraseElement(symbol);
     }
 
-    void setBlobSize(Identifier identifier, ArchitectureType size, ArchitectureType preserve = 0) {
-        BpTree<Identifier, Blob*>::Iterator<false> iter(blobs);
-        bool existing = blobs.at(iter, identifier);
+    void setBlobSize(Symbol symbol, ArchitectureType size, ArchitectureType preserve = 0) {
+        BpTree<Symbol, Blob*>::Iterator<false> iter(blobs);
+        bool existing = blobs.at(iter, symbol);
         if(size == 0) {
             if(existing) {
                 free(iter.getValue());
@@ -42,9 +42,9 @@ namespace Storage {
                 free(oldBlob);
             }
         } else {
-            blobs.insert(iter, identifier, newBlob);
+            blobs.insert(iter, symbol, newBlob);
             iter.end = blobs.layerCount; // TODO
-            assert(blobs.at(iter, identifier));
+            assert(blobs.at(iter, symbol));
         }
         newBlob->size = size;
         if(size%ArchitectureSize > 0)
@@ -52,22 +52,22 @@ namespace Storage {
         iter.setValue(newBlob);
     }
 
-    void setBlobSizePreservingData(Identifier identifier, ArchitectureType size) {
-        setBlobSize(identifier, size, size);
+    void setBlobSizePreservingData(Symbol symbol, ArchitectureType size) {
+        setBlobSize(symbol, size, size);
     }
 
-    ArchitectureType getBlobSize(Identifier identifier) {
-        BpTree<Identifier, Blob*>::Iterator<false> iter(blobs);
-        return (blobs.at(iter, identifier)) ? iter.getValue()->size : 0;
+    ArchitectureType getBlobSize(Symbol symbol) {
+        BpTree<Symbol, Blob*>::Iterator<false> iter(blobs);
+        return (blobs.at(iter, symbol)) ? iter.getValue()->size : 0;
     }
 
-    ArchitectureType* accessBlobData(Identifier identifier) {
-        BpTree<Identifier, Blob*>::Iterator<false> iter(blobs);
-        assert(blobs.at(iter, identifier));
+    ArchitectureType* accessBlobData(Symbol symbol) {
+        BpTree<Symbol, Blob*>::Iterator<false> iter(blobs);
+        assert(blobs.at(iter, symbol));
         return reinterpret_cast<ArchitectureType*>(&iter.getValue()->data);
     }
 
-    int compareBlobs(Identifier a, Identifier b) {
+    int compareBlobs(Symbol a, Symbol b) {
         if(a == b)
             return 0;
         ArchitectureType sizeA = getBlobSize(a),
@@ -81,7 +81,7 @@ namespace Storage {
         return memcmp(accessBlobData(a), accessBlobData(b), (sizeA+7)/8);
     }
 
-    bool overwriteBlobPartial(Identifier dst, Identifier src, ArchitectureType dstOffset, ArchitectureType srcOffset, ArchitectureType length) {
+    bool overwriteBlobPartial(Symbol dst, Symbol src, ArchitectureType dstOffset, ArchitectureType srcOffset, ArchitectureType length) {
         ArchitectureType dstSize = getBlobSize(dst),
                          srcSize = getBlobSize(src);
         auto end = dstOffset+length;
@@ -95,7 +95,7 @@ namespace Storage {
         return true;
     }
 
-    void cloneBlob(Identifier dst, Identifier src) {
+    void cloneBlob(Symbol dst, Symbol src) {
         if(dst == src)
             return;
         ArchitectureType srcSize = getBlobSize(src);
@@ -105,26 +105,26 @@ namespace Storage {
     }
 
     template<typename DataType>
-    void overwriteBlob(Identifier dst, DataType src) {
+    void overwriteBlob(Symbol dst, DataType src) {
         setBlobSize(dst, sizeof(src)*8);
         *reinterpret_cast<DataType*>(accessBlobData(dst)) = src;
         modifiedBlob(dst);
     }
 
-    bool eraseFromBlob(Identifier identifier, ArchitectureType begin, ArchitectureType end) {
-        ArchitectureType size = getBlobSize(identifier);
+    bool eraseFromBlob(Symbol symbol, ArchitectureType begin, ArchitectureType end) {
+        ArchitectureType size = getBlobSize(symbol);
         if(begin >= end || end > size)
             return false;
-        ArchitectureType* data = accessBlobData(identifier);
+        ArchitectureType* data = accessBlobData(symbol);
         auto rest = size-end;
         if(rest > 0)
             bitwiseCopy(data, data, begin, end, rest);
-        setBlobSizePreservingData(identifier, rest+begin);
-        modifiedBlob(identifier);
+        setBlobSizePreservingData(symbol, rest+begin);
+        modifiedBlob(symbol);
         return true;
     }
 
-    bool insertIntoBlob(Identifier dst, ArchitectureType* src, ArchitectureType begin, ArchitectureType length) {
+    bool insertIntoBlob(Symbol dst, ArchitectureType* src, ArchitectureType begin, ArchitectureType length) {
         assert(length > 0);
         ArchitectureType dstSize = getBlobSize(dst);
         auto newBlobSize = dstSize+length, rest = dstSize-begin;
@@ -139,8 +139,8 @@ namespace Storage {
         return true;
     }
 
-    void releaseIdentifier(Identifier identifier) {
-        // TODO: Identifier free pool
-        setBlobSize(identifier, 0);
+    void releaseSymbol(Symbol symbol) {
+        // TODO: Symbol free pool
+        setBlobSize(symbol, 0);
     }
 };

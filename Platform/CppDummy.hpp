@@ -118,6 +118,19 @@ struct Closure {
     }
 };
 
+template<typename IndexType>
+IndexType binarySearch(IndexType end, Closure<bool, IndexType> compare) {
+    IndexType begin = 0, mid;
+    while(begin < end) {
+        mid = (begin+end)/2;
+        if(compare(mid))
+            begin = mid+1;
+        else
+            end = mid;
+    }
+    return begin;
+}
+
 typedef uint64_t ArchitectureType;
 typedef ArchitectureType PageRefType;
 const ArchitectureType ArchitectureSize = sizeof(ArchitectureType)*8;

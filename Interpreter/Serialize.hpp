@@ -4,7 +4,7 @@ const char* HRLRawBegin = "raw:";
 
 struct Serialize {
     Thread& thread;
-    Identifier symbol;
+    Symbol symbol;
 
     void put(uint8_t data) {
         ArchitectureType size = Storage::getBlobSize(symbol);
@@ -41,17 +41,17 @@ struct Serialize {
         }
     }
 
-    Serialize(Thread& _thread, Identifier _symbol) :thread(_thread), symbol(_symbol) {
+    Serialize(Thread& _thread, Symbol _symbol) :thread(_thread), symbol(_symbol) {
         Ontology::setSolitary({symbol, PreDef_BlobType, PreDef_Text});
     }
 
-    Serialize(Thread& _thread) :Serialize(_thread, Storage::createIdentifier()) { }
+    Serialize(Thread& _thread) :Serialize(_thread, Storage::createSymbol()) { }
 
-    void serializeBlob(Identifier srcSymbol) {
+    void serializeBlob(Symbol srcSymbol) {
         auto src = reinterpret_cast<const uint8_t*>(Storage::accessBlobData(srcSymbol));
         ArchitectureType len = Storage::getBlobSize(srcSymbol);
         if(len) {
-            Identifier type = PreDef_Void;
+            Symbol type = PreDef_Void;
             Ontology::getUncertain(srcSymbol, PreDef_BlobType, type);
             switch(type) {
                 case PreDef_Text: {
@@ -97,9 +97,9 @@ struct Serialize {
         }
     }
 
-    void serializeEntity(Identifier entity, Closure<Identifier, Identifier> followCallback = nullptr) {
+    void serializeEntity(Symbol entity, Closure<Symbol, Symbol> followCallback = nullptr) {
         while(true) {
-            Identifier followAttribute, followEntity = PreDef_Void;
+            Symbol followAttribute, followEntity = PreDef_Void;
             if(followCallback)
                 followAttribute = followCallback(entity);
 

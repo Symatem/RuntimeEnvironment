@@ -1,17 +1,4 @@
-#include "../Platform/POSIX.hpp"
-
-template<typename IndexType>
-IndexType binarySearch(IndexType end, Closure<bool, IndexType> compare) {
-    IndexType begin = 0, mid;
-    while(begin < end) {
-        mid = (begin+end)/2;
-        if(compare(mid))
-            begin = mid+1;
-        else
-            end = mid;
-    }
-    return begin;
-}
+#include "../Platform/CppDummy.hpp"
 
 template<typename type>
 struct BitMask {
@@ -123,56 +110,21 @@ namespace Storage {
           minPageCount = 1,
           maxPageCount = 2000*512;
 
-    ArchitectureType bytesForPages(ArchitectureType pageCount) {
-        return (pageCount*bitsPerPage+mmapBucketSize-1)/mmapBucketSize*mmapBucketSize/8;
+    ArchitectureType bytesForPages(ArchitectureType _pageCount) {
+        return (_pageCount*bitsPerPage+mmapBucketSize-1)/mmapBucketSize*mmapBucketSize/8;
     }
 
     int file;
     uint8_t* ptr;
-    PageRefType maxPageRef;
+    PageRefType pageCount;
 
-    void mapPages(ArchitectureType pageCount) {
-        // TODO: Move to POSIX API
-        if(maxPageRef)
-            munmap(ptr, bytesForPages(maxPageRef));
-        if(pageCount >= maxPageCount)
-            crash("memory exhausted");
-        maxPageRef = pageCount;
-        if(ftruncate(file, bytesForPages(maxPageRef)) != 0)
-            crash("ftruncate failed");
-        if(MMAP_FUNC(ptr, bytesForPages(maxPageRef),
-                     PROT_READ|PROT_WRITE, MAP_FIXED|MAP_FILE|MAP_SHARED,
-                     file, 0) != ptr)
-            crash("re mmap failed");
-    }
-
-    void load() {
-        // TODO: Move to POSIX API
-        file = open("storage", O_RDWR|O_CREAT);
-        if(file < 0)
-            crash("open failed");
-        maxPageRef = lseek(file, 0, SEEK_END)/(bitsPerPage/8);
-        if(maxPageRef < minPageCount)
-            maxPageRef = minPageCount;
-        ptr = reinterpret_cast<uint8_t*>(MMAP_FUNC(nullptr, bytesForPages(maxPageCount), PROT_NONE, MAP_FILE|MAP_SHARED, file, 0));
-        if(ptr == MAP_FAILED)
-            crash("mmap failed");
-        mapPages(maxPageRef);
-    }
-
-    void unload() {
-        // TODO: Move to POSIX API
-        if(maxPageRef)
-            munmap(ptr, bytesForPages(maxPageRef));
-        if(ftruncate(file, bytesForPages(maxPageRef)) != 0)
-            crash("ftruncate failed");
-        if(close(file) < 0)
-            crash("close failed");
-    }
+    void resizeMemory(ArchitectureType pageCount);
+    void load();
+    void unload();
 
     template<typename PageType>
     PageType* dereferencePage(PageRefType pageRef) {
-        assert(pageRef < maxPageRef);
+        assert(pageRef < pageCount);
         return reinterpret_cast<PageType*>(ptr+bitsPerPage/8*pageRef);
     }
 
@@ -299,8 +251,8 @@ namespace Storage {
         PageRefType pageRef;
         auto superPage = dereferencePage<SuperPage>(0);
         if(superPage->freePool.empty()) {
-            mapPages(maxPageRef+1);
-            pageRef = maxPageRef-1;
+            resizeMemory(pageCount+1);
+            pageRef = pageCount-1;
         } else
             pageRef = superPage->freePool.pop();
         return pageRef;
@@ -308,8 +260,8 @@ namespace Storage {
 
     void releasePage(PageRefType pageRef) {
         assert(ptr);
-        if(pageRef == maxPageRef-1)
-            mapPages(maxPageRef-1);
+        if(pageRef == pageCount-1)
+            resizeMemory(pageCount-1);
         else
             dereferencePage<SuperPage>(0)->freePool.push(pageRef);
     }

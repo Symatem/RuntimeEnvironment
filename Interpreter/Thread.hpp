@@ -1,10 +1,10 @@
 #include "../Ontology/Triple.hpp"
 
 struct Thread;
-bool executePreDefProcedure(Thread& thread, Identifier procedure);
+bool executePreDefProcedure(Thread& thread, Symbol procedure);
 
 struct Thread {
-    bool valueCountIs(Identifier entity, Identifier attribute, ArchitectureType size) {
+    bool valueCountIs(Symbol entity, Symbol attribute, ArchitectureType size) {
         return Ontology::query(9, {entity, attribute, PreDef_Void}) == size;
     }
 
@@ -14,7 +14,7 @@ struct Thread {
 
     bool link(Triple triple) {
         if(!Ontology::link(triple)) {
-            Identifier data = Storage::createIdentifier();
+            Symbol data = Storage::createSymbol();
             link({data, PreDef_Entity, triple.entity});
             link({data, PreDef_Attribute, triple.attribute});
             link({data, PreDef_Value, triple.value});
@@ -26,7 +26,7 @@ struct Thread {
 
     bool unlink(Triple triple) {
         if(!Ontology::unlink(triple)) {
-            Identifier data = Storage::createIdentifier();
+            Symbol data = Storage::createSymbol();
             link({data, PreDef_Entity, triple.entity});
             link({data, PreDef_Attribute, triple.attribute});
             link({data, PreDef_Value, triple.value});
@@ -37,16 +37,16 @@ struct Thread {
     }
 
     template <typename T>
-    T accessBlobAs(Identifier symbol) {
+    T accessBlobAs(Symbol symbol) {
         if(Storage::getBlobSize(symbol) != sizeof(T)*8)
             throwException("Invalid Blob Size");
         return *reinterpret_cast<T*>(Storage::accessBlobData(symbol));
     }
 
-    Identifier getGuaranteed(Identifier entity, Identifier attribute) {
-        Identifier value;
+    Symbol getGuaranteed(Symbol entity, Symbol attribute) {
+        Symbol value;
         if(!Ontology::getUncertain(entity, attribute, value)) {
-            Identifier data = Storage::createIdentifier();
+            Symbol data = Storage::createSymbol();
             link({data, PreDef_Entity, entity});
             link({data, PreDef_Attribute, attribute});
             throwException("Nonexistent or ambiguous", data);
@@ -55,16 +55,16 @@ struct Thread {
     }
 
     jmp_buf exceptionEnv;
-    Identifier task, status, frame, block;
+    Symbol task, status, frame, block;
 
     Thread() :task(PreDef_Void) { }
 
-    void setStatus(Identifier _status) {
+    void setStatus(Symbol _status) {
         status = _status;
         Ontology::setSolitary({task, PreDef_Status, status});
     }
 
-    void setFrame(Identifier _frame, bool setBlock) {
+    void setFrame(Symbol _frame, bool setBlock) {
         assert(frame != _frame);
         if(_frame == PreDef_Void)
             block = PreDef_Void;
@@ -80,9 +80,9 @@ struct Thread {
         frame = _frame;
     }
 
-    void throwException(const char* messageStr, Identifier data = PreDef_Void) {
-        block = (data != PreDef_Void) ? data : Storage::createIdentifier();
-        Identifier message = Ontology::createFromData(messageStr);
+    void throwException(const char* messageStr, Symbol data = PreDef_Void) {
+        block = (data != PreDef_Void) ? data : Storage::createSymbol();
+        Symbol message = Ontology::createFromData(messageStr);
         Ontology::blobIndex.insertElement(message);
         link({block, PreDef_Message, message});
         pushCallStack();
@@ -91,7 +91,7 @@ struct Thread {
     }
 
     void pushCallStack() {
-        Identifier childFrame = Storage::createIdentifier();
+        Symbol childFrame = Storage::createSymbol();
         link({childFrame, PreDef_Holds, frame});
         link({childFrame, PreDef_Parent, frame});
         link({childFrame, PreDef_Holds, block});
@@ -103,7 +103,7 @@ struct Thread {
         assert(task != PreDef_Void);
         if(frame == PreDef_Void)
             return false;
-        Identifier parentFrame = PreDef_Void;
+        Symbol parentFrame = PreDef_Void;
         bool parentExists = Ontology::getUncertain(frame, PreDef_Parent, parentFrame);
         if(parentFrame == PreDef_Void)
             setStatus(PreDef_Done);
@@ -111,10 +111,10 @@ struct Thread {
         return parentFrame != PreDef_Void;
     }
 
-    Identifier getTargetSymbol() {
-        Identifier result;
+    Symbol getTargetSymbol() {
+        Symbol result;
         if(!Ontology::getUncertain(block, PreDef_Target, result)) {
-            Identifier parentFrame = getGuaranteed(frame, PreDef_Parent);
+            Symbol parentFrame = getGuaranteed(frame, PreDef_Parent);
             result = getGuaranteed(parentFrame, PreDef_Block);
         }
         return result;
@@ -132,7 +132,7 @@ struct Thread {
         if(!running())
             return false;
 
-        Identifier parentBlock = block, parentFrame = frame, execute,
+        Symbol parentBlock = block, parentFrame = frame, execute,
                procedure, next = PreDef_Void, catcher, staticParams, dynamicParams;
         if(!Ontology::getUncertain(parentFrame, PreDef_Execute, execute)) {
             popCallStack();
@@ -141,7 +141,7 @@ struct Thread {
 
         if(setjmp(exceptionEnv) == 0) {
             procedure = getGuaranteed(execute, PreDef_Procedure);
-            block = Storage::createIdentifier();
+            block = Storage::createSymbol();
             pushCallStack();
             link({frame, PreDef_Procedure, procedure}); // TODO: debugging
 
@@ -210,24 +210,24 @@ struct Thread {
         while(step());
     }
 
-    void deserializationTask(Identifier input, Identifier package = PreDef_Void) {
+    void deserializationTask(Symbol input, Symbol package = PreDef_Void) {
         clear();
 
-        block = Storage::createIdentifier();
+        block = Storage::createSymbol();
         link({block, PreDef_Holds, input});
         if(package == PreDef_Void)
             package = block;
-        Identifier staticParams = Storage::createIdentifier();
+        Symbol staticParams = Storage::createSymbol();
         link({staticParams, PreDef_Package, package});
         link({staticParams, PreDef_Input, input});
         link({staticParams, PreDef_Target, block});
         link({staticParams, PreDef_Output, PreDef_Output});
-        Identifier execute = Storage::createIdentifier();
+        Symbol execute = Storage::createSymbol();
         link({execute, PreDef_Procedure, PreDef_Deserialize});
         link({execute, PreDef_Static, staticParams});
 
-        task = Storage::createIdentifier();
-        Identifier childFrame = Storage::createIdentifier();
+        task = Storage::createSymbol();
+        Symbol childFrame = Storage::createSymbol();
         link({childFrame, PreDef_Holds, staticParams});
         link({childFrame, PreDef_Holds, execute});
         link({childFrame, PreDef_Holds, block});
@@ -238,9 +238,9 @@ struct Thread {
     }
 
     bool executeDeserialized() {
-        Identifier prev = PreDef_Void;
+        Symbol prev = PreDef_Void;
         if(Ontology::query(9, {block, PreDef_Output, PreDef_Void}, [&](Triple result) {
-            Identifier next = Storage::createIdentifier();
+            Symbol next = Storage::createSymbol();
             link({next, PreDef_Procedure, result.pos[0]});
             if(prev == PreDef_Void)
                 Ontology::setSolitary({frame, PreDef_Execute, next});

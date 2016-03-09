@@ -17,25 +17,30 @@ const char* PreDefSymbols[] = {
     for(ArchitectureType subIndex = 0; subIndex < indexCount; ++subIndex)
 
 union Triple {
-    Identifier pos[3];
+    Symbol pos[3];
     struct {
-        Identifier entity, attribute, value;
+        Symbol entity, attribute, value;
     };
+
     Triple() {};
-    Triple(Identifier _entity, Identifier _attribute, Identifier _value)
+    Triple(Symbol _entity, Symbol _attribute, Symbol _value)
         :entity(_entity), attribute(_attribute), value(_value) {}
+
     Triple forwardIndex(ArchitectureType* subIndices, ArchitectureType subIndex) {
         return {subIndices[subIndex], pos[(subIndex+1)%3], pos[(subIndex+2)%3]};
     }
+
     Triple reverseIndex(ArchitectureType* subIndices, ArchitectureType subIndex) {
         return {subIndices[subIndex+3], pos[(subIndex+2)%3], pos[(subIndex+1)%3]};
     }
+
     Triple reordered(ArchitectureType subIndex) {
         ArchitectureType alpha[] = { 0, 1, 2, 0, 1, 2 },
                           beta[] = { 1, 2, 0, 2, 0, 1 },
                          gamma[] = { 2, 0, 1, 1, 2, 0 };
         return {pos[alpha[subIndex]], pos[beta[subIndex]], pos[gamma[subIndex]]};
     }
+
     Triple normalized(ArchitectureType subIndex) {
         ArchitectureType alpha[] = { 0, 2, 1, 0, 1, 2 },
                           beta[] = { 1, 0, 2, 2, 0, 1 },
@@ -45,7 +50,7 @@ union Triple {
 };
 
 namespace Ontology {
-    Set<true, Identifier, Identifier[6]> symbols;
+    Set<true, Symbol, Symbol[6]> symbols;
     BlobIndex blobIndex;
 
     enum IndexType {
@@ -60,14 +65,14 @@ namespace Ontology {
     } indexMode = HexaIndex;
 
     bool linkInSubIndex(Triple triple) {
-        Set<false, Identifier, Identifier> beta;
+        Set<false, Symbol, Symbol> beta;
         beta.symbol = triple.pos[0];
         ArchitectureType betaIndex;
-        Set<false, Identifier> gamma;
+        Set<false, Symbol> gamma;
         if(beta.find(triple.pos[1], betaIndex))
             gamma.symbol = beta[betaIndex].value;
         else {
-            gamma.symbol = Storage::createIdentifier();
+            gamma.symbol = Storage::createSymbol();
             beta.insert(betaIndex, {triple.pos[1], gamma.symbol});
         }
         bool result = gamma.insertElement(triple.pos[2]);
@@ -80,7 +85,7 @@ namespace Ontology {
             if(!symbols.find(triple.pos[subIndex], alphaIndex)) {
                 symbols.insert(alphaIndex, triple.pos[subIndex]);
                 for(ArchitectureType i = 0; i < indexMode; ++i)
-                    symbols[alphaIndex].value[i] = Storage::createIdentifier();
+                    symbols[alphaIndex].value[i] = Storage::createSymbol();
             }
             if(!linkInSubIndex(triple.forwardIndex(symbols[alphaIndex].value, subIndex)))
                 return false;
@@ -96,13 +101,11 @@ namespace Ontology {
         ArchitectureType alphaIndex, betaIndex, gammaIndex;
         if(!symbols.find(triple.pos[0], alphaIndex))
             return 0;
-
-        Set<false, Identifier, Identifier> beta;
+        Set<false, Symbol, Symbol> beta;
         beta.symbol = symbols[alphaIndex].value[index];
         if(!beta.find(triple.pos[1], betaIndex))
             return 0;
-
-        Set<false, Identifier> gamma;
+        Set<false, Symbol> gamma;
         gamma.symbol = beta[betaIndex].value;
         if(!gamma.find(triple.pos[2], gammaIndex))
             return 0;
@@ -115,16 +118,14 @@ namespace Ontology {
         ArchitectureType alphaIndex, betaIndex;
         if(!symbols.find(triple.pos[0], alphaIndex))
             return 0;
-
-        Set<false, Identifier, Identifier> beta;
+        Set<false, Symbol, Symbol> beta;
         beta.symbol = symbols[alphaIndex].value[index];
         if(!beta.find(triple.pos[1], betaIndex))
             return 0;
-
-        Set<false, Identifier> gamma;
+        Set<false, Symbol> gamma;
         gamma.symbol = beta[betaIndex].value;
         if(callback)
-            gamma.iterate([&](Pair<Identifier, ArchitectureType[0]>& gammaResult) {
+            gamma.iterate([&](Pair<Symbol, ArchitectureType[0]>& gammaResult) {
                 triple.pos[2] = gammaResult;
                 callback();
             });
@@ -135,22 +136,20 @@ namespace Ontology {
         ArchitectureType alphaIndex, count = 0;
         if(!symbols.find(triple.pos[0], alphaIndex))
             return 0;
-
-        Set<false, Identifier, Identifier> beta;
+        Set<false, Symbol, Symbol> beta;
         beta.symbol = symbols[alphaIndex].value[index];
-        beta.iterate([&](Pair<Identifier, Identifier>& betaResult) {
-            Set<false, Identifier> gamma;
+        beta.iterate([&](Pair<Symbol, Symbol>& betaResult) {
+            Set<false, Symbol> gamma;
             gamma.symbol = betaResult.value;
             if(callback) {
                 triple.pos[1] = betaResult.key;
-                gamma.iterate([&](Pair<Identifier, ArchitectureType[0]>& gammaResult) {
+                gamma.iterate([&](Pair<Symbol, ArchitectureType[0]>& gammaResult) {
                     triple.pos[2] = gammaResult;
                     callback();
                 });
             }
             count += gamma.size();
         });
-
         return count;
     }
 
@@ -158,20 +157,18 @@ namespace Ontology {
         ArchitectureType alphaIndex;
         if(!symbols.find(triple.pos[0], alphaIndex))
             return 0;
-
-        Set<true, Identifier> result;
-        Set<false, Identifier, Identifier> beta;
+        Set<true, Symbol> result;
+        Set<false, Symbol, Symbol> beta;
         beta.symbol = symbols[alphaIndex].value[index];
-        beta.iterate([&](Pair<Identifier, Identifier>& betaResult) {
-            Set<false, Identifier> gamma;
+        beta.iterate([&](Pair<Symbol, Symbol>& betaResult) {
+            Set<false, Symbol> gamma;
             gamma.symbol = betaResult.value;
-            gamma.iterate([&](Pair<Identifier, ArchitectureType[0]>& gammaResult) {
+            gamma.iterate([&](Pair<Symbol, ArchitectureType[0]>& gammaResult) {
                 result.insertElement(gammaResult);
             });
         });
-
         if(callback)
-            result.iterate([&](Identifier gamma) {
+            result.iterate([&](Symbol gamma) {
                 triple.pos[2] = gamma;
                 callback();
             });
@@ -182,11 +179,10 @@ namespace Ontology {
         ArchitectureType alphaIndex;
         if(!symbols.find(triple.pos[0], alphaIndex))
             return 0;
-
-        Set<false, Identifier, Identifier> beta;
+        Set<false, Symbol, Symbol> beta;
         beta.symbol = symbols[alphaIndex].value[index];
         if(callback)
-            beta.iterate([&](Pair<Identifier, Identifier>& betaResult) {
+            beta.iterate([&](Pair<Symbol, Symbol>& betaResult) {
                 triple.pos[1] = betaResult.key;
                 callback();
             });
@@ -195,7 +191,7 @@ namespace Ontology {
 
     ArchitectureType searchVII(ArchitectureType index, Triple& triple, Closure<void> callback) {
         if(callback)
-            symbols.iterate([&](Pair<Identifier, Identifier[6]>& alphaResult) {
+            symbols.iterate([&](Pair<Symbol, Symbol[6]>& alphaResult) {
                 triple.pos[0] = alphaResult.key;
                 callback();
             });
@@ -204,12 +200,12 @@ namespace Ontology {
 
     ArchitectureType searchVVI(ArchitectureType index, Triple& triple, Closure<void> callback) {
         ArchitectureType count = 0;
-        symbols.iterate([&](Pair<Identifier, Identifier[6]>& alphaResult) {
-            Set<false, Identifier, Identifier> beta;
+        symbols.iterate([&](Pair<Symbol, Symbol[6]>& alphaResult) {
+            Set<false, Symbol, Symbol> beta;
             beta.symbol = alphaResult.value[index];
             if(callback) {
                 triple.pos[0] = alphaResult.key;
-                beta.iterate([&](Pair<Identifier, Identifier>& betaResult) {
+                beta.iterate([&](Pair<Symbol, Symbol>& betaResult) {
                     triple.pos[1] = betaResult.key;
                     callback();
                 });
@@ -221,16 +217,16 @@ namespace Ontology {
 
     ArchitectureType searchVVV(ArchitectureType index, Triple& triple, Closure<void> callback) {
         ArchitectureType count = 0;
-        symbols.iterate([&](Pair<Identifier, Identifier[6]>& alphaResult) {
+        symbols.iterate([&](Pair<Symbol, Symbol[6]>& alphaResult) {
             triple.pos[0] = alphaResult.key;
-            Set<false, Identifier, Identifier> beta;
+            Set<false, Symbol, Symbol> beta;
             beta.symbol = alphaResult.value[index];
-            beta.iterate([&](Pair<Identifier, Identifier>& betaResult) {
-                Set<false, Identifier> gamma;
+            beta.iterate([&](Pair<Symbol, Symbol>& betaResult) {
+                Set<false, Symbol> gamma;
                 gamma.symbol = betaResult.value;
                 if(callback) {
                     triple.pos[1] = betaResult.key;
-                    gamma.iterate([&](Pair<Identifier, ArchitectureType[0]>& gammaResult) {
+                    gamma.iterate([&](Pair<Symbol, ArchitectureType[0]>& gammaResult) {
                         triple.pos[2] = gammaResult;
                         callback();
                     });
@@ -317,24 +313,24 @@ namespace Ontology {
     }
 
     bool unlinkInSubIndex(Triple triple) {
-        Set<false, Identifier, Identifier> alpha;
+        Set<false, Symbol, Symbol> alpha;
         alpha.symbol = triple.pos[0];
         ArchitectureType alphaIndex, betaIndex;
         if(!alpha.find(triple.pos[1], alphaIndex))
             return false;
-        Set<false, Identifier> beta;
+        Set<false, Symbol> beta;
         beta.symbol = alpha[alphaIndex].value;
         if(!beta.find(triple.pos[2], betaIndex))
             return false;
         beta.erase(betaIndex);
         if(beta.empty()) {
             alpha.erase(alphaIndex);
-            Storage::releaseIdentifier(beta.symbol);
+            Storage::releaseSymbol(beta.symbol);
         }
         return true;
     }
 
-    bool unlinkWithoutReleasing(Triple triple, bool skipEnabled = false, Identifier skip = PreDef_Void) {
+    bool unlinkWithoutReleasing(Triple triple, bool skipEnabled = false, Symbol skip = PreDef_Void) {
         ArchitectureType alphaIndex;
         forEachSubIndex {
             if(skipEnabled && triple.pos[subIndex] == skip)
@@ -351,18 +347,18 @@ namespace Ontology {
         return true;
     }
 
-    void tryToReleaseSymbol(Identifier symbol) {
+    void tryToReleaseSymbol(Symbol symbol) {
         ArchitectureType alphaIndex;
         assert(symbols.find(symbol, alphaIndex));
         forEachSubIndex {
-            Set<false, Identifier, Identifier> beta;
+            Set<false, Symbol, Symbol> beta;
             beta.symbol = symbols[alphaIndex].value[subIndex];
             if(!beta.empty())
                 return;
         }
         for(ArchitectureType subIndex = 0; subIndex < indexCount; ++subIndex)
-            Storage::releaseIdentifier(symbols[alphaIndex].value[subIndex]);
-        Storage::releaseIdentifier(symbol);
+            Storage::releaseSymbol(symbols[alphaIndex].value[subIndex]);
+        Storage::releaseSymbol(symbol);
     }
 
     bool unlink(Triple triple) {
@@ -373,37 +369,37 @@ namespace Ontology {
         return true;
     }
 
-    bool unlink(Identifier symbol) {
+    bool unlink(Symbol symbol) {
         ArchitectureType alphaIndex;
         if(!symbols.find(symbol, alphaIndex)) {
-            Storage::releaseIdentifier(symbol);
+            Storage::releaseSymbol(symbol);
             return false;
         }
-        Set<true, Identifier> dirty;
+        Set<true, Symbol> dirty;
         forEachSubIndex {
-            Set<false, Identifier, Identifier> beta;
+            Set<false, Symbol, Symbol> beta;
             beta.symbol = symbols[alphaIndex].value[subIndex];
-            beta.iterate([&](Pair<Identifier, Identifier>& betaResult) {
+            beta.iterate([&](Pair<Symbol, Symbol>& betaResult) {
                 dirty.insertElement(betaResult.key);
-                Set<false, Identifier> gamma;
+                Set<false, Symbol> gamma;
                 gamma.symbol = betaResult.value;
-                gamma.iterate([&](Pair<Identifier, ArchitectureType[0]>& gammaResult) {
+                gamma.iterate([&](Pair<Symbol, ArchitectureType[0]>& gammaResult) {
                     dirty.insertElement(gammaResult.key);
                     unlinkWithoutReleasing(Triple(symbol, betaResult.key, gammaResult.key).normalized(subIndex), true, symbol);
                 });
             });
         }
-        dirty.iterate([&](Identifier symbol) {
+        dirty.iterate([&](Symbol symbol) {
             tryToReleaseSymbol(symbol);
         });
         for(ArchitectureType subIndex = 0; subIndex < indexCount; ++subIndex)
-            Storage::releaseIdentifier(symbols[alphaIndex].value[subIndex]);
-        Storage::releaseIdentifier(symbol);
+            Storage::releaseSymbol(symbols[alphaIndex].value[subIndex]);
+        Storage::releaseSymbol(symbol);
         return true;
     }
 
     void setSolitary(Triple triple, bool linkVoid = false) {
-        Set<true, Identifier> dirty;
+        Set<true, Symbol> dirty;
         bool toLink = (linkVoid || triple.value != PreDef_Void);
         query(9, triple, [&](Triple result) {
             if((triple.pos[2] == result.pos[0]) && (linkVoid || result.pos[0] != PreDef_Void))
@@ -413,25 +409,25 @@ namespace Ontology {
         });
         if(toLink)
             link(triple);
-        dirty.iterate([&](Identifier symbol) {
+        dirty.iterate([&](Symbol symbol) {
             unlinkWithoutReleasing({triple.pos[0], triple.pos[1], symbol});
         });
         if(!linkVoid)
             dirty.insertElement(triple.pos[0]);
         dirty.insertElement(triple.pos[1]);
-        dirty.iterate([&](Identifier symbol) {
+        dirty.iterate([&](Symbol symbol) {
             tryToReleaseSymbol(symbol);
         });
     }
 
-    bool getUncertain(Identifier alpha, Identifier beta, Identifier& gamma) {
+    bool getUncertain(Symbol alpha, Symbol beta, Symbol& gamma) {
         return (query(9, {alpha, beta, PreDef_Void}, [&](Triple result) {
             gamma = result.pos[0];
         }) == 1);
     }
 
-    void scrutinizeExistence(Identifier symbol) {
-        Set<true, Identifier> symbols;
+    void scrutinizeExistence(Symbol symbol) {
+        Set<true, Symbol> symbols;
         symbols.insertElement(symbol);
         while(!symbols.empty()) {
             symbol = symbols.pop_back();
@@ -445,7 +441,7 @@ namespace Ontology {
         }
     }
 
-    void overwriteBlobWithString(Identifier symbol, const char* src, ArchitectureType len) {
+    void overwriteBlobWithString(Symbol symbol, const char* src, ArchitectureType len) {
         link({symbol, PreDef_BlobType, PreDef_Text});
         Storage::setBlobSize(symbol, len*8);
         auto dst = reinterpret_cast<uint8_t*>(Storage::accessBlobData(symbol));
@@ -454,8 +450,8 @@ namespace Ontology {
     }
 
     template<typename DataType>
-    Identifier createFromData(DataType src) {
-        Identifier blobType;
+    Symbol createFromData(DataType src) {
+        Symbol blobType;
         if(typeid(DataType) == typeid(uint64_t))
             blobType = PreDef_Natural;
         else if(typeid(DataType) == typeid(int64_t))
@@ -464,47 +460,34 @@ namespace Ontology {
             blobType = PreDef_Float;
         else
             crash("createFromData<InvalidType>");
-        Identifier symbol = Storage::createIdentifier();
+        Symbol symbol = Storage::createSymbol();
         link({symbol, PreDef_BlobType, blobType});
         Storage::overwriteBlob(symbol, src);
         return symbol;
     }
 
-    Identifier createFromFile(const char* path) {
-        // TODO: Move to POSIX API
-        int fd = open(path, O_RDONLY);
-        if(fd < 0)
-            return PreDef_Void;
-        Identifier symbol = Storage::createIdentifier();
-        link({symbol, PreDef_BlobType, PreDef_Text});
-        ArchitectureType len = lseek(fd, 0, SEEK_END);
-        Storage::setBlobSize(symbol, len*8);
-        lseek(fd, 0, SEEK_SET);
-        read(fd, reinterpret_cast<char*>(Storage::accessBlobData(symbol)), len);
-        close(fd);
-        return symbol;
-    }
-
-    Identifier createFromData(const char* src, ArchitectureType len) {
-        Identifier symbol = Storage::createIdentifier();
+    Symbol createFromData(const char* src, ArchitectureType len) {
+        Symbol symbol = Storage::createSymbol();
         overwriteBlobWithString(symbol, src, len);
         return symbol;
     }
 
-    Identifier createFromData(const char* src) {
+    Symbol createFromData(const char* src) {
         return createFromData(src, strlen(src));
     }
 
-    void fillPreDef() {
-        const Identifier preDefSymbolsEnd = sizeof(PreDefSymbols)/sizeof(void*);
-        Storage::maxIdentifier = preDefSymbolsEnd;
-        for(Identifier symbol = 0; symbol < preDefSymbolsEnd; ++symbol) {
+    void tryToFillPreDef() {
+        if(!symbols.empty())
+            return;
+        const Symbol preDefSymbolsEnd = sizeof(PreDefSymbols)/sizeof(void*);
+        Storage::maxSymbol = preDefSymbolsEnd;
+        for(Symbol symbol = 0; symbol < preDefSymbolsEnd; ++symbol) {
             const char* str = PreDefSymbols[symbol];
             overwriteBlobWithString(symbol, str, strlen(str));
             link({PreDef_RunTimeEnvironment, PreDef_Holds, symbol});
             blobIndex.insertElement(symbol);
         }
-        Identifier ArchitectureSizeSymbol = createFromData(ArchitectureSize);
+        Symbol ArchitectureSizeSymbol = createFromData(ArchitectureSize);
         link({PreDef_RunTimeEnvironment, PreDef_Holds, ArchitectureSizeSymbol});
         link({PreDef_RunTimeEnvironment, PreDef_ArchitectureSize, ArchitectureSizeSymbol});
     }

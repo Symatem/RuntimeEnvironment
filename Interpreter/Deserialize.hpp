@@ -1,14 +1,14 @@
 #include "Serialize.hpp"
 
 #define getSymbolByName(Name) \
-    Identifier Name##Symbol = thread.getGuaranteed(thread.block, PreDef_##Name);
+    Symbol Name##Symbol = thread.getGuaranteed(thread.block, PreDef_##Name);
 
 #define checkBlobType(Name, expectedType) \
 if(Ontology::query(1, {Name##Symbol, PreDef_BlobType, expectedType}) == 0) \
     thread.throwException("Invalid Blob Type");
 
 #define getUncertainValueByName(Name, DefaultValue) \
-    Identifier Name##Symbol; \
+    Symbol Name##Symbol; \
     ArchitectureType Name##Value = DefaultValue; \
     if(Ontology::getUncertain(thread.block, PreDef_##Name, Name##Symbol)) { \
         checkBlobType(Name, PreDef_Natural) \
@@ -17,14 +17,14 @@ if(Ontology::query(1, {Name##Symbol, PreDef_BlobType, expectedType}) == 0) \
 
 class Deserialize {
     Thread& thread;
-    Identifier package, parentEntry, currentEntry;
-    Vector<false, Identifier> stack, queue;
+    Symbol package, parentEntry, currentEntry;
+    Vector<false, Symbol> stack, queue;
     BlobIndex locals; // TODO: Cleanup created symbol in case of an exception
     const char *pos, *end, *tokenBegin;
     ArchitectureType row, column;
 
     void throwException(const char* message) {
-        Identifier data = Storage::createIdentifier(),
+        Symbol data = Storage::createSymbol(),
                    rowSymbol = Ontology::createFromData(row),
                    columnSymbol = Ontology::createFromData(column);
         thread.link({data, PreDef_Holds, rowSymbol});
@@ -34,13 +34,13 @@ class Deserialize {
         thread.throwException(message, data);
     }
 
-    void nextSymbol(Identifier stackEntry, Identifier symbol) {
+    void nextSymbol(Symbol stackEntry, Symbol symbol) {
         if(thread.valueCountIs(stackEntry, PreDef_UnnestEntity, 0)) {
             queue.symbol = stackEntry;
             queue.insert(0, symbol);
             queue.symbol = currentEntry;
         } else {
-            Identifier entity = thread.getGuaranteed(stackEntry, PreDef_UnnestEntity),
+            Symbol entity = thread.getGuaranteed(stackEntry, PreDef_UnnestEntity),
                        attribute = thread.getGuaranteed(stackEntry, PreDef_UnnestAttribute);
             thread.link({entity, attribute, symbol});
             Ontology::setSolitary({stackEntry, PreDef_UnnestEntity, PreDef_Void});
@@ -49,7 +49,7 @@ class Deserialize {
 
     void parseToken(bool isText = false) {
         if(pos > tokenBegin) {
-            Identifier symbol;
+            Symbol symbol;
             if(isText)
                 symbol = Ontology::createFromData(tokenBegin, pos-tokenBegin);
             else if(*tokenBegin == '#') {
@@ -60,7 +60,7 @@ class Deserialize {
                 ArchitectureType nibbleCount = pos-src;
                 if(nibbleCount == 0)
                     throwException("Empty raw data");
-                symbol = Storage::createIdentifier();
+                symbol = Storage::createSymbol();
                 Storage::setBlobSize(symbol, nibbleCount*4);
                 char* dst = reinterpret_cast<char*>(Storage::accessBlobData(symbol)), odd = 0, nibble;
                 while(src < pos) {
@@ -121,10 +121,10 @@ class Deserialize {
         tokenBegin = pos+1;
     }
 
-    void fillInAnonymous(Identifier& entity) {
+    void fillInAnonymous(Symbol& entity) {
         if(entity != PreDef_Void)
             return;
-        entity = Storage::createIdentifier();
+        entity = Storage::createSymbol();
         thread.link({currentEntry, PreDef_Entity, entity});
         thread.link({package, PreDef_Holds, entity});
         nextSymbol(parentEntry, entity);
@@ -133,7 +133,7 @@ class Deserialize {
     void seperateTokens(bool semicolon) {
         parseToken();
 
-        Identifier entity = PreDef_Void;
+        Symbol entity = PreDef_Void;
         Ontology::getUncertain(currentEntry, PreDef_Entity, entity);
 
         if(queue.empty()) {
@@ -160,7 +160,7 @@ class Deserialize {
             Ontology::setSolitary({parentEntry, PreDef_UnnestEntity, PreDef_Void});
         else
             Ontology::setSolitary({parentEntry, PreDef_UnnestEntity, entity}, true);
-        Identifier attribute = queue.pop_back();
+        Symbol attribute = queue.pop_back();
         Ontology::setSolitary({parentEntry, PreDef_UnnestAttribute, attribute}, true);
 
         while(!queue.empty())
@@ -173,9 +173,9 @@ class Deserialize {
         getSymbolByName(Input)
         checkBlobType(Input, PreDef_Text)
 
-        stack.symbol = Storage::createIdentifier();
+        stack.symbol = Storage::createSymbol();
         thread.link({thread.block, PreDef_Holds, stack.symbol});
-        currentEntry = Storage::createIdentifier();
+        currentEntry = Storage::createSymbol();
         thread.link({thread.block, PreDef_Holds, currentEntry});
         stack.push_back(currentEntry);
         queue.symbol = currentEntry;
@@ -214,7 +214,7 @@ class Deserialize {
                 case '(':
                     parseToken();
                     parentEntry = currentEntry;
-                    currentEntry = Storage::createIdentifier();
+                    currentEntry = Storage::createSymbol();
                     thread.link({thread.block, PreDef_Holds, currentEntry});
                     stack.push_back(currentEntry);
                     queue.symbol = currentEntry;
@@ -256,9 +256,9 @@ class Deserialize {
         if(queue.empty())
             throwException("Empty Input");
 
-        Identifier OutputSymbol;
+        Symbol OutputSymbol;
         if(Ontology::getUncertain(thread.block, PreDef_Output, OutputSymbol)) {
-            Identifier TargetSymbol = thread.getTargetSymbol();
+            Symbol TargetSymbol = thread.getTargetSymbol();
             Ontology::setSolitary({TargetSymbol, OutputSymbol, PreDef_Void});
             while(!queue.empty())
                 thread.link({TargetSymbol, OutputSymbol, queue.pop_back()});

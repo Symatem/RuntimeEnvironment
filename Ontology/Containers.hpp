@@ -1,12 +1,12 @@
 #include "../Storage/Blob.hpp"
 
 namespace Ontology {
-    bool unlink(Identifier symbol);
+    bool unlink(Symbol symbol);
 };
 
 template<bool guarded, typename ElementType>
 struct Vector {
-    Identifier symbol;
+    Symbol symbol;
 
     Vector() :symbol(0) { }
 
@@ -44,7 +44,7 @@ struct Vector {
     void activate() {
         if(!symbol) {
             assert(guarded);
-            symbol = Storage::createIdentifier();
+            symbol = Storage::createSymbol();
         }
     }
 
@@ -129,25 +129,25 @@ struct Set : public Vector<guarded, Pair<KeyType, ValueType>> {
     }
 };
 
-struct BlobIndex : public Set<true, Identifier> {
-    typedef Set<true, Identifier> Super;
+struct BlobIndex : public Set<true, Symbol> {
+    typedef Set<true, Symbol> Super;
 
     BlobIndex() :Super() { }
 
-    ArchitectureType find(Identifier key) const {
+    ArchitectureType find(Symbol key) const {
         return binarySearch<ArchitectureType>(Super::size(), [&](ArchitectureType at) {
             return Storage::compareBlobs(key, (*this)[at]) < 0;
         });
     }
 
-    bool find(Identifier element, ArchitectureType& at) const {
+    bool find(Symbol element, ArchitectureType& at) const {
         at = find(element);
         if(at == Super::size())
             return false;
         return (Storage::compareBlobs(element, (*this)[at]) == 0);
     }
 
-    void insertElement(Identifier& element) {
+    void insertElement(Symbol& element) {
         ArchitectureType at;
         if(find(element, at)) {
             Ontology::unlink(element);
@@ -156,7 +156,7 @@ struct BlobIndex : public Set<true, Identifier> {
             Super::insert(at, element);
     }
 
-    bool eraseElement(Identifier element) {
+    bool eraseElement(Symbol element) {
         ArchitectureType at;
         if(!Super::find(element, at))
             return false;
