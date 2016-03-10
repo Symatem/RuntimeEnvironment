@@ -16,12 +16,12 @@ namespace Storage {
     }
 
     void modifiedBlob(Symbol symbol) {
-        // TODO
+        // TODO: Improve performance
         // blobIndex.eraseElement(symbol);
     }
 
     void setBlobSize(Symbol symbol, ArchitectureType size, ArchitectureType preserve = 0) {
-        BpTree<Symbol, Blob*>::Iterator<false> iter(blobs);
+        BpTree<Symbol, Blob*>::Iterator<false> iter;
         bool existing = blobs.at(iter, symbol);
         if(size == 0) {
             if(existing) {
@@ -43,7 +43,6 @@ namespace Storage {
             }
         } else {
             blobs.insert(iter, symbol, newBlob);
-            iter.end = blobs.layerCount; // TODO
             assert(blobs.at(iter, symbol));
         }
         newBlob->size = size;
@@ -57,12 +56,12 @@ namespace Storage {
     }
 
     ArchitectureType getBlobSize(Symbol symbol) {
-        BpTree<Symbol, Blob*>::Iterator<false> iter(blobs);
+        BpTree<Symbol, Blob*>::Iterator<false> iter;
         return (blobs.at(iter, symbol)) ? iter.getValue()->size : 0;
     }
 
     ArchitectureType* accessBlobData(Symbol symbol) {
-        BpTree<Symbol, Blob*>::Iterator<false> iter(blobs);
+        BpTree<Symbol, Blob*>::Iterator<false> iter;
         assert(blobs.at(iter, symbol));
         return reinterpret_cast<ArchitectureType*>(&iter.getValue()->data);
     }

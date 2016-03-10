@@ -51,7 +51,7 @@ union Triple {
 
 namespace Ontology {
     Set<true, Symbol, Symbol[6]> symbols;
-    BlobIndex blobIndex;
+    BlobIndex<true> blobIndex;
 
     enum IndexType {
         EAV = 0, AVE = 1, VEA = 2,
@@ -452,11 +452,11 @@ namespace Ontology {
     template<typename DataType>
     Symbol createFromData(DataType src) {
         Symbol blobType;
-        if(typeid(DataType) == typeid(uint64_t))
+        if(isSame<DataType, uint64_t>())
             blobType = PreDef_Natural;
-        else if(typeid(DataType) == typeid(int64_t))
+        else if(isSame<DataType, int64_t>())
             blobType = PreDef_Integer;
-        else if(typeid(DataType) == typeid(double))
+        else if(isSame<DataType, double>())
             blobType = PreDef_Float;
         else
             crash("createFromData<InvalidType>");

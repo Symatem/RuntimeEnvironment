@@ -18,8 +18,8 @@ if(Ontology::query(1, {Name##Symbol, PreDef_BlobType, expectedType}) == 0) \
 class Deserialize {
     Thread& thread;
     Symbol package, parentEntry, currentEntry;
+    BlobIndex<false> locals;
     Vector<false, Symbol> stack, queue;
-    BlobIndex locals; // TODO: Cleanup created symbol in case of an exception
     const char *pos, *end, *tokenBegin;
     ArchitectureType row, column;
 
@@ -173,6 +173,8 @@ class Deserialize {
         getSymbolByName(Input)
         checkBlobType(Input, PreDef_Text)
 
+        locals.symbol = Storage::createSymbol();
+        thread.link({thread.block, PreDef_Holds, locals.symbol});
         stack.symbol = Storage::createSymbol();
         thread.link({thread.block, PreDef_Holds, stack.symbol});
         currentEntry = Storage::createSymbol();

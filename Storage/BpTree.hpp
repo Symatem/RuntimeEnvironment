@@ -498,10 +498,6 @@ class BpTree {
         LayerType end;
         FrameType stack[8]; // TODO: Adjust Magic Number
 
-        Iterator(BpTree& tree, LayerType size = 0) :end(tree.layerCount+size) {
-            assert(end <= sizeof(stack)/sizeof(FrameType));
-        }
-
         FrameType* fromBegin(LayerType layer) {
             assert(layer < end);
             return &stack[layer];
@@ -645,7 +641,7 @@ class BpTree {
 
     template<bool writeable, bool border = false, bool lower = false>
 	bool at(Iterator<writeable>& iter, KeyType key = 0) {
-        assert(iter.end == layerCount);
+        iter.end = layerCount;
 		if(empty())
             return false;
         LayerType layer = 0;
@@ -693,7 +689,7 @@ class BpTree {
 
     template<typename FrameType, bool isLeaf>
     static bool insertAuxLayer(InsertData& data, Iterator<false, FrameType>& iter) {
-        bool apply = (typeid(FrameType) == typeid(InsertIteratorFrame));
+        bool apply = isSame<FrameType, InsertIteratorFrame>();
         Page* page;
         auto frame = reinterpret_cast<InsertIteratorFrame*>(iter.fromBegin(data.layer));
         if(data.layer >= data.startLayer) {
@@ -843,10 +839,10 @@ class BpTree {
     typedef Closure<void, Page*, IndexType, IndexType> AquireData;
     void insert(Iterator<false>& at, ArchitectureType elementCount, AquireData aquireData) {
         assert(elementCount > 0);
-        InsertData data = { 0 };
-        data.startLayer = insertAux<IteratorFrame>(data, at, elementCount);
+        InsertData data = { insertAux<IteratorFrame>(data, at, elementCount) };
         data.startLayer = (data.startLayer < 0) ? -data.startLayer : 0;
-        Iterator<false, InsertIteratorFrame> iter(*this, data.startLayer);
+        Iterator<false, InsertIteratorFrame> iter;
+        iter.end = layerCount+data.startLayer;
         iter.copy(at);
         data.layer = data.startLayer = insertAux<InsertIteratorFrame>(data, iter, elementCount);
         while(data.layer < iter.end-1)
@@ -989,7 +985,8 @@ class BpTree {
 
     void erase(Iterator<false>& from, Iterator<false>& to) {
         assert(from.isValid() && to.isValid() && from.compare(to) < 1);
-        EraseData data = { false, true, static_cast<LayerType>(to.end-1), from, to, Iterator<false>(*this) };
+        EraseData data = { false, true, static_cast<LayerType>(to.end-1), from, to };
+        data.iter.end = layerCount;
         if(eraseLayer<true>(data))
             while(eraseLayer<false>(data));
     }

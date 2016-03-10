@@ -49,10 +49,8 @@ struct Vector {
     }
 
     void clear() {
-        if(symbol) {
+        if(symbol)
             Storage::setBlobSize(symbol, 0);
-            symbol = 0;
-        }
     }
 
     void insert(ArchitectureType at, ElementType element) {
@@ -129,8 +127,9 @@ struct Set : public Vector<guarded, Pair<KeyType, ValueType>> {
     }
 };
 
-struct BlobIndex : public Set<true, Symbol> {
-    typedef Set<true, Symbol> Super;
+template<bool guarded>
+struct BlobIndex : public Set<guarded, Symbol> {
+    typedef Set<guarded, Symbol> Super;
 
     BlobIndex() :Super() { }
 

@@ -11,5 +11,5 @@ Coding Restrictions:
 - No virtual/polymorphism/dynamic_cast
 - No new/delete, malloc/free => heapless (WIP)
 - No recursion/alloca, fixed stack size
-- No LibStdC++ => almost zero dependency (except from LibC)
+- No StdLibC++ => almost zero dependency (except from LibC)
 - No exceptions

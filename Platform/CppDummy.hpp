@@ -1,12 +1,10 @@
-#include <new>
-#include <typeinfo>
 #include <setjmp.h>
-#include <stdlib.h> // TODO: Remove malloc and free
 #include <stdio.h>
+#include <stdlib.h> // TODO: Remove malloc and free
 
 [[ noreturn ]] void crash(const char* message) {
     perror(message);
-    _exit(1);
+    exit(1);
 }
 
 #undef assert
@@ -14,7 +12,11 @@
 #define macroToString(x) tokenToString(x)
 #define assert(condition) if(!(condition)) { \
     perror("Assertion failed in " __FILE__ ":" macroToString(__LINE__)); \
-    _exit(1); \
+    exit(1); \
+}
+
+inline void* operator new(size_t, void* ptr) noexcept {
+    return ptr;
 }
 
 void* operator new(size_t size) {
@@ -25,15 +27,23 @@ void operator delete(void* ptr) noexcept {
     crash("operator delete called");
 }
 
-namespace std {
-    type_info::~type_info() { }
-}
-
-#define DummyTypeInfo(Child, Parent) struct Child : public Parent { virtual ~Child(); }; Child::~Child() { }
+template<bool value>
+struct BoolConstant {
+    constexpr const operator bool() {
+        return value;
+    };
+};
+template<class type, class otherType>
+struct isSame : public BoolConstant<false> { };
+template<class type>
+struct isSame<type, type> : public BoolConstant<true> { };
 
 namespace __cxxabiv1 {
 
-    DummyTypeInfo(__shim_type_info, std::type_info)
+#define DummyTypeInfo(Child, Parent) struct Child : public Parent { virtual ~Child(); }; Child::~Child() { }
+
+    struct type_info { };
+    DummyTypeInfo(__shim_type_info, type_info)
     DummyTypeInfo(__fundamental_type_info, __shim_type_info)
     DummyTypeInfo(__array_type_info, __shim_type_info)
     DummyTypeInfo(__function_type_info, __shim_type_info)
@@ -131,7 +141,7 @@ IndexType binarySearch(IndexType end, Closure<bool, IndexType> compare) {
     return begin;
 }
 
-typedef uint64_t ArchitectureType;
+typedef uint64_t ArchitectureType; // TODO: Types for Natural, Integer, Float
 typedef ArchitectureType PageRefType;
 const ArchitectureType ArchitectureSize = sizeof(ArchitectureType)*8;
 
