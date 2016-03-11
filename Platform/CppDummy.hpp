@@ -34,15 +34,15 @@ struct BoolConstant {
     };
 };
 template<class type, class otherType>
-struct isSame : public BoolConstant<false> { };
+struct isSame : public BoolConstant<false> {};
 template<class type>
-struct isSame<type, type> : public BoolConstant<true> { };
+struct isSame<type, type> : public BoolConstant<true> {};
 
 namespace __cxxabiv1 {
 
-#define DummyTypeInfo(Child, Parent) struct Child : public Parent { virtual ~Child(); }; Child::~Child() { }
+#define DummyTypeInfo(Child, Parent) struct Child : public Parent { virtual ~Child(); }; Child::~Child() {}
 
-    struct type_info { };
+    struct type_info {};
     DummyTypeInfo(__shim_type_info, type_info)
     DummyTypeInfo(__fundamental_type_info, __shim_type_info)
     DummyTypeInfo(__array_type_info, __shim_type_info)
@@ -116,8 +116,8 @@ struct Closure {
     Closure(LambdaType&& lambda) {
         ::new(&payload) LambdaContainer<LambdaType, ReturnType, Arguments...>(lambda);
     }
-    Closure(decltype(nullptr)) :payload{0, 0} { }
-    Closure(Closure& other) :payload{other.payload[0], other.payload[1]} { }
+    Closure(decltype(nullptr)) :payload{0, 0} {}
+    Closure(Closure& other) :payload{other.payload[0], other.payload[1]} {}
     operator bool() const {
         return payload[1];
     }

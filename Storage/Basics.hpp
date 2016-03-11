@@ -19,16 +19,16 @@ class BasePage {
 namespace Storage {
     template<int dir>
     ArchitectureType aquireSegmentFrom(const ArchitectureType* src, uint64_t& srcOffset, uint64_t length) {
-        if(dir == +1) srcOffset -= length;
+        if(dir == +1)
+            srcOffset -= length;
         ArchitectureType lower = srcOffset%ArchitectureSize,
                          index = srcOffset/ArchitectureSize,
                          firstPart = ArchitectureSize-lower,
                          result = src[index]>>lower;
-        if(dir == -1) srcOffset += length;
-
+        if(dir == -1)
+            srcOffset += length;
         if(firstPart < length)
             result |= src[index+1]<<firstPart;
-
         return result&BitMask<ArchitectureType>::fillLSBs(length);
     }
 
@@ -54,35 +54,28 @@ namespace Storage {
         }
         lowSkip = dstOffset%ArchitectureSize;
         highSkip = (highSkip+1)*ArchitectureSize-dstOffset-length;
-
         if(index == lastIndex) {
             writeSegmentTo(dst+index,
                            BitMask<ArchitectureType>::fillLSBs(lowSkip)|BitMask<ArchitectureType>::fillMSBs(highSkip),
                            aquireSegmentFrom<0>(src, srcOffset, length)<<lowSkip);
             return;
         }
-
         if(dir == -1) {
             writeSegmentTo(dst+index,
                            BitMask<ArchitectureType>::fillLSBs(lowSkip),
                            aquireSegmentFrom<dir>(src, srcOffset, ArchitectureSize-lowSkip)<<lowSkip);
-
             while(++index < lastIndex)
                 dst[index] = aquireSegmentFrom<dir>(src, srcOffset, ArchitectureSize);
-
             writeSegmentTo(dst+index,
                            BitMask<ArchitectureType>::fillMSBs(highSkip),
                            aquireSegmentFrom<dir>(src, srcOffset, ArchitectureSize-highSkip));
         } else {
             srcOffset += length;
-
             writeSegmentTo(dst+index,
                            BitMask<ArchitectureType>::fillMSBs(highSkip),
                            aquireSegmentFrom<dir>(src, srcOffset, ArchitectureSize-highSkip));
-
             while(--index > lastIndex)
                 dst[index] = aquireSegmentFrom<dir>(src, srcOffset, ArchitectureSize);
-
             writeSegmentTo(dst+index,
                            BitMask<ArchitectureType>::fillLSBs(lowSkip),
                            aquireSegmentFrom<dir>(src, srcOffset, ArchitectureSize-lowSkip)<<lowSkip);
@@ -94,7 +87,8 @@ namespace Storage {
                      ArchitectureType length) {
         bool downward;
         if(dst == src) {
-            if(dstOffset == srcOffset) return;
+            if(dstOffset == srcOffset)
+                return;
             downward = (dstOffset < srcOffset);
         } else
             downward = (dst < src);

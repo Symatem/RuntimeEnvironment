@@ -6,16 +6,18 @@ struct Serialize {
     Thread& thread;
     Symbol symbol;
 
-    void put(uint8_t data) {
-        ArchitectureType size = Storage::getBlobSize(symbol);
-        Storage::setBlobSizePreservingData(symbol, size+8);
-        reinterpret_cast<uint8_t*>(Storage::accessBlobData(symbol))[size/8] = data;
+    void put(ArchitectureType src) {
+        Storage::insertIntoBlob(symbol, &src, Storage::getBlobSize(symbol), 8);
+    }
+
+    void puts(const char* src) {
+        Storage::insertIntoBlob(symbol, reinterpret_cast<const ArchitectureType*>(src),
+                                Storage::getBlobSize(symbol), strlen(src)*8);
     }
 
     template<typename NumberType>
     void serializeNumber(NumberType number) {
         // TODO Last digits of float numbers are incorrect (rounding error)
-
         const NumberType base = 10;
         if(number == 0) {
             put('0');
@@ -45,7 +47,7 @@ struct Serialize {
         Ontology::setSolitary({symbol, PreDef_BlobType, PreDef_Text});
     }
 
-    Serialize(Thread& _thread) :Serialize(_thread, Storage::createSymbol()) { }
+    Serialize(Thread& _thread) :Serialize(_thread, Storage::createSymbol()) {}
 
     void serializeBlob(Symbol srcSymbol) {
         auto src = reinterpret_cast<const uint8_t*>(Storage::accessBlobData(srcSymbol));
@@ -102,14 +104,9 @@ struct Serialize {
             Symbol followAttribute, followEntity = PreDef_Void;
             if(followCallback)
                 followAttribute = followCallback(entity);
-
-            put('(');
-            put('\n');
-            put('\t');
+            puts("(\n\t");
             serializeBlob(entity);
-            put(';');
-            put('\n');
-
+            puts(";\n");
             Ontology::query(21, {entity, PreDef_Void, PreDef_Void}, [&](Triple result) {
                 if(followCallback && result.pos[0] == followAttribute) {
                     Ontology::getUncertain(entity, followAttribute, followEntity);
@@ -121,21 +118,16 @@ struct Serialize {
                     put(' ');
                     serializeBlob(resultB.pos[0]);
                 });
-                put(';');
-                put('\n');
+                puts(";\n");
             });
-
             if(!followCallback || followEntity == PreDef_Void) {
                 put(')');
                 return;
             }
-
             put('\t');
             serializeBlob(followAttribute);
             entity = followEntity;
-            put('\n');
-            put(')');
-            put(' ');
+            puts("\n) ");
         }
     }
 };

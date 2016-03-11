@@ -57,7 +57,7 @@ struct Thread {
     jmp_buf exceptionEnv;
     Symbol task, status, frame, block;
 
-    Thread() :task(PreDef_Void) { }
+    Thread() :task(PreDef_Void) {}
 
     void setStatus(Symbol _status) {
         status = _status;
@@ -78,6 +78,15 @@ struct Thread {
         if(frame != PreDef_Void)
             Ontology::scrutinizeExistence(frame);
         frame = _frame;
+    }
+
+    void setBlock(Symbol _block) {
+        assert(block != _block);
+        unlink({frame, PreDef_Holds, block});
+        Ontology::scrutinizeExistence(block);
+        block = _block;
+        link({frame, PreDef_Holds, block});
+        link({frame, PreDef_Block, block});
     }
 
     void throwException(const char* messageStr, Symbol data = PreDef_Void) {
@@ -131,25 +140,21 @@ struct Thread {
     bool step() {
         if(!running())
             return false;
-
         Symbol parentBlock = block, parentFrame = frame, execute,
                procedure, next = PreDef_Void, catcher, staticParams, dynamicParams;
         if(!Ontology::getUncertain(parentFrame, PreDef_Execute, execute)) {
             popCallStack();
             return true;
         }
-
         if(setjmp(exceptionEnv) == 0) {
             procedure = getGuaranteed(execute, PreDef_Procedure);
             block = Storage::createSymbol();
             pushCallStack();
             link({frame, PreDef_Procedure, procedure}); // TODO: debugging
-
             if(Ontology::getUncertain(execute, PreDef_Static, staticParams))
                 Ontology::query(12, {staticParams, PreDef_Void, PreDef_Void}, [&](Triple result) {
                     link({block, result.pos[0], result.pos[1]});
                 });
-
             if(Ontology::getUncertain(execute, PreDef_Dynamic, dynamicParams))
                 Ontology::query(12, {dynamicParams, PreDef_Void, PreDef_Void}, [&](Triple result) {
                     switch(result.pos[1]) {
@@ -169,20 +174,16 @@ struct Thread {
                             break;
                     }
                 });
-
             Ontology::getUncertain(execute, PreDef_Next, next);
             Ontology::setSolitary({parentFrame, PreDef_Execute, next});
-
             if(Ontology::getUncertain(execute, PreDef_Catch, catcher))
                 link({frame, PreDef_Catch, catcher});
-
             if(!executePreDefProcedure(*this, procedure))
                 link({frame, PreDef_Execute, getGuaranteed(procedure, PreDef_Execute)});
         } else {
             assert(task != PreDef_Void && frame != PreDef_Void);
             executePreDefProcedure(*this, PreDef_Exception);
         }
-
         return true;
     }
 
@@ -212,7 +213,6 @@ struct Thread {
 
     void deserializationTask(Symbol input, Symbol package = PreDef_Void) {
         clear();
-
         block = Storage::createSymbol();
         link({block, PreDef_Holds, input});
         if(package == PreDef_Void)
@@ -225,7 +225,6 @@ struct Thread {
         Symbol execute = Storage::createSymbol();
         link({execute, PreDef_Procedure, PreDef_Deserialize});
         link({execute, PreDef_Static, staticParams});
-
         task = Storage::createSymbol();
         Symbol childFrame = Storage::createSymbol();
         link({childFrame, PreDef_Holds, staticParams});
@@ -249,7 +248,6 @@ struct Thread {
             prev = next;
         }) == 0)
             return false;
-
         executeInfinite();
         return true;
     }

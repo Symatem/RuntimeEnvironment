@@ -51,8 +51,8 @@ class BpTree {
         Type get(IndexType src) const {
             Type result;
             Storage::bitwiseCopy<-1>(reinterpret_cast<ArchitectureType*>(&result),
-                            reinterpret_cast<const ArchitectureType*>(this),
-                            0, bitOffset+src*sizeof(Type)*8, sizeof(Type)*8);
+                                     reinterpret_cast<const ArchitectureType*>(this),
+                                     0, bitOffset+src*sizeof(Type)*8, sizeof(Type)*8);
             return result;
         }
 
@@ -131,10 +131,10 @@ class BpTree {
             if(n == 0)
                 return;
             Storage::bitwiseCopy<dir>(reinterpret_cast<ArchitectureType*>(dstPage),
-                             reinterpret_cast<const ArchitectureType*>(srcPage),
-                             BranchPageRefsBitOffset+dstIndex*PageRefBits,
-                             BranchPageRefsBitOffset+srcIndex*PageRefBits,
-                             n*PageRefBits);
+                                      reinterpret_cast<const ArchitectureType*>(srcPage),
+                                      BranchPageRefsBitOffset+dstIndex*PageRefBits,
+                                      BranchPageRefsBitOffset+srcIndex*PageRefBits,
+                                      n*PageRefBits);
             if(frontKey) {
                 assert(dstIndex > 0 && srcIndex > 0);
                 --dstIndex;
@@ -144,10 +144,10 @@ class BpTree {
             else
                 return;
             Storage::bitwiseCopy<dir>(reinterpret_cast<ArchitectureType*>(dstPage),
-                             reinterpret_cast<const ArchitectureType*>(srcPage),
-                             KeysBitOffset+dstIndex*KeyBits,
-                             KeysBitOffset+srcIndex*KeyBits,
-                             n*KeyBits);
+                                      reinterpret_cast<const ArchitectureType*>(srcPage),
+                                      KeysBitOffset+dstIndex*KeyBits,
+                                      KeysBitOffset+srcIndex*KeyBits,
+                                      n*KeyBits);
         }
 
         template<int dir = -1>
@@ -157,21 +157,21 @@ class BpTree {
             if(n == 0)
                 return;
             Storage::bitwiseCopy<dir>(reinterpret_cast<ArchitectureType*>(dstPage),
-                             reinterpret_cast<const ArchitectureType*>(srcPage),
-                             KeysBitOffset+dstIndex*KeyBits, KeysBitOffset+srcIndex*KeyBits,
-                             n*KeyBits);
+                                      reinterpret_cast<const ArchitectureType*>(srcPage),
+                                      KeysBitOffset+dstIndex*KeyBits, KeysBitOffset+srcIndex*KeyBits,
+                                      n*KeyBits);
             Storage::bitwiseCopy<dir>(reinterpret_cast<ArchitectureType*>(dstPage),
-                             reinterpret_cast<const ArchitectureType*>(srcPage),
-                             LeafValuesBitOffset+dstIndex*ValueBits, LeafValuesBitOffset+srcIndex*ValueBits,
-                             n*ValueBits);
+                                      reinterpret_cast<const ArchitectureType*>(srcPage),
+                                      LeafValuesBitOffset+dstIndex*ValueBits, LeafValuesBitOffset+srcIndex*ValueBits,
+                                      n*ValueBits);
         }
 
         static void copyKey(Page* dstPage, Page* srcPage,
                             IndexType dstIndex, IndexType srcIndex) {
             Storage::bitwiseCopy<-1>(reinterpret_cast<ArchitectureType*>(dstPage),
-                            reinterpret_cast<const ArchitectureType*>(srcPage),
-                            KeysBitOffset+dstIndex*KeyBits, KeysBitOffset+srcIndex*KeyBits,
-                            KeyBits);
+                                     reinterpret_cast<const ArchitectureType*>(srcPage),
+                                     KeysBitOffset+dstIndex*KeyBits, KeysBitOffset+srcIndex*KeyBits,
+                                     KeyBits);
         }
 
         static void swapKeyInParent(Page* parent, Page* dstPage, Page* srcPage,
@@ -839,7 +839,7 @@ class BpTree {
     typedef Closure<void, Page*, IndexType, IndexType> AquireData;
     void insert(Iterator<false>& at, ArchitectureType elementCount, AquireData aquireData) {
         assert(elementCount > 0);
-        InsertData data = { insertAux<IteratorFrame>(data, at, elementCount) };
+        InsertData data = {insertAux<IteratorFrame>(data, at, elementCount)};
         data.startLayer = (data.startLayer < 0) ? -data.startLayer : 0;
         Iterator<false, InsertIteratorFrame> iter;
         iter.end = layerCount+data.startLayer;
@@ -985,7 +985,7 @@ class BpTree {
 
     void erase(Iterator<false>& from, Iterator<false>& to) {
         assert(from.isValid() && to.isValid() && from.compare(to) < 1);
-        EraseData data = { false, true, static_cast<LayerType>(to.end-1), from, to };
+        EraseData data = {false, true, static_cast<LayerType>(to.end-1), from, to};
         data.iter.end = layerCount;
         if(eraseLayer<true>(data))
             while(eraseLayer<false>(data));

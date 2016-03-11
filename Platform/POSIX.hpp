@@ -23,7 +23,7 @@ void Storage::resizeMemory(ArchitectureType _pageCount) {
 }
 
 void Storage::load() {
-    file = open("/Volumes/Untitled/storage", O_RDWR|O_CREAT); // TODO: Debugging
+    file = open("storage", O_RDWR|O_CREAT); // TODO: Debugging
     assert(file >= 0);
     assert(ftruncate(file, bytesForPages(pageCount)) == 0); // TODO: Debugging
     pageCount = lseek(file, 0, SEEK_END)/(bitsPerPage/8);
@@ -59,33 +59,29 @@ void loadFromPath(Thread& thread, Symbol parentPackage, bool execute, char* path
     ArchitectureType pathLen = strlen(path);
     if(path[pathLen-1] == '/')
         path[pathLen-1] = 0;
-
     struct stat s;
     char buffer[64];
-    if(stat(path, &s) != 0) return;
+    if(stat(path, &s) != 0)
+        return;
     if(s.st_mode & S_IFDIR) {
         DIR* dp = opendir(path);
         if(dp == nullptr)
             crash("Could not open directory");
-
         ArchitectureType slashIndex = 0;
         for(ArchitectureType i = pathLen-1; i > 0; --i)
             if(path[i] == '/') {
                 slashIndex = i+1;
                 break;
             }
-
         Storage::bitwiseCopy(reinterpret_cast<ArchitectureType*>(buffer),
                              reinterpret_cast<ArchitectureType*>(path),
                              0, slashIndex*8, pathLen-slashIndex);
         buffer[pathLen-slashIndex] = 0;
-
         Symbol package = Ontology::createFromData(const_cast<const char*>(buffer));
         Ontology::blobIndex.insertElement(package);
         if(parentPackage == PreDef_Void)
             parentPackage = package;
         thread.link({package, PreDef_Holds, parentPackage});
-
         struct dirent* entry;
         while((entry = readdir(dp)))
             if(entry->d_name[0] != '.') {
@@ -94,17 +90,16 @@ void loadFromPath(Thread& thread, Symbol parentPackage, bool execute, char* path
             }
         closedir(dp);
     } else if(s.st_mode & S_IFREG) {
-        if(!stringEndsWith(path, ".sym")) return;
-
+        if(!stringEndsWith(path, ".sym"))
+            return;
         Symbol file = createFromFile(path);
         if(file == PreDef_Void)
             crash("Could not open file");
-
         thread.deserializationTask(file, parentPackage);
         if(thread.uncaughtException())
             crash("Exception occurred while deserializing file");
-
-        if(!execute) return;
+        if(!execute)
+            return;
         if(!thread.executeDeserialized())
             crash("Nothing to execute");
         else if(thread.uncaughtException())

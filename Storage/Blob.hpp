@@ -123,7 +123,7 @@ namespace Storage {
         return true;
     }
 
-    bool insertIntoBlob(Symbol dst, ArchitectureType* src, ArchitectureType begin, ArchitectureType length) {
+    bool insertIntoBlob(Symbol dst, const ArchitectureType* src, ArchitectureType begin, ArchitectureType length) {
         assert(length > 0);
         ArchitectureType dstSize = getBlobSize(dst);
         auto newBlobSize = dstSize+length, rest = dstSize-begin;

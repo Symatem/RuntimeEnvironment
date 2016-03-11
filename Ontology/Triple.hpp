@@ -35,16 +35,16 @@ union Triple {
     }
 
     Triple reordered(ArchitectureType subIndex) {
-        ArchitectureType alpha[] = { 0, 1, 2, 0, 1, 2 },
-                          beta[] = { 1, 2, 0, 2, 0, 1 },
-                         gamma[] = { 2, 0, 1, 1, 2, 0 };
+        ArchitectureType alpha[] = {0, 1, 2, 0, 1, 2},
+                          beta[] = {1, 2, 0, 2, 0, 1},
+                         gamma[] = {2, 0, 1, 1, 2, 0};
         return {pos[alpha[subIndex]], pos[beta[subIndex]], pos[gamma[subIndex]]};
     }
 
     Triple normalized(ArchitectureType subIndex) {
-        ArchitectureType alpha[] = { 0, 2, 1, 0, 1, 2 },
-                          beta[] = { 1, 0, 2, 2, 0, 1 },
-                         gamma[] = { 2, 1, 0, 1, 2, 0 };
+        ArchitectureType alpha[] = {0, 2, 1, 0, 1, 2},
+                          beta[] = {1, 0, 2, 2, 0, 1},
+                         gamma[] = {2, 1, 0, 1, 2, 0};
         return {pos[alpha[subIndex]], pos[beta[subIndex]], pos[gamma[subIndex]]};
     }
 };
@@ -242,7 +242,6 @@ namespace Ontology {
             uint8_t index, pos, size;
             ArchitectureType(*function)(ArchitectureType, Triple&, Closure<void>);
         };
-
         const QueryMethod lookup[] = {
             {EAV, 0, 0, &searchGGG},
             {AVE, 2, 1, &searchGGV},
@@ -272,19 +271,16 @@ namespace Ontology {
             {EAV, 0, 1, &searchVII},
             {EAV, 0, 0, nullptr}
         };
-
         assert(mode < sizeof(lookup)/sizeof(QueryMethod));
         QueryMethod method = lookup[mode];
         if(method.function == nullptr)
             return 0;
-
         Closure<void> handleNext = [&]() {
             Triple result;
             for(ArchitectureType i = 0; i < method.size; ++i)
                 result.pos[i] = triple.pos[method.pos+i];
             callback(result);
         };
-
         if(indexMode == MonoIndex) {
             if(method.index != EAV) {
                 method.index = EAV;
@@ -306,9 +302,9 @@ namespace Ontology {
             method.pos = 2;
             method.function = &searchGIV;
         }
-
         triple = triple.reordered(method.index);
-        if(!callback) handleNext = nullptr;
+        if(!callback)
+            handleNext = nullptr;
         return (*method.function)(method.index, triple, handleNext);
     }
 

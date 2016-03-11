@@ -8,7 +8,7 @@ template<bool guarded, typename ElementType>
 struct Vector {
     Symbol symbol;
 
-    Vector() :symbol(0) { }
+    Vector() :symbol(0) {}
 
     ~Vector() {
         if(guarded && symbol)
@@ -85,8 +85,8 @@ template<typename KeyType, typename ValueType>
 struct Pair {
     KeyType key;
     ValueType value;
-    Pair(KeyType _key) :key(_key) { }
-    Pair(KeyType _key, ValueType _value) :key(_key), value(_value) { }
+    Pair(KeyType _key) :key(_key) {}
+    Pair(KeyType _key, ValueType _value) :key(_key), value(_value) {}
     operator KeyType() {
         return key;
     }
@@ -97,7 +97,7 @@ struct Set : public Vector<guarded, Pair<KeyType, ValueType>> {
     typedef Pair<KeyType, ValueType> ElementType;
     typedef Vector<guarded, ElementType> Super;
 
-    Set() :Super() { }
+    Set() :Super() {}
 
     ArchitectureType find(KeyType key) const {
         return binarySearch<ArchitectureType>(Super::size(), [&](ArchitectureType at) {
@@ -131,7 +131,7 @@ template<bool guarded>
 struct BlobIndex : public Set<guarded, Symbol> {
     typedef Set<guarded, Symbol> Super;
 
-    BlobIndex() :Super() { }
+    BlobIndex() :Super() {}
 
     ArchitectureType find(Symbol key) const {
         return binarySearch<ArchitectureType>(Super::size(), [&](ArchitectureType at) {

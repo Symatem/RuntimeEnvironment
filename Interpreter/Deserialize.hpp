@@ -132,10 +132,8 @@ class Deserialize {
 
     void seperateTokens(bool semicolon) {
         parseToken();
-
         Symbol entity = PreDef_Void;
         Ontology::getUncertain(currentEntry, PreDef_Entity, entity);
-
         if(queue.empty()) {
             if(semicolon) {
                 if(entity != PreDef_Void)
@@ -144,7 +142,6 @@ class Deserialize {
             }
             return;
         }
-
         if(semicolon && queue.size() == 1) {
             if(entity == PreDef_Void) {
                 entity = queue.pop_back();
@@ -154,7 +151,6 @@ class Deserialize {
                 thread.link({entity, queue.pop_back(), entity});
             return;
         }
-
         fillInAnonymous(entity);
         if(semicolon)
             Ontology::setSolitary({parentEntry, PreDef_UnnestEntity, PreDef_Void});
@@ -162,7 +158,6 @@ class Deserialize {
             Ontology::setSolitary({parentEntry, PreDef_UnnestEntity, entity}, true);
         Symbol attribute = queue.pop_back();
         Ontology::setSolitary({parentEntry, PreDef_UnnestAttribute, attribute}, true);
-
         while(!queue.empty())
             thread.link({entity, attribute, queue.pop_back()});
     }
@@ -172,7 +167,6 @@ class Deserialize {
         package = thread.getGuaranteed(thread.block, PreDef_Package);
         getSymbolByName(Input)
         checkBlobType(Input, PreDef_Text)
-
         locals.symbol = Storage::createSymbol();
         thread.link({thread.block, PreDef_Holds, locals.symbol});
         stack.symbol = Storage::createSymbol();
@@ -181,7 +175,6 @@ class Deserialize {
         thread.link({thread.block, PreDef_Holds, currentEntry});
         stack.push_back(currentEntry);
         queue.symbol = currentEntry;
-
         row = column = 1;
         tokenBegin = pos = reinterpret_cast<const char*>(Storage::accessBlobData(InputSymbol));
         end = pos+Storage::getBlobSize(InputSymbol)/8;
@@ -250,14 +243,12 @@ class Deserialize {
             ++pos;
         }
         parseToken();
-
         if(stack.size() != 1)
             throwException("Missing closing bracket");
         if(!thread.valueCountIs(currentEntry, PreDef_UnnestEntity, 0))
             throwException("Unnesting failed");
         if(queue.empty())
             throwException("Empty Input");
-
         Symbol OutputSymbol;
         if(Ontology::getUncertain(thread.block, PreDef_Output, OutputSymbol)) {
             Symbol TargetSymbol = thread.getTargetSymbol();

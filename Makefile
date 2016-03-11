@@ -1,20 +1,16 @@
-CPPOPTIONS := -std=c++1y -stdlib=libc++ -fno-exceptions ${PGO_OPTIONS}
-BUILDDIR := build
-TARGET := $(BUILDDIR)/CLI
+CPPOPTIONS := -std=c++1y -fno-exceptions
 STDPATH := ../StandardLibrary
+BUILDDIR := build
+TARGET_POSIX := $(BUILDDIR)/SymatemRTE
 
-# PGO_OPTIONS := -fprofile-instr-generate
-# CPPOPTIONS := -O3 -flto
-# -fprofile-sample-use=code.prof
-
-$(TARGET):
+$(TARGET_POSIX):
 	mkdir -p $(BUILDDIR)
-	$(CXX) ${CPPOPTIONS} -o $(TARGET) CLI/main.cpp
+	$(CC) $(CPPOPTIONS) -o $(TARGET_POSIX) main.cpp
 
-test: $(TARGET)
-	$(TARGET) $(STDPATH)/Foundation/ -e $(STDPATH)/Tests/
+test: $(TARGET_POSIX)
+	$(TARGET_POSIX) $(STDPATH)/Foundation/ -e $(STDPATH)/Tests/
 
 clear:
 	rm -fr $(BUILDDIR)
 
-rebuild: clear $(TARGET)
+rebuild: clear $(TARGET_POSIX)
