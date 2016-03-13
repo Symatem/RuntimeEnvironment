@@ -13,8 +13,8 @@ const char* PreDefSymbols[] = {
 #undef PreDefWrapper
 
 #define forEachSubIndex \
-    ArchitectureType indexCount = (indexMode == MonoIndex) ? 1 : 3; \
-    for(ArchitectureType subIndex = 0; subIndex < indexCount; ++subIndex)
+    NativeNaturalType indexCount = (indexMode == MonoIndex) ? 1 : 3; \
+    for(NativeNaturalType subIndex = 0; subIndex < indexCount; ++subIndex)
 
 union Triple {
     Symbol pos[3];
@@ -26,23 +26,23 @@ union Triple {
     Triple(Symbol _entity, Symbol _attribute, Symbol _value)
         :entity(_entity), attribute(_attribute), value(_value) {}
 
-    Triple forwardIndex(ArchitectureType* subIndices, ArchitectureType subIndex) {
+    Triple forwardIndex(NativeNaturalType* subIndices, NativeNaturalType subIndex) {
         return {subIndices[subIndex], pos[(subIndex+1)%3], pos[(subIndex+2)%3]};
     }
 
-    Triple reverseIndex(ArchitectureType* subIndices, ArchitectureType subIndex) {
+    Triple reverseIndex(NativeNaturalType* subIndices, NativeNaturalType subIndex) {
         return {subIndices[subIndex+3], pos[(subIndex+2)%3], pos[(subIndex+1)%3]};
     }
 
-    Triple reordered(ArchitectureType subIndex) {
-        ArchitectureType alpha[] = {0, 1, 2, 0, 1, 2},
+    Triple reordered(NativeNaturalType subIndex) {
+        NativeNaturalType alpha[] = {0, 1, 2, 0, 1, 2},
                           beta[] = {1, 2, 0, 2, 0, 1},
                          gamma[] = {2, 0, 1, 1, 2, 0};
         return {pos[alpha[subIndex]], pos[beta[subIndex]], pos[gamma[subIndex]]};
     }
 
-    Triple normalized(ArchitectureType subIndex) {
-        ArchitectureType alpha[] = {0, 2, 1, 0, 1, 2},
+    Triple normalized(NativeNaturalType subIndex) {
+        NativeNaturalType alpha[] = {0, 2, 1, 0, 1, 2},
                           beta[] = {1, 0, 2, 2, 0, 1},
                          gamma[] = {2, 1, 0, 1, 2, 0};
         return {pos[alpha[subIndex]], pos[beta[subIndex]], pos[gamma[subIndex]]};
@@ -67,7 +67,7 @@ namespace Ontology {
     bool linkInSubIndex(Triple triple) {
         Set<false, Symbol, Symbol> beta;
         beta.symbol = triple.pos[0];
-        ArchitectureType betaIndex;
+        NativeNaturalType betaIndex;
         Set<false, Symbol> gamma;
         if(beta.find(triple.pos[1], betaIndex))
             gamma.symbol = beta[betaIndex].value;
@@ -80,11 +80,11 @@ namespace Ontology {
     }
 
     bool link(Triple triple) {
-        ArchitectureType alphaIndex;
+        NativeNaturalType alphaIndex;
         forEachSubIndex {
             if(!symbols.find(triple.pos[subIndex], alphaIndex)) {
                 symbols.insert(alphaIndex, triple.pos[subIndex]);
-                for(ArchitectureType i = 0; i < indexMode; ++i)
+                for(NativeNaturalType i = 0; i < indexMode; ++i)
                     symbols[alphaIndex].value[i] = Storage::createSymbol();
             }
             if(!linkInSubIndex(triple.forwardIndex(symbols[alphaIndex].value, subIndex)))
@@ -97,8 +97,8 @@ namespace Ontology {
         return true;
     }
 
-    ArchitectureType searchGGG(ArchitectureType index, Triple& triple, Closure<void> callback) {
-        ArchitectureType alphaIndex, betaIndex, gammaIndex;
+    NativeNaturalType searchGGG(NativeNaturalType index, Triple& triple, Closure<void()> callback) {
+        NativeNaturalType alphaIndex, betaIndex, gammaIndex;
         if(!symbols.find(triple.pos[0], alphaIndex))
             return 0;
         Set<false, Symbol, Symbol> beta;
@@ -114,8 +114,8 @@ namespace Ontology {
         return 1;
     }
 
-    ArchitectureType searchGGV(ArchitectureType index, Triple& triple, Closure<void> callback) {
-        ArchitectureType alphaIndex, betaIndex;
+    NativeNaturalType searchGGV(NativeNaturalType index, Triple& triple, Closure<void()> callback) {
+        NativeNaturalType alphaIndex, betaIndex;
         if(!symbols.find(triple.pos[0], alphaIndex))
             return 0;
         Set<false, Symbol, Symbol> beta;
@@ -125,15 +125,15 @@ namespace Ontology {
         Set<false, Symbol> gamma;
         gamma.symbol = beta[betaIndex].value;
         if(callback)
-            gamma.iterate([&](Pair<Symbol, ArchitectureType[0]>& gammaResult) {
+            gamma.iterate([&](Pair<Symbol, NativeNaturalType[0]>& gammaResult) {
                 triple.pos[2] = gammaResult;
                 callback();
             });
         return gamma.size();
     }
 
-    ArchitectureType searchGVV(ArchitectureType index, Triple& triple, Closure<void> callback) {
-        ArchitectureType alphaIndex, count = 0;
+    NativeNaturalType searchGVV(NativeNaturalType index, Triple& triple, Closure<void()> callback) {
+        NativeNaturalType alphaIndex, count = 0;
         if(!symbols.find(triple.pos[0], alphaIndex))
             return 0;
         Set<false, Symbol, Symbol> beta;
@@ -143,7 +143,7 @@ namespace Ontology {
             gamma.symbol = betaResult.value;
             if(callback) {
                 triple.pos[1] = betaResult.key;
-                gamma.iterate([&](Pair<Symbol, ArchitectureType[0]>& gammaResult) {
+                gamma.iterate([&](Pair<Symbol, NativeNaturalType[0]>& gammaResult) {
                     triple.pos[2] = gammaResult;
                     callback();
                 });
@@ -153,8 +153,8 @@ namespace Ontology {
         return count;
     }
 
-    ArchitectureType searchGIV(ArchitectureType index, Triple& triple, Closure<void> callback) {
-        ArchitectureType alphaIndex;
+    NativeNaturalType searchGIV(NativeNaturalType index, Triple& triple, Closure<void()> callback) {
+        NativeNaturalType alphaIndex;
         if(!symbols.find(triple.pos[0], alphaIndex))
             return 0;
         Set<true, Symbol> result;
@@ -163,7 +163,7 @@ namespace Ontology {
         beta.iterate([&](Pair<Symbol, Symbol>& betaResult) {
             Set<false, Symbol> gamma;
             gamma.symbol = betaResult.value;
-            gamma.iterate([&](Pair<Symbol, ArchitectureType[0]>& gammaResult) {
+            gamma.iterate([&](Pair<Symbol, NativeNaturalType[0]>& gammaResult) {
                 result.insertElement(gammaResult);
             });
         });
@@ -175,8 +175,8 @@ namespace Ontology {
         return result.size();
     }
 
-    ArchitectureType searchGVI(ArchitectureType index, Triple& triple, Closure<void> callback) {
-        ArchitectureType alphaIndex;
+    NativeNaturalType searchGVI(NativeNaturalType index, Triple& triple, Closure<void()> callback) {
+        NativeNaturalType alphaIndex;
         if(!symbols.find(triple.pos[0], alphaIndex))
             return 0;
         Set<false, Symbol, Symbol> beta;
@@ -189,7 +189,7 @@ namespace Ontology {
         return beta.size();
     }
 
-    ArchitectureType searchVII(ArchitectureType index, Triple& triple, Closure<void> callback) {
+    NativeNaturalType searchVII(NativeNaturalType index, Triple& triple, Closure<void()> callback) {
         if(callback)
             symbols.iterate([&](Pair<Symbol, Symbol[6]>& alphaResult) {
                 triple.pos[0] = alphaResult.key;
@@ -198,8 +198,8 @@ namespace Ontology {
         return symbols.size();
     }
 
-    ArchitectureType searchVVI(ArchitectureType index, Triple& triple, Closure<void> callback) {
-        ArchitectureType count = 0;
+    NativeNaturalType searchVVI(NativeNaturalType index, Triple& triple, Closure<void()> callback) {
+        NativeNaturalType count = 0;
         symbols.iterate([&](Pair<Symbol, Symbol[6]>& alphaResult) {
             Set<false, Symbol, Symbol> beta;
             beta.symbol = alphaResult.value[index];
@@ -215,8 +215,8 @@ namespace Ontology {
         return count;
     }
 
-    ArchitectureType searchVVV(ArchitectureType index, Triple& triple, Closure<void> callback) {
-        ArchitectureType count = 0;
+    NativeNaturalType searchVVV(NativeNaturalType index, Triple& triple, Closure<void()> callback) {
+        NativeNaturalType count = 0;
         symbols.iterate([&](Pair<Symbol, Symbol[6]>& alphaResult) {
             triple.pos[0] = alphaResult.key;
             Set<false, Symbol, Symbol> beta;
@@ -226,7 +226,7 @@ namespace Ontology {
                 gamma.symbol = betaResult.value;
                 if(callback) {
                     triple.pos[1] = betaResult.key;
-                    gamma.iterate([&](Pair<Symbol, ArchitectureType[0]>& gammaResult) {
+                    gamma.iterate([&](Pair<Symbol, NativeNaturalType[0]>& gammaResult) {
                         triple.pos[2] = gammaResult;
                         callback();
                     });
@@ -237,10 +237,10 @@ namespace Ontology {
         return count;
     }
 
-    ArchitectureType query(ArchitectureType mode, Triple triple, Closure<void, Triple> callback = nullptr) {
+    NativeNaturalType query(NativeNaturalType mode, Triple triple, Closure<void(Triple)> callback = nullptr) {
         struct QueryMethod {
-            uint8_t index, pos, size;
-            ArchitectureType(*function)(ArchitectureType, Triple&, Closure<void>);
+            NativeNaturalType index, pos, size;
+            NativeNaturalType(*function)(NativeNaturalType, Triple&, Closure<void()>);
         };
         const QueryMethod lookup[] = {
             {EAV, 0, 0, &searchGGG},
@@ -275,9 +275,9 @@ namespace Ontology {
         QueryMethod method = lookup[mode];
         if(method.function == nullptr)
             return 0;
-        Closure<void> handleNext = [&]() {
+        Closure<void()> handleNext = [&]() {
             Triple result;
-            for(ArchitectureType i = 0; i < method.size; ++i)
+            for(NativeNaturalType i = 0; i < method.size; ++i)
                 result.pos[i] = triple.pos[method.pos+i];
             callback(result);
         };
@@ -286,7 +286,7 @@ namespace Ontology {
                 method.index = EAV;
                 method.function = &searchVVV;
                 handleNext = [&]() {
-                    ArchitectureType index = 0;
+                    NativeNaturalType index = 0;
                     if(mode%3 == 1) ++index;
                     if(mode%9 >= 3 && mode%9 < 6) {
                         triple.pos[index] = triple.pos[1];
@@ -311,7 +311,7 @@ namespace Ontology {
     bool unlinkInSubIndex(Triple triple) {
         Set<false, Symbol, Symbol> alpha;
         alpha.symbol = triple.pos[0];
-        ArchitectureType alphaIndex, betaIndex;
+        NativeNaturalType alphaIndex, betaIndex;
         if(!alpha.find(triple.pos[1], alphaIndex))
             return false;
         Set<false, Symbol> beta;
@@ -327,7 +327,7 @@ namespace Ontology {
     }
 
     bool unlinkWithoutReleasing(Triple triple, bool skipEnabled = false, Symbol skip = PreDef_Void) {
-        ArchitectureType alphaIndex;
+        NativeNaturalType alphaIndex;
         forEachSubIndex {
             if(skipEnabled && triple.pos[subIndex] == skip)
                 continue;
@@ -344,7 +344,7 @@ namespace Ontology {
     }
 
     void tryToReleaseSymbol(Symbol symbol) {
-        ArchitectureType alphaIndex;
+        NativeNaturalType alphaIndex;
         assert(symbols.find(symbol, alphaIndex));
         forEachSubIndex {
             Set<false, Symbol, Symbol> beta;
@@ -352,7 +352,7 @@ namespace Ontology {
             if(!beta.empty())
                 return;
         }
-        for(ArchitectureType subIndex = 0; subIndex < indexCount; ++subIndex)
+        for(NativeNaturalType subIndex = 0; subIndex < indexCount; ++subIndex)
             Storage::releaseSymbol(symbols[alphaIndex].value[subIndex]);
         Storage::releaseSymbol(symbol);
     }
@@ -360,13 +360,13 @@ namespace Ontology {
     bool unlink(Triple triple) {
         if(!unlinkWithoutReleasing(triple))
             return false;
-        for(ArchitectureType i = 0; i < 3; ++i)
+        for(NativeNaturalType i = 0; i < 3; ++i)
             tryToReleaseSymbol(triple.pos[i]);
         return true;
     }
 
     bool unlink(Symbol symbol) {
-        ArchitectureType alphaIndex;
+        NativeNaturalType alphaIndex;
         if(!symbols.find(symbol, alphaIndex)) {
             Storage::releaseSymbol(symbol);
             return false;
@@ -379,7 +379,7 @@ namespace Ontology {
                 dirty.insertElement(betaResult.key);
                 Set<false, Symbol> gamma;
                 gamma.symbol = betaResult.value;
-                gamma.iterate([&](Pair<Symbol, ArchitectureType[0]>& gammaResult) {
+                gamma.iterate([&](Pair<Symbol, NativeNaturalType[0]>& gammaResult) {
                     dirty.insertElement(gammaResult.key);
                     unlinkWithoutReleasing(Triple(symbol, betaResult.key, gammaResult.key).normalized(subIndex), true, symbol);
                 });
@@ -388,7 +388,7 @@ namespace Ontology {
         dirty.iterate([&](Symbol symbol) {
             tryToReleaseSymbol(symbol);
         });
-        for(ArchitectureType subIndex = 0; subIndex < indexCount; ++subIndex)
+        for(NativeNaturalType subIndex = 0; subIndex < indexCount; ++subIndex)
             Storage::releaseSymbol(symbols[alphaIndex].value[subIndex]);
         Storage::releaseSymbol(symbol);
         return true;
@@ -437,22 +437,22 @@ namespace Ontology {
         }
     }
 
-    void overwriteBlobWithString(Symbol symbol, const char* src, ArchitectureType len) {
+    void overwriteBlobWithString(Symbol symbol, const char* src, NativeNaturalType len) {
         link({symbol, PreDef_BlobType, PreDef_Text});
         Storage::setBlobSize(symbol, len*8);
-        auto dst = reinterpret_cast<uint8_t*>(Storage::accessBlobData(symbol));
-        for(ArchitectureType i = 0; i < len; ++i)
+        auto dst = reinterpret_cast<char*>(Storage::accessBlobData(symbol));
+        for(NativeNaturalType i = 0; i < len; ++i)
             dst[i] = src[i];
     }
 
     template<typename DataType>
     Symbol createFromData(DataType src) {
         Symbol blobType;
-        if(isSame<DataType, uint64_t>())
+        if(isSame<DataType, NativeNaturalType>())
             blobType = PreDef_Natural;
-        else if(isSame<DataType, int64_t>())
+        else if(isSame<DataType, NativeIntegerType>())
             blobType = PreDef_Integer;
-        else if(isSame<DataType, double>())
+        else if(isSame<DataType, NativeFloatType>())
             blobType = PreDef_Float;
         else
             crash("createFromData<InvalidType>");
@@ -462,7 +462,7 @@ namespace Ontology {
         return symbol;
     }
 
-    Symbol createFromData(const char* src, ArchitectureType len) {
+    Symbol createFromData(const char* src, NativeNaturalType len) {
         Symbol symbol = Storage::createSymbol();
         overwriteBlobWithString(symbol, src, len);
         return symbol;

@@ -9,10 +9,10 @@ if(Ontology::query(1, {Name##Symbol, PreDef_BlobType, expectedType}) == 0) \
 
 #define getUncertainValueByName(Name, DefaultValue) \
     Symbol Name##Symbol; \
-    ArchitectureType Name##Value = DefaultValue; \
+    NativeNaturalType Name##Value = DefaultValue; \
     if(Ontology::getUncertain(thread.block, PreDef_##Name, Name##Symbol)) { \
         checkBlobType(Name, PreDef_Natural) \
-        Name##Value = thread.accessBlobAs<ArchitectureType>(Name##Symbol); \
+        Name##Value = thread.accessBlobAs<NativeNaturalType>(Name##Symbol); \
     }
 
 class Deserialize {
@@ -21,7 +21,7 @@ class Deserialize {
     BlobIndex<false> locals;
     Vector<false, Symbol> stack, queue;
     const char *pos, *end, *tokenBegin;
-    ArchitectureType row, column;
+    NativeNaturalType row, column;
 
     void throwException(const char* message) {
         Symbol data = Storage::createSymbol(),
@@ -57,7 +57,7 @@ class Deserialize {
                 locals.insertElement(symbol);
             } else if(pos-tokenBegin > strlen(HRLRawBegin) && memcmp(tokenBegin, HRLRawBegin, 4) == 0) {
                 const char* src = tokenBegin+strlen(HRLRawBegin);
-                ArchitectureType nibbleCount = pos-src;
+                NativeNaturalType nibbleCount = pos-src;
                 if(nibbleCount == 0)
                     throwException("Empty raw data");
                 symbol = Storage::createSymbol();
@@ -80,7 +80,7 @@ class Deserialize {
                     ++src;
                 }
             } else {
-                ArchitectureType mantissa = 0, devisor = 0;
+                NativeNaturalType mantissa = 0, devisor = 0;
                 bool isNumber = true, negative = (*tokenBegin == '-');
                 const char* src = tokenBegin+negative;
                 // TODO What if too long, precision loss?
@@ -103,12 +103,12 @@ class Deserialize {
                 }
                 if(isNumber && devisor != 1) {
                     if(devisor > 0) {
-                        double value = mantissa;
+                        NativeFloatType value = mantissa;
                         value /= devisor;
                         if(negative) value *= -1;
                         symbol = Ontology::createFromData(value);
                     } else if(negative)
-                        symbol = Ontology::createFromData(-static_cast<int64_t>(mantissa));
+                        symbol = Ontology::createFromData(-static_cast<NativeIntegerType>(mantissa));
                     else
                         symbol = Ontology::createFromData(mantissa);
                 } else

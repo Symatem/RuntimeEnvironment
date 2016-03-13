@@ -7,7 +7,7 @@ int main(int argc, char** argv) {
     Ontology::tryToFillPreDef();
 
     bool execute = false;
-    for(ArchitectureType i = 1; i < argc; ++i) {
+    for(NativeNaturalType i = 1; i < argc; ++i) {
         if(memcmp(argv[i], "-h", 2) == 0) {
             printf("This is not the help page you are looking for.\n");
             printf("No, seriously, RTFM.\n");

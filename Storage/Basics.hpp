@@ -3,25 +3,25 @@
 template<typename type>
 struct BitMask {
     const static type empty = 0, one = 1, full = ~empty;
-    constexpr static type fillLSBs(ArchitectureType len) {
+    constexpr static type fillLSBs(NativeNaturalType len) {
         return (len == sizeof(type)*8) ? full : (one<<len)-one;
     }
-    constexpr static type fillMSBs(ArchitectureType len) {
+    constexpr static type fillMSBs(NativeNaturalType len) {
         return (len == 0) ? empty : ~((one<<(sizeof(type)*8-len))-one);
     }
 };
 
 class BasePage {
     public:
-    ArchitectureType transaction;
+    NativeNaturalType transaction;
 };
 
 namespace Storage {
     template<int dir>
-    ArchitectureType aquireSegmentFrom(const ArchitectureType* src, uint64_t& srcOffset, uint64_t length) {
+    NativeNaturalType aquireSegmentFrom(const NativeNaturalType* src, NativeNaturalType& srcOffset, NativeNaturalType length) {
         if(dir == +1)
             srcOffset -= length;
-        ArchitectureType lower = srcOffset%ArchitectureSize,
+        NativeNaturalType lower = srcOffset%ArchitectureSize,
                          index = srcOffset/ArchitectureSize,
                          firstPart = ArchitectureSize-lower,
                          result = src[index]>>lower;
@@ -29,20 +29,20 @@ namespace Storage {
             srcOffset += length;
         if(firstPart < length)
             result |= src[index+1]<<firstPart;
-        return result&BitMask<ArchitectureType>::fillLSBs(length);
+        return result&BitMask<NativeNaturalType>::fillLSBs(length);
     }
 
-    void writeSegmentTo(ArchitectureType* dst, ArchitectureType keepMask, ArchitectureType input) {
+    void writeSegmentTo(NativeNaturalType* dst, NativeNaturalType keepMask, NativeNaturalType input) {
         *dst &= keepMask;
         *dst |= (~keepMask)&input;
     }
 
     template<int dir>
-    void bitwiseCopy(ArchitectureType* dst, const ArchitectureType* src,
-                     ArchitectureType dstOffset, ArchitectureType srcOffset,
-                     ArchitectureType length) {
+    void bitwiseCopy(NativeNaturalType* dst, const NativeNaturalType* src,
+                     NativeNaturalType dstOffset, NativeNaturalType srcOffset,
+                     NativeNaturalType length) {
         assert(length > 0);
-        ArchitectureType index, lastIndex, lowSkip, highSkip;
+        NativeNaturalType index, lastIndex, lowSkip, highSkip;
         if(dir == -1) {
             index = dstOffset/ArchitectureSize;
             lastIndex = (dstOffset+length-1)/ArchitectureSize;
@@ -56,35 +56,35 @@ namespace Storage {
         highSkip = (highSkip+1)*ArchitectureSize-dstOffset-length;
         if(index == lastIndex) {
             writeSegmentTo(dst+index,
-                           BitMask<ArchitectureType>::fillLSBs(lowSkip)|BitMask<ArchitectureType>::fillMSBs(highSkip),
+                           BitMask<NativeNaturalType>::fillLSBs(lowSkip)|BitMask<NativeNaturalType>::fillMSBs(highSkip),
                            aquireSegmentFrom<0>(src, srcOffset, length)<<lowSkip);
             return;
         }
         if(dir == -1) {
             writeSegmentTo(dst+index,
-                           BitMask<ArchitectureType>::fillLSBs(lowSkip),
+                           BitMask<NativeNaturalType>::fillLSBs(lowSkip),
                            aquireSegmentFrom<dir>(src, srcOffset, ArchitectureSize-lowSkip)<<lowSkip);
             while(++index < lastIndex)
                 dst[index] = aquireSegmentFrom<dir>(src, srcOffset, ArchitectureSize);
             writeSegmentTo(dst+index,
-                           BitMask<ArchitectureType>::fillMSBs(highSkip),
+                           BitMask<NativeNaturalType>::fillMSBs(highSkip),
                            aquireSegmentFrom<dir>(src, srcOffset, ArchitectureSize-highSkip));
         } else {
             srcOffset += length;
             writeSegmentTo(dst+index,
-                           BitMask<ArchitectureType>::fillMSBs(highSkip),
+                           BitMask<NativeNaturalType>::fillMSBs(highSkip),
                            aquireSegmentFrom<dir>(src, srcOffset, ArchitectureSize-highSkip));
             while(--index > lastIndex)
                 dst[index] = aquireSegmentFrom<dir>(src, srcOffset, ArchitectureSize);
             writeSegmentTo(dst+index,
-                           BitMask<ArchitectureType>::fillLSBs(lowSkip),
+                           BitMask<NativeNaturalType>::fillLSBs(lowSkip),
                            aquireSegmentFrom<dir>(src, srcOffset, ArchitectureSize-lowSkip)<<lowSkip);
         }
     }
 
-    void bitwiseCopy(ArchitectureType* dst, const ArchitectureType* src,
-                     ArchitectureType dstOffset, ArchitectureType srcOffset,
-                     ArchitectureType length) {
+    void bitwiseCopy(NativeNaturalType* dst, const NativeNaturalType* src,
+                     NativeNaturalType dstOffset, NativeNaturalType srcOffset,
+                     NativeNaturalType length) {
         bool downward;
         if(dst == src) {
             if(dstOffset == srcOffset)
@@ -98,21 +98,21 @@ namespace Storage {
             bitwiseCopy<+1>(dst, src, dstOffset, srcOffset, length);
     }
 
-    const ArchitectureType
+    const NativeNaturalType
           bitsPerPage = 1<<15,
           mmapBucketSize = 1<<24,
           minPageCount = 1,
           maxPageCount = 2000*512;
 
-    ArchitectureType bytesForPages(ArchitectureType _pageCount) {
+    NativeNaturalType bytesForPages(NativeNaturalType _pageCount) {
         return (_pageCount*bitsPerPage+mmapBucketSize-1)/mmapBucketSize*mmapBucketSize/8;
     }
 
     int file;
-    uint8_t* ptr;
+    char* ptr;
     PageRefType pageCount;
 
-    void resizeMemory(ArchitectureType pageCount);
+    void resizeMemory(NativeNaturalType pageCount);
     void load();
     void unload();
 
@@ -133,7 +133,7 @@ class PagePool {
     public:
     class Page : public BasePage {
         public:
-        static const ArchitectureType
+        static const NativeNaturalType
             HeaderBits = sizeof(BasePage)*8+sizeof(IndexType)*8+sizeof(PageRefType)*8,
             BodyBits = Storage::bitsPerPage-HeaderBits,
             PageRefBits = sizeof(PageRefType)*8,
@@ -149,7 +149,7 @@ class PagePool {
         }
 
         bool contains(PageRefType item) {
-            for(ArchitectureType i = 0; i < count; ++i)
+            for(NativeNaturalType i = 0; i < count; ++i)
                 if(pageRefs[i] == item)
                     return true;
             return false;
@@ -157,7 +157,7 @@ class PagePool {
 
         void debugPrint() {
             printf("%hu\n", count);
-            for(ArchitectureType i = 0; i < count; ++i) {
+            for(NativeNaturalType i = 0; i < count; ++i) {
                 if(i > 0)
                     printf(", ");
                 printf("%llu", pageRefs[i]);

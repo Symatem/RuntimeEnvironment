@@ -95,13 +95,16 @@ T max(T c, Args... args) {
     return max(c, max(args...));
 }
 
+template<typename FunctionType>
+struct CallableContainer;
+
 template<typename ReturnType, typename... Arguments>
-struct CallableContainer {
+struct CallableContainer<ReturnType(Arguments...)> {
     virtual ReturnType operator()(Arguments...) = 0;
 };
 
 template<typename LambdaType, typename ReturnType, typename... Arguments>
-struct LambdaContainer : public CallableContainer<ReturnType, Arguments...> {
+struct LambdaContainer : public CallableContainer<ReturnType(Arguments...)> {
     LambdaType* lambda;
     LambdaContainer(LambdaType& _lambda) :lambda(&_lambda) {}
     ReturnType operator()(Arguments... arguments) {
@@ -109,8 +112,11 @@ struct LambdaContainer : public CallableContainer<ReturnType, Arguments...> {
     }
 };
 
+template<typename FunctionType>
+struct Closure;
+
 template<typename ReturnType, typename... Arguments>
-struct Closure {
+struct Closure<ReturnType(Arguments...)> {
     void* payload[2];
     template<typename LambdaType>
     Closure(LambdaType&& lambda) {
@@ -124,12 +130,12 @@ struct Closure {
     ReturnType operator()(Arguments... arguments) {
         if(!*this)
             crash("empty closure called");
-        return reinterpret_cast<CallableContainer<ReturnType, Arguments...>&>(payload)(arguments...);
+        return reinterpret_cast<CallableContainer<ReturnType(Arguments...)>&>(payload)(arguments...);
     }
 };
 
 template<typename IndexType>
-IndexType binarySearch(IndexType end, Closure<bool, IndexType> compare) {
+IndexType binarySearch(IndexType end, Closure<bool(IndexType)> compare) {
     IndexType begin = 0, mid;
     while(begin < end) {
         mid = (begin+end)/2;
@@ -141,24 +147,26 @@ IndexType binarySearch(IndexType end, Closure<bool, IndexType> compare) {
     return begin;
 }
 
-typedef uint64_t ArchitectureType; // TODO: Types for Natural, Integer, Float
-typedef ArchitectureType PageRefType;
-const ArchitectureType ArchitectureSize = sizeof(ArchitectureType)*8;
+typedef long long unsigned int NativeNaturalType;
+typedef long long int NativeIntegerType;
+typedef double NativeFloatType;
+typedef NativeNaturalType PageRefType;
+const NativeNaturalType ArchitectureSize = sizeof(NativeNaturalType)*8;
 
-constexpr ArchitectureType architecturePadding(ArchitectureType bits) {
+constexpr NativeNaturalType architecturePadding(NativeNaturalType bits) {
     return (bits+ArchitectureSize-1)/ArchitectureSize*ArchitectureSize;
 }
 
-ArchitectureType strlen(const char* str) {
+NativeNaturalType strlen(const char* str) {
     const char* pos;
     for(pos = str; *pos; ++pos);
     return pos-str;
 }
 
-int memcmp(const void* a, const void* b, ArchitectureType length) {
-    const uint8_t *posA = reinterpret_cast<const uint8_t*>(a),
-                  *posB = reinterpret_cast<const uint8_t*>(b),
-                  *end = posA+length;
+int memcmp(const void* a, const void* b, NativeNaturalType length) {
+    const char *posA = reinterpret_cast<const char*>(a),
+               *posB = reinterpret_cast<const char*>(b),
+               *end = posA+length;
     while(posA < end) {
         if(*posA != *posB)
             return *posA-*posB;
@@ -169,6 +177,6 @@ int memcmp(const void* a, const void* b, ArchitectureType length) {
 }
 
 bool stringEndsWith(const char* str, const char* end) {
-    ArchitectureType endLen = strlen(end);
+    NativeNaturalType endLen = strlen(end);
     return memcmp(str+strlen(str)-endLen, end, endLen) == 0;
 }

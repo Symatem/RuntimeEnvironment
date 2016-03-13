@@ -15,12 +15,12 @@ class BpTree {
     struct InsertIteratorFrame : public IteratorFrame {
         PageRefType lowerInnerPageRef, higherInnerPageRef, higherOuterPageRef;
         IndexType lowerInnerIndex, higherInnerEndIndex, higherOuterEndIndex, elementsPerPage;
-        ArchitectureType pageCount;
+        NativeNaturalType pageCount;
     };
 
     class Page : public BasePage {
         public:
-        static const ArchitectureType
+        static const NativeNaturalType
             HeaderBits = sizeof(BasePage)*8+sizeof(IndexType)*8,
             BodyOffset = architecturePadding(HeaderBits),
             BodyBits = Storage::bitsPerPage-BodyOffset,
@@ -33,7 +33,7 @@ class BpTree {
             LeafKeyCount = BodyBits/LeafElementBits;
 
         template<bool isLeaf>
-        static ArchitectureType capacity() {
+        static NativeNaturalType capacity() {
             return (isLeaf) ? LeafKeyCount : BranchKeyCount+1;
         }
 
@@ -44,11 +44,11 @@ class BpTree {
             return (isLeaf) ? count : count-1;
         }
 
-        template<typename Type, ArchitectureType offset, ArchitectureType stride>
+        template<typename Type, NativeNaturalType offset, NativeNaturalType stride>
         Type get(IndexType src) const {
             Type result;
-            Storage::bitwiseCopy<-1>(reinterpret_cast<ArchitectureType*>(&result),
-                                     reinterpret_cast<const ArchitectureType*>(this),
+            Storage::bitwiseCopy<-1>(reinterpret_cast<NativeNaturalType*>(&result),
+                                     reinterpret_cast<const NativeNaturalType*>(this),
                                      0, BodyOffset+offset+stride*src, sizeof(Type)*8);
             return result;
         }
@@ -68,10 +68,10 @@ class BpTree {
             return get<ValueType, KeyBits, LeafElementBits>(src);
         }
 
-        template<typename Type, ArchitectureType offset, ArchitectureType stride>
+        template<typename Type, NativeNaturalType offset, NativeNaturalType stride>
         void set(IndexType dst, Type content) {
-            Storage::bitwiseCopy<-1>(reinterpret_cast<ArchitectureType*>(this),
-                                     reinterpret_cast<const ArchitectureType*>(&content),
+            Storage::bitwiseCopy<-1>(reinterpret_cast<NativeNaturalType*>(this),
+                                     reinterpret_cast<const NativeNaturalType*>(&content),
                                      BodyOffset+offset+stride*dst, 0, sizeof(Type)*8);
         }
 
@@ -131,7 +131,7 @@ class BpTree {
                                        IndexType n) {
             if(n == 0)
                 return;
-            ArchitectureType dst = BranchElementBits*dstIndex,
+            NativeNaturalType dst = BranchElementBits*dstIndex,
                              src = BranchElementBits*srcIndex,
                              len = BranchElementBits*n;
             if(frontKey) {
@@ -140,8 +140,8 @@ class BpTree {
                 src -= KeyBits;
             } else
                 len -= KeyBits;
-            Storage::bitwiseCopy<dir>(reinterpret_cast<ArchitectureType*>(dstPage),
-                                      reinterpret_cast<const ArchitectureType*>(srcPage),
+            Storage::bitwiseCopy<dir>(reinterpret_cast<NativeNaturalType*>(dstPage),
+                                      reinterpret_cast<const NativeNaturalType*>(srcPage),
                                       BodyOffset+dst, BodyOffset+src, len);
         }
 
@@ -151,8 +151,8 @@ class BpTree {
                                      IndexType n) {
             if(n == 0)
                 return;
-            Storage::bitwiseCopy<dir>(reinterpret_cast<ArchitectureType*>(dstPage),
-                                      reinterpret_cast<const ArchitectureType*>(srcPage),
+            Storage::bitwiseCopy<dir>(reinterpret_cast<NativeNaturalType*>(dstPage),
+                                      reinterpret_cast<const NativeNaturalType*>(srcPage),
                                       BodyOffset+LeafElementBits*dstIndex,
                                       BodyOffset+LeafElementBits*srcIndex,
                                       (KeyBits+ValueBits)*n);
@@ -162,7 +162,7 @@ class BpTree {
         static void copyKey(Page* dstPage, Page* srcPage,
                             IndexType dstIndex, IndexType srcIndex) {
             // dstPage->template setKey<dstIsLeaf>(dstIndex, srcPage->template getKey<srcIsLeaf>(srcIndex));
-            ArchitectureType dst, src;
+            NativeNaturalType dst, src;
             if(dstIsLeaf)
                 dst = BodyOffset+LeafElementBits*dstIndex;
             else
@@ -171,8 +171,8 @@ class BpTree {
                 src = BodyOffset+LeafElementBits*srcIndex;
             else
                 src = BodyOffset+PageRefBits+BranchElementBits*srcIndex;
-            Storage::bitwiseCopy<-1>(reinterpret_cast<ArchitectureType*>(dstPage),
-                                     reinterpret_cast<const ArchitectureType*>(srcPage),
+            Storage::bitwiseCopy<-1>(reinterpret_cast<NativeNaturalType*>(dstPage),
+                                     reinterpret_cast<const NativeNaturalType*>(srcPage),
                                      dst, src, sizeof(KeyType)*8);
         }
 
@@ -531,8 +531,8 @@ class BpTree {
             static_assert(!writeable || srcWriteable, "Can not copy from read only to writeable");
             LayerType offset = end-src.end;
             for(LayerType layer = 0; layer < src.end; ++layer)
-                Storage::bitwiseCopy<-1>(reinterpret_cast<ArchitectureType*>(fromBegin(layer+offset)),
-                                         reinterpret_cast<const ArchitectureType*>(src.fromBegin(layer)),
+                Storage::bitwiseCopy<-1>(reinterpret_cast<NativeNaturalType*>(fromBegin(layer+offset)),
+                                         reinterpret_cast<const NativeNaturalType*>(src.fromBegin(layer)),
                                          0, 0, sizeof(IteratorFrame)*8);
         }
 
@@ -545,19 +545,19 @@ class BpTree {
         }
 
         template<int dir = 1>
-        ArchitectureType advanceAtLayer(LayerType atLayer, ArchitectureType steps = 1) {
+        NativeNaturalType advanceAtLayer(LayerType atLayer, NativeNaturalType steps = 1) {
             if(steps == 0 || end == 0 || atLayer < 0 || atLayer >= end)
                 return steps;
             bool updateLower, keepRunning;
             do {
                 LayerType layer = atLayer;
                 FrameType* frame = fromBegin(layer);
-                ArchitectureType stepsToTake;
+                NativeNaturalType stepsToTake;
                 if(dir == 1) {
-                    stepsToTake = min((ArchitectureType)(frame->endIndex-1-frame->index), steps);
+                    stepsToTake = min((NativeNaturalType)(frame->endIndex-1-frame->index), steps);
                     frame->index += stepsToTake;
                 } else {
-                    stepsToTake = min((ArchitectureType)frame->index, steps);
+                    stepsToTake = min((NativeNaturalType)frame->index, steps);
                     frame->index -= stepsToTake;
                 }
                 steps -= stepsToTake;
@@ -603,7 +603,7 @@ class BpTree {
         }
 
         template<int dir = 1>
-        ArchitectureType advance(ArchitectureType steps = 1) {
+        NativeNaturalType advance(NativeNaturalType steps = 1) {
             return advanceAtLayer(end-1, steps);
         }
 
@@ -684,7 +684,7 @@ class BpTree {
 
     struct InsertData {
         LayerType startLayer, layer;
-        ArchitectureType elementCount;
+        NativeNaturalType elementCount;
         IndexType lowerInnerParentIndex, higherOuterParentIndex;
         Page *lowerInnerParent, *higherOuterParent;
     };
@@ -703,7 +703,7 @@ class BpTree {
             data.elementCount += page->count;
         } else if(!isLeaf && data.elementCount == 1)
             return false;
-        ArchitectureType pageCount = (data.elementCount+Page::template capacity<isLeaf>()-1)/Page::template capacity<isLeaf>();
+        NativeNaturalType pageCount = (data.elementCount+Page::template capacity<isLeaf>()-1)/Page::template capacity<isLeaf>();
         // TODO: 1048576 element case, leads to 1048576-4112*255=16 elements on first page (less than half of the capacity)
         if(apply) {
             frame->elementsPerPage = (data.elementCount+pageCount-1)/pageCount;
@@ -746,7 +746,7 @@ class BpTree {
     }
 
     template<typename FrameType>
-    static LayerType insertAux(InsertData& data, Iterator<false, FrameType>& iter, ArchitectureType elementCount) {
+    static LayerType insertAux(InsertData& data, Iterator<false, FrameType>& iter, NativeNaturalType elementCount) {
         data.layer = iter.end-1;
         data.elementCount = elementCount;
         insertAuxLayer<FrameType, true>(data, iter);
@@ -838,8 +838,8 @@ class BpTree {
         return page;
     }
 
-    typedef Closure<void, Page*, IndexType, IndexType> AquireData;
-    void insert(Iterator<false>& at, ArchitectureType elementCount, AquireData aquireData) {
+    typedef Closure<void(Page*, IndexType, IndexType)> AquireData;
+    void insert(Iterator<false>& at, NativeNaturalType elementCount, AquireData aquireData) {
         assert(elementCount > 0);
         InsertData data = {insertAux<IteratorFrame>(data, at, elementCount)};
         data.startLayer = (data.startLayer < 0) ? -data.startLayer : 0;

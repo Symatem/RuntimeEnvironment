@@ -4,7 +4,7 @@ struct Thread;
 bool executePreDefProcedure(Thread& thread, Symbol procedure);
 
 struct Thread {
-    bool valueCountIs(Symbol entity, Symbol attribute, ArchitectureType size) {
+    bool valueCountIs(Symbol entity, Symbol attribute, NativeNaturalType size) {
         return Ontology::query(9, {entity, attribute, PreDef_Void}) == size;
     }
 
@@ -197,11 +197,11 @@ struct Thread {
         return tripleExists({task, PreDef_Status, PreDef_Run});
     }
 
-    void executeFinite(ArchitectureType n) {
+    void executeFinite(NativeNaturalType n) {
         if(task == PreDef_Void)
             return;
         setStatus(PreDef_Run);
-        for(ArchitectureType i = 0; i < n && step(); ++i);
+        for(NativeNaturalType i = 0; i < n && step(); ++i);
     }
 
     void executeInfinite() {

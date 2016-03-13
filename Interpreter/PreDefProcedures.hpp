@@ -4,11 +4,10 @@
 
 PreDefProcedure(Search) {
     Triple triple;
-    uint8_t modes[3] = {2, 2, 2};
-    ArchitectureType varyingCount = 0;
+    NativeNaturalType modes[3] = {2, 2, 2}, varyingCount = 0;
     Symbol posNames[3] = {PreDef_Entity, PreDef_Attribute, PreDef_Value};
     Ontology::query(9, {thread.block, PreDef_Varying, PreDef_Void}, [&](Triple result) {
-        for(ArchitectureType index = 0; index < 3; ++index)
+        for(NativeNaturalType index = 0; index < 3; ++index)
             if(result.pos[0] == posNames[index]) {
                 modes[index] = 1;
                 ++varyingCount;
@@ -16,7 +15,7 @@ PreDefProcedure(Search) {
             }
         thread.throwException("Invalid Varying");
     });
-    for(ArchitectureType index = 0; index < 3; ++index)
+    for(NativeNaturalType index = 0; index < 3; ++index)
         if(Ontology::getUncertain(thread.block, posNames[index], triple.pos[index])) {
             if(modes[index] != 2)
                 thread.throwException("Invalid Input");
@@ -26,7 +25,7 @@ PreDefProcedure(Search) {
     Vector<false, Symbol> output;
     output.symbol = OutputSymbol;
     auto count = Ontology::query(modes[0] + modes[1]*3 + modes[2]*9, triple, [&](Triple result) {
-        for(ArchitectureType i = 0; i < varyingCount; ++i)
+        for(NativeNaturalType i = 0; i < varyingCount; ++i)
             output.push_back(result.pos[i]);
     });
     Symbol CountSymbol;
@@ -50,7 +49,7 @@ PreDefProcedure(Triple) {
     getSymbolByName(Entity)
     getSymbolByName(Attribute)
     getSymbolByName(Value)
-    ArchitectureType result = op::e(thread, {EntitySymbol, AttributeSymbol, ValueSymbol});
+    NativeNaturalType result = op::e(thread, {EntitySymbol, AttributeSymbol, ValueSymbol});
     Symbol OutputSymbol;
     if(Ontology::getUncertain(thread.block, PreDef_Output, OutputSymbol)) {
         Ontology::setSolitary({OutputSymbol, PreDef_BlobType, PreDef_Natural});
@@ -63,7 +62,7 @@ PreDefProcedure(Create) {
     Symbol InputSymbol, ValueSymbol;
     bool input = Ontology::getUncertain(thread.block, PreDef_Input, InputSymbol);
     if(input)
-        ValueSymbol = thread.accessBlobAs<ArchitectureType>(InputSymbol);
+        ValueSymbol = thread.accessBlobAs<NativeNaturalType>(InputSymbol);
     Symbol TargetSymbol = thread.getTargetSymbol();
     if(Ontology::query(9, {thread.block, PreDef_Output, PreDef_Void}, [&](Triple result) {
         Symbol OutputSymbol = result.pos[0];
@@ -99,7 +98,7 @@ PreDefProcedure(Push) {
 PreDefProcedure(Pop) {
     getSymbolByName(Count)
     checkBlobType(Count, PreDef_Natural)
-    auto CountValue = thread.accessBlobAs<uint64_t>(CountSymbol);
+    auto CountValue = thread.accessBlobAs<NativeNaturalType>(CountSymbol);
     if(CountValue < 2)
         thread.throwException("Invalid Count Value");
     for(; CountValue > 0 && thread.popCallStack(); --CountValue);
@@ -163,7 +162,7 @@ PreDefProcedure(AllocateBlob) {
     getUncertainValueByName(Preserve, 0)
     getSymbolByName(Target)
     checkBlobType(Input, PreDef_Natural)
-    Storage::setBlobSize(TargetSymbol, thread.accessBlobAs<ArchitectureType>(InputSymbol), PreserveValue);
+    Storage::setBlobSize(TargetSymbol, thread.accessBlobAs<NativeNaturalType>(InputSymbol), PreserveValue);
     thread.popCallStack();
 }
 
@@ -189,13 +188,13 @@ template<typename T>
 void PreDefProcedure_NumericCastTo(Thread& thread, Symbol type, Symbol OutputSymbol, Symbol InputSymbol) {
     switch(type) {
         case PreDef_Natural:
-            Storage::overwriteBlob(OutputSymbol, static_cast<T>(thread.accessBlobAs<uint64_t>(InputSymbol)));
+            Storage::overwriteBlob(OutputSymbol, static_cast<T>(thread.accessBlobAs<NativeNaturalType>(InputSymbol)));
             break;
         case PreDef_Integer:
-            Storage::overwriteBlob(OutputSymbol, static_cast<T>(thread.accessBlobAs<int64_t>(InputSymbol)));
+            Storage::overwriteBlob(OutputSymbol, static_cast<T>(thread.accessBlobAs<NativeIntegerType>(InputSymbol)));
             break;
         case PreDef_Float:
-            Storage::overwriteBlob(OutputSymbol, static_cast<T>(thread.accessBlobAs<double>(InputSymbol)));
+            Storage::overwriteBlob(OutputSymbol, static_cast<T>(thread.accessBlobAs<NativeFloatType>(InputSymbol)));
             break;
         default:
             thread.throwException("Invalid Input");
@@ -212,13 +211,13 @@ PreDefProcedure(NumericCast) {
     Ontology::setSolitary({OutputSymbol, PreDef_BlobType, ToSymbol});
     switch(ToSymbol) {
         case PreDef_Natural:
-            PreDefProcedure_NumericCastTo<uint64_t>(thread, type, OutputSymbol, InputSymbol);
+            PreDefProcedure_NumericCastTo<NativeNaturalType>(thread, type, OutputSymbol, InputSymbol);
             break;
         case PreDef_Integer:
-            PreDefProcedure_NumericCastTo<int64_t>(thread, type, OutputSymbol, InputSymbol);
+            PreDefProcedure_NumericCastTo<NativeIntegerType>(thread, type, OutputSymbol, InputSymbol);
             break;
         case PreDef_Float:
-            PreDefProcedure_NumericCastTo<double>(thread, type, OutputSymbol, InputSymbol);
+            PreDefProcedure_NumericCastTo<NativeFloatType>(thread, type, OutputSymbol, InputSymbol);
             break;
         default:
             thread.throwException("Invalid To Value");
@@ -228,7 +227,7 @@ PreDefProcedure(NumericCast) {
 
 PreDefProcedure(Equal) {
     Symbol type, FirstSymbol;
-    uint64_t OutputValue = 1;
+    NativeNaturalType OutputValue = 1;
     bool first = true;
     if(Ontology::query(9, {thread.block, PreDef_Input, PreDef_Void}, [&](Triple result) {
         if(OutputValue == 0)
@@ -241,7 +240,7 @@ PreDefProcedure(Equal) {
             FirstSymbol = InputSymbol;
         } else if(type == _type) {
             if(type == PreDef_Float) {
-                if(thread.accessBlobAs<double>(InputSymbol) != thread.accessBlobAs<double>(FirstSymbol))
+                if(thread.accessBlobAs<NativeFloatType>(InputSymbol) != thread.accessBlobAs<NativeFloatType>(FirstSymbol))
                     OutputValue = 0;
             } else if(Storage::compareBlobs(InputSymbol, FirstSymbol) != 0)
                 OutputValue = 0;
@@ -256,16 +255,16 @@ PreDefProcedure(Equal) {
 }
 
 struct PreDefProcedure_LessThan {
-    static bool n(uint64_t i, uint64_t c) { return i < c; };
-    static bool i(int64_t i, int64_t c) { return i < c; };
-    static bool f(double i, double c) { return i < c; };
+    static bool n(NativeNaturalType i, NativeNaturalType c) { return i < c; };
+    static bool i(NativeIntegerType i, NativeIntegerType c) { return i < c; };
+    static bool f(NativeFloatType i, NativeFloatType c) { return i < c; };
     static bool s(Symbol i, Symbol c) { return Storage::compareBlobs(i, c) < 0; };
 };
 
 struct PreDefProcedure_LessEqual {
-    static bool n(uint64_t i, uint64_t c) { return i <= c; };
-    static bool i(int64_t i, int64_t c) { return i <= c; };
-    static bool f(double i, double c) { return i <= c; };
+    static bool n(NativeNaturalType i, NativeNaturalType c) { return i <= c; };
+    static bool i(NativeIntegerType i, NativeIntegerType c) { return i <= c; };
+    static bool f(NativeFloatType i, NativeFloatType c) { return i <= c; };
     static bool s(Symbol i, Symbol c) { return Storage::compareBlobs(i, c) <= 0; };
 };
 
@@ -279,16 +278,16 @@ PreDefProcedure(CompareLogic) {
     Ontology::getUncertain(ComparandumSymbol, PreDef_BlobType, _type);
     if(type != _type)
         thread.throwException("Input and Comparandum have different types");
-    uint64_t result;
+    NativeNaturalType result;
     switch(type) {
         case PreDef_Natural:
-            result = op::n(thread.accessBlobAs<uint64_t>(InputSymbol), thread.accessBlobAs<uint64_t>(ComparandumSymbol));
+            result = op::n(thread.accessBlobAs<NativeNaturalType>(InputSymbol), thread.accessBlobAs<NativeNaturalType>(ComparandumSymbol));
             break;
         case PreDef_Integer:
-            result = op::i(thread.accessBlobAs<int64_t>(InputSymbol), thread.accessBlobAs<int64_t>(ComparandumSymbol));
+            result = op::i(thread.accessBlobAs<NativeIntegerType>(InputSymbol), thread.accessBlobAs<NativeIntegerType>(ComparandumSymbol));
             break;
         case PreDef_Float:
-            result = op::f(thread.accessBlobAs<double>(InputSymbol), thread.accessBlobAs<double>(ComparandumSymbol));
+            result = op::f(thread.accessBlobAs<NativeFloatType>(InputSymbol), thread.accessBlobAs<NativeFloatType>(ComparandumSymbol));
             break;
         default:
             result = op::s(InputSymbol, ComparandumSymbol);
@@ -300,29 +299,29 @@ PreDefProcedure(CompareLogic) {
 }
 
 struct PreDefProcedure_BitShiftEmpty {
-    static void d(ArchitectureType& dst, uint64_t count) { dst >>= count; };
-    static void m(ArchitectureType& dst, uint64_t count) { dst <<= count; };
+    static void d(NativeNaturalType& dst, NativeNaturalType count) { dst >>= count; };
+    static void m(NativeNaturalType& dst, NativeNaturalType count) { dst <<= count; };
 };
 
 struct PreDefProcedure_BitShiftReplicate {
-    static void d(ArchitectureType& dst, uint64_t count) {
-        *reinterpret_cast<int64_t*>(&dst) >>= count;
+    static void d(NativeNaturalType& dst, NativeNaturalType count) {
+        *reinterpret_cast<NativeIntegerType*>(&dst) >>= count;
     };
-    static void m(ArchitectureType& dst, uint64_t count) {
-        ArchitectureType lowestBit = dst&BitMask<uint64_t>::one;
+    static void m(NativeNaturalType& dst, NativeNaturalType count) {
+        NativeNaturalType lowestBit = dst&BitMask<NativeNaturalType>::one;
         dst <<= count;
-        dst |= lowestBit*BitMask<uint64_t>::fillLSBs(count);
+        dst |= lowestBit*BitMask<NativeNaturalType>::fillLSBs(count);
     };
 };
 
 struct PreDefProcedure_BitShiftBarrel {
-    static void d(ArchitectureType& dst, uint64_t count) {
-        ArchitectureType aux = dst&BitMask<uint64_t>::fillLSBs(count);
+    static void d(NativeNaturalType& dst, NativeNaturalType count) {
+        NativeNaturalType aux = dst&BitMask<NativeNaturalType>::fillLSBs(count);
         dst >>= count;
         dst |= aux<<(ArchitectureSize-count);
     };
-    static void m(ArchitectureType& dst, uint64_t count) {
-        ArchitectureType aux = dst&BitMask<uint64_t>::fillMSBs(count);
+    static void m(NativeNaturalType& dst, NativeNaturalType count) {
+        NativeNaturalType aux = dst&BitMask<NativeNaturalType>::fillMSBs(count);
         dst <<= count;
         dst |= aux>>(ArchitectureSize-count);
     };
@@ -334,8 +333,8 @@ PreDefProcedure(BitShift) {
     getSymbolByName(Count)
     getSymbolByName(Output)
     checkBlobType(Count, PreDef_Natural)
-    auto result = thread.accessBlobAs<uint64_t>(InputSymbol);
-    auto CountValue = thread.accessBlobAs<uint64_t>(CountSymbol);
+    auto result = thread.accessBlobAs<NativeNaturalType>(InputSymbol);
+    auto CountValue = thread.accessBlobAs<NativeNaturalType>(CountSymbol);
     switch(thread.getGuaranteed(thread.block, PreDef_Direction)) {
         case PreDef_Divide:
             op::d(result, CountValue);
@@ -355,33 +354,33 @@ PreDefProcedure(BitwiseComplement) {
     getSymbolByName(Input)
     getSymbolByName(Output)
     Ontology::setSolitary({OutputSymbol, PreDef_BlobType, PreDef_Void});
-    Storage::overwriteBlob(OutputSymbol, ~thread.accessBlobAs<uint64_t>(InputSymbol));
+    Storage::overwriteBlob(OutputSymbol, ~thread.accessBlobAs<NativeNaturalType>(InputSymbol));
     thread.popCallStack();
 }
 
 struct PreDefProcedure_BitwiseAnd {
-    static void n(uint64_t& dst, uint64_t src) { dst &= src; };
+    static void n(NativeNaturalType& dst, NativeNaturalType src) { dst &= src; };
 };
 
 struct PreDefProcedure_BitwiseOr {
-    static void n(uint64_t& dst, uint64_t src) { dst |= src; };
+    static void n(NativeNaturalType& dst, NativeNaturalType src) { dst |= src; };
 };
 
 struct PreDefProcedure_BitwiseXor {
-    static void n(uint64_t& dst, uint64_t src) { dst ^= src; };
+    static void n(NativeNaturalType& dst, NativeNaturalType src) { dst ^= src; };
 };
 
 template<class op>
 PreDefProcedure(AssociativeCommutativeBitwise) {
-    uint64_t OutputValue;
+    NativeNaturalType OutputValue;
     bool first = true;
     if(Ontology::query(9, {thread.block, PreDef_Input, PreDef_Void}, [&](Triple result) {
         Symbol InputSymbol = result.pos[0];
         if(first) {
             first = false;
-            OutputValue = thread.accessBlobAs<uint64_t>(InputSymbol);
+            OutputValue = thread.accessBlobAs<NativeNaturalType>(InputSymbol);
         } else
-            op::n(OutputValue, thread.accessBlobAs<uint64_t>(InputSymbol));
+            op::n(OutputValue, thread.accessBlobAs<NativeNaturalType>(InputSymbol));
     }) < 2)
         thread.throwException("Expected more Input");
     getSymbolByName(Output)
@@ -391,24 +390,24 @@ PreDefProcedure(AssociativeCommutativeBitwise) {
 }
 
 struct PreDefProcedure_Add {
-    static void n(uint64_t& dst, uint64_t src) { dst += src; };
-    static void i(int64_t& dst, int64_t src) { dst += src; };
-    static void f(double& dst, double src) { dst += src; };
+    static void n(NativeNaturalType& dst, NativeNaturalType src) { dst += src; };
+    static void i(NativeIntegerType& dst, NativeIntegerType src) { dst += src; };
+    static void f(NativeFloatType& dst, NativeFloatType src) { dst += src; };
 };
 
 struct PreDefProcedure_Multiply {
-    static void n(uint64_t& dst, uint64_t src) { dst *= src; };
-    static void i(int64_t& dst, int64_t src) { dst *= src; };
-    static void f(double& dst, double src) { dst *= src; };
+    static void n(NativeNaturalType& dst, NativeNaturalType src) { dst *= src; };
+    static void i(NativeIntegerType& dst, NativeIntegerType src) { dst *= src; };
+    static void f(NativeFloatType& dst, NativeFloatType src) { dst *= src; };
 };
 
 template<class op>
 PreDefProcedure(AssociativeCommutativeArithmetic) {
     Symbol type;
     union {
-        uint64_t n;
-        int64_t i;
-        double f;
+        NativeNaturalType n;
+        NativeIntegerType i;
+        NativeFloatType f;
     } aux;
     bool first = true;
     if(Ontology::query(9, {thread.block, PreDef_Input, PreDef_Void}, [&](Triple result) {
@@ -419,13 +418,13 @@ PreDefProcedure(AssociativeCommutativeArithmetic) {
             type = _type;
             switch(type) {
                 case PreDef_Natural:
-                    aux.n = thread.accessBlobAs<uint64_t>(InputSymbol);
+                    aux.n = thread.accessBlobAs<NativeNaturalType>(InputSymbol);
                     break;
                 case PreDef_Integer:
-                    aux.i = thread.accessBlobAs<int64_t>(InputSymbol);
+                    aux.i = thread.accessBlobAs<NativeIntegerType>(InputSymbol);
                     break;
                 case PreDef_Float:
-                    aux.f = thread.accessBlobAs<double>(InputSymbol);
+                    aux.f = thread.accessBlobAs<NativeFloatType>(InputSymbol);
                     break;
                 default:
                     thread.throwException("Invalid Input");
@@ -433,13 +432,13 @@ PreDefProcedure(AssociativeCommutativeArithmetic) {
         } else if(type == _type) {
             switch(type) {
                 case PreDef_Natural:
-                    op::n(aux.n, thread.accessBlobAs<uint64_t>(InputSymbol));
+                    op::n(aux.n, thread.accessBlobAs<NativeNaturalType>(InputSymbol));
                     break;
                 case PreDef_Integer:
-                    op::i(aux.i, thread.accessBlobAs<int64_t>(InputSymbol));
+                    op::i(aux.i, thread.accessBlobAs<NativeIntegerType>(InputSymbol));
                     break;
                 case PreDef_Float:
-                    op::f(aux.f, thread.accessBlobAs<double>(InputSymbol));
+                    op::f(aux.f, thread.accessBlobAs<NativeFloatType>(InputSymbol));
                     break;
             }
         } else
@@ -463,13 +462,13 @@ PreDefProcedure(Subtract) {
     Ontology::setSolitary({OutputSymbol, PreDef_BlobType, type});
     switch(type) {
         case PreDef_Natural:
-            Storage::overwriteBlob(OutputSymbol, thread.accessBlobAs<uint64_t>(MinuendSymbol)-thread.accessBlobAs<uint64_t>(SubtrahendSymbol));
+            Storage::overwriteBlob(OutputSymbol, thread.accessBlobAs<NativeNaturalType>(MinuendSymbol)-thread.accessBlobAs<NativeNaturalType>(SubtrahendSymbol));
             break;
         case PreDef_Integer:
-            Storage::overwriteBlob(OutputSymbol, thread.accessBlobAs<int64_t>(MinuendSymbol)-thread.accessBlobAs<int64_t>(SubtrahendSymbol));
+            Storage::overwriteBlob(OutputSymbol, thread.accessBlobAs<NativeIntegerType>(MinuendSymbol)-thread.accessBlobAs<NativeIntegerType>(SubtrahendSymbol));
             break;
         case PreDef_Float:
-            Storage::overwriteBlob(OutputSymbol, thread.accessBlobAs<double>(MinuendSymbol)-thread.accessBlobAs<double>(SubtrahendSymbol));
+            Storage::overwriteBlob(OutputSymbol, thread.accessBlobAs<NativeFloatType>(MinuendSymbol)-thread.accessBlobAs<NativeFloatType>(SubtrahendSymbol));
             break;
         default:
             thread.throwException("Invalid Minuend or Subtrahend");
@@ -501,8 +500,8 @@ PreDefProcedure(Divide) {
         thread.throwException("Expected Rest or Quotient");
     switch(type) {
         case PreDef_Natural: {
-            auto DividendValue =  thread.accessBlobAs<uint64_t>(DividendSymbol),
-                 DivisorValue = thread.accessBlobAs<uint64_t>(DivisorSymbol);
+            auto DividendValue =  thread.accessBlobAs<NativeNaturalType>(DividendSymbol),
+                 DivisorValue = thread.accessBlobAs<NativeNaturalType>(DivisorSymbol);
             if(DivisorValue == 0)
                 thread.throwException("Division by Zero");
             if(rest)
@@ -511,8 +510,8 @@ PreDefProcedure(Divide) {
                 Storage::overwriteBlob(QuotientSymbol, DividendValue/DivisorValue);
         }   break;
         case PreDef_Integer: {
-            auto DividendValue = thread.accessBlobAs<int64_t>(DividendSymbol),
-                 DivisorValue = thread.accessBlobAs<int64_t>(DivisorSymbol);
+            auto DividendValue = thread.accessBlobAs<NativeIntegerType>(DividendSymbol),
+                 DivisorValue = thread.accessBlobAs<NativeIntegerType>(DivisorSymbol);
             if(DivisorValue == 0)
                 thread.throwException("Division by Zero");
             if(rest)
@@ -521,13 +520,13 @@ PreDefProcedure(Divide) {
                 Storage::overwriteBlob(QuotientSymbol, DividendValue/DivisorValue);
         }   break;
         case PreDef_Float: {
-            auto DividendValue = thread.accessBlobAs<double>(DividendSymbol),
-                 DivisorValue = thread.accessBlobAs<double>(DivisorSymbol),
+            auto DividendValue = thread.accessBlobAs<NativeFloatType>(DividendSymbol),
+                 DivisorValue = thread.accessBlobAs<NativeFloatType>(DivisorSymbol),
                  QuotientValue = DividendValue/DivisorValue;
             if(DivisorValue == 0.0)
                 thread.throwException("Division by Zero");
             if(rest) {
-                double integerPart = static_cast<int64_t>(QuotientValue);
+                NativeFloatType integerPart = static_cast<NativeIntegerType>(QuotientValue);
                 Storage::overwriteBlob(RestSymbol, QuotientValue-integerPart);
                 QuotientValue = integerPart;
             }

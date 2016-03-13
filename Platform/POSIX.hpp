@@ -11,7 +11,7 @@
 #define MMAP_FUNC mmap64
 #endif
 
-void Storage::resizeMemory(ArchitectureType _pageCount) {
+void Storage::resizeMemory(NativeNaturalType _pageCount) {
     if(pageCount)
         munmap(ptr, bytesForPages(pageCount));
     assert(_pageCount < maxPageCount);
@@ -29,7 +29,7 @@ void Storage::load() {
     pageCount = lseek(file, 0, SEEK_END)/(bitsPerPage/8);
     if(pageCount < minPageCount)
         pageCount = minPageCount;
-    ptr = reinterpret_cast<uint8_t*>(MMAP_FUNC(nullptr, bytesForPages(maxPageCount), PROT_NONE, MAP_FILE|MAP_SHARED, file, 0));
+    ptr = reinterpret_cast<char*>(MMAP_FUNC(nullptr, bytesForPages(maxPageCount), PROT_NONE, MAP_FILE|MAP_SHARED, file, 0));
     assert(ptr != MAP_FAILED);
     resizeMemory(pageCount);
 }
@@ -47,7 +47,7 @@ Symbol createFromFile(const char* path) {
         return PreDef_Void;
     Symbol symbol = Storage::createSymbol();
     Ontology::link({symbol, PreDef_BlobType, PreDef_Text});
-    ArchitectureType len = lseek(fd, 0, SEEK_END);
+    NativeNaturalType len = lseek(fd, 0, SEEK_END);
     Storage::setBlobSize(symbol, len*8);
     lseek(fd, 0, SEEK_SET);
     read(fd, reinterpret_cast<char*>(Storage::accessBlobData(symbol)), len);
@@ -56,7 +56,7 @@ Symbol createFromFile(const char* path) {
 }
 
 void loadFromPath(Thread& thread, Symbol parentPackage, bool execute, char* path) {
-    ArchitectureType pathLen = strlen(path);
+    NativeNaturalType pathLen = strlen(path);
     if(path[pathLen-1] == '/')
         path[pathLen-1] = 0;
     struct stat s;
@@ -67,14 +67,14 @@ void loadFromPath(Thread& thread, Symbol parentPackage, bool execute, char* path
         DIR* dp = opendir(path);
         if(dp == nullptr)
             crash("Could not open directory");
-        ArchitectureType slashIndex = 0;
-        for(ArchitectureType i = pathLen-1; i > 0; --i)
+        NativeNaturalType slashIndex = 0;
+        for(NativeNaturalType i = pathLen-1; i > 0; --i)
             if(path[i] == '/') {
                 slashIndex = i+1;
                 break;
             }
-        Storage::bitwiseCopy(reinterpret_cast<ArchitectureType*>(buffer),
-                             reinterpret_cast<ArchitectureType*>(path),
+        Storage::bitwiseCopy(reinterpret_cast<NativeNaturalType*>(buffer),
+                             reinterpret_cast<NativeNaturalType*>(path),
                              0, slashIndex*8, pathLen-slashIndex);
         buffer[pathLen-slashIndex] = 0;
         Symbol package = Ontology::createFromData(const_cast<const char*>(buffer));

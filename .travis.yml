@@ -1,8 +1,9 @@
 language: cpp
 compiler:
 - clang
+- gcc
 script: make test
 os:
-#- linux
 - osx
+- linux
 osx_image: xcode7.2

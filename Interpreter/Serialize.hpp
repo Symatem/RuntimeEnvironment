@@ -6,12 +6,12 @@ struct Serialize {
     Thread& thread;
     Symbol symbol;
 
-    void put(ArchitectureType src) {
+    void put(NativeNaturalType src) {
         Storage::insertIntoBlob(symbol, &src, Storage::getBlobSize(symbol), 8);
     }
 
     void puts(const char* src) {
-        Storage::insertIntoBlob(symbol, reinterpret_cast<const ArchitectureType*>(src),
+        Storage::insertIntoBlob(symbol, reinterpret_cast<const NativeNaturalType*>(src),
                                 Storage::getBlobSize(symbol), strlen(src)*8);
     }
 
@@ -37,7 +37,7 @@ struct Serialize {
             if(mask == 0)
                 break;
             NumberType digit = number/mask;
-            digit = static_cast<int64_t>(digit); // TODO
+            digit = static_cast<NativeIntegerType>(digit); // TODO
             number -= digit*mask;
             put('0'+digit);
         }
@@ -50,8 +50,8 @@ struct Serialize {
     Serialize(Thread& _thread) :Serialize(_thread, Storage::createSymbol()) {}
 
     void serializeBlob(Symbol srcSymbol) {
-        auto src = reinterpret_cast<const uint8_t*>(Storage::accessBlobData(srcSymbol));
-        ArchitectureType len = Storage::getBlobSize(srcSymbol);
+        auto src = reinterpret_cast<const char*>(Storage::accessBlobData(srcSymbol));
+        NativeNaturalType len = Storage::getBlobSize(srcSymbol);
         if(len) {
             Symbol type = PreDef_Void;
             Ontology::getUncertain(srcSymbol, PreDef_BlobType, type);
@@ -59,33 +59,33 @@ struct Serialize {
                 case PreDef_Text: {
                     len /= 8;
                     bool spaces = false;
-                    for(ArchitectureType i = 0; i < len; ++i)
+                    for(NativeNaturalType i = 0; i < len; ++i)
                         if(src[i] == ' ' || src[i] == '\t' || src[i] == '\n') {
                             spaces = true;
                             break;
                         }
                     if(spaces)
                         put('"');
-                    for(ArchitectureType i = 0; i < len; ++i)
+                    for(NativeNaturalType i = 0; i < len; ++i)
                         put(src[i]);
                     if(spaces)
                         put('"');
                 }   break;
                 case PreDef_Natural:
-                    serializeNumber(thread.accessBlobAs<uint64_t>(srcSymbol));
+                    serializeNumber(thread.accessBlobAs<NativeNaturalType>(srcSymbol));
                     break;
                 case PreDef_Integer:
-                    serializeNumber(thread.accessBlobAs<int64_t>(srcSymbol));
+                    serializeNumber(thread.accessBlobAs<NativeIntegerType>(srcSymbol));
                     break;
                 case PreDef_Float:
-                    serializeNumber(thread.accessBlobAs<double>(srcSymbol));
+                    serializeNumber(thread.accessBlobAs<NativeFloatType>(srcSymbol));
                     break;
                 default: {
-                    for(ArchitectureType i = 0; i < strlen(HRLRawBegin); ++i)
+                    for(NativeNaturalType i = 0; i < strlen(HRLRawBegin); ++i)
                         put(HRLRawBegin[i]);
                     len = (len+3)/4;
-                    for(ArchitectureType i = 0; i < len; ++i) {
-                        uint8_t nibble = (src[i/2]>>((i%2)*4))&0x0F;
+                    for(NativeNaturalType i = 0; i < len; ++i) {
+                        char nibble = (src[i/2]>>((i%2)*4))&0x0F;
                         if(nibble < 0xA)
                             put('0'+nibble);
                         else
@@ -99,7 +99,7 @@ struct Serialize {
         }
     }
 
-    void serializeEntity(Symbol entity, Closure<Symbol, Symbol> followCallback = nullptr) {
+    void serializeEntity(Symbol entity, Closure<Symbol(Symbol)> followCallback = nullptr) {
         while(true) {
             Symbol followAttribute, followEntity = PreDef_Void;
             if(followCallback)

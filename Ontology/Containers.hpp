@@ -19,11 +19,11 @@ struct Vector {
         return (!symbol || Storage::getBlobSize(symbol) == 0);
     }
 
-    ArchitectureType size() const {
+    NativeNaturalType size() const {
         return (symbol) ? Storage::getBlobSize(symbol)/(sizeof(ElementType)*8) : 0;
     }
 
-    ElementType& operator[](ArchitectureType at) const {
+    ElementType& operator[](NativeNaturalType at) const {
         assert(symbol && at < size());
         return *(reinterpret_cast<ElementType*>(Storage::accessBlobData(symbol))+at);
     }
@@ -36,8 +36,8 @@ struct Vector {
         return (*this)[size()-1];
     }
 
-    void iterate(Closure<void, ElementType&> callback) const {
-        for(ArchitectureType at = 0; at < size(); ++at)
+    void iterate(Closure<void(ElementType&)> callback) const {
+        for(NativeNaturalType at = 0; at < size(); ++at)
             callback((*this)[at]);
     }
 
@@ -53,19 +53,19 @@ struct Vector {
             Storage::setBlobSize(symbol, 0);
     }
 
-    void insert(ArchitectureType at, ElementType element) {
+    void insert(NativeNaturalType at, ElementType element) {
         activate();
-        Storage::insertIntoBlob(symbol, reinterpret_cast<ArchitectureType*>(&element), at*sizeof(ElementType)*8, sizeof(ElementType)*8);
+        Storage::insertIntoBlob(symbol, reinterpret_cast<NativeNaturalType*>(&element), at*sizeof(ElementType)*8, sizeof(ElementType)*8);
     }
 
-    void erase(ArchitectureType begin, ArchitectureType end) {
+    void erase(NativeNaturalType begin, NativeNaturalType end) {
         assert(symbol);
         assert(begin < end);
         assert(Storage::getBlobSize(symbol) >= end*sizeof(ElementType)*8);
         Storage::eraseFromBlob(symbol, begin*sizeof(ElementType)*8, end*sizeof(ElementType)*8);
     }
 
-    void erase(ArchitectureType at) {
+    void erase(NativeNaturalType at) {
         erase(at, at+1);
     }
 
@@ -92,26 +92,26 @@ struct Pair {
     }
 };
 
-template<bool guarded, typename KeyType, typename ValueType = ArchitectureType[0]>
+template<bool guarded, typename KeyType, typename ValueType = NativeNaturalType[0]>
 struct Set : public Vector<guarded, Pair<KeyType, ValueType>> {
     typedef Pair<KeyType, ValueType> ElementType;
     typedef Vector<guarded, ElementType> Super;
 
     Set() :Super() {}
 
-    ArchitectureType find(KeyType key) const {
-        return binarySearch<ArchitectureType>(Super::size(), [&](ArchitectureType at) {
+    NativeNaturalType find(KeyType key) const {
+        return binarySearch<NativeNaturalType>(Super::size(), [&](NativeNaturalType at) {
             return key > (*this)[at];
         });
     }
 
-    bool find(KeyType key, ArchitectureType& at) const {
+    bool find(KeyType key, NativeNaturalType& at) const {
         at = find(key);
         return (at < Super::size() && (*this)[at] == key);
     }
 
     bool insertElement(ElementType element) {
-        ArchitectureType at;
+        NativeNaturalType at;
         if(find(element.key, at))
             return false;
         Super::insert(at, element);
@@ -119,7 +119,7 @@ struct Set : public Vector<guarded, Pair<KeyType, ValueType>> {
     }
 
     bool eraseElement(ElementType element) {
-        ArchitectureType at;
+        NativeNaturalType at;
         if(!find(element.key, at))
             return false;
         Super::erase(at);
@@ -133,13 +133,13 @@ struct BlobIndex : public Set<guarded, Symbol> {
 
     BlobIndex() :Super() {}
 
-    ArchitectureType find(Symbol key) const {
-        return binarySearch<ArchitectureType>(Super::size(), [&](ArchitectureType at) {
+    NativeNaturalType find(Symbol key) const {
+        return binarySearch<NativeNaturalType>(Super::size(), [&](NativeNaturalType at) {
             return Storage::compareBlobs(key, (*this)[at]) < 0;
         });
     }
 
-    bool find(Symbol element, ArchitectureType& at) const {
+    bool find(Symbol element, NativeNaturalType& at) const {
         at = find(element);
         if(at == Super::size())
             return false;
@@ -147,7 +147,7 @@ struct BlobIndex : public Set<guarded, Symbol> {
     }
 
     void insertElement(Symbol& element) {
-        ArchitectureType at;
+        NativeNaturalType at;
         if(find(element, at)) {
             Ontology::unlink(element);
             element = (*this)[at];
@@ -156,7 +156,7 @@ struct BlobIndex : public Set<guarded, Symbol> {
     }
 
     bool eraseElement(Symbol element) {
-        ArchitectureType at;
+        NativeNaturalType at;
         if(!Super::find(element, at))
             return false;
         Super::erase(at);
