@@ -158,6 +158,16 @@ class BpTree {
                                       (KeyBits+ValueBits)*n);
         }
 
+        template<bool isLeaf>
+        void copy(Page* dstPage, Page* srcPage) {
+            assert(dstPage != srcPage);
+            dstPage->count = srcPage->count;
+            if(isLeaf)
+                copyLeafElements(dstPage, srcPage, 0, 0, srcPage->count);
+            else
+                copyBranchElements<false>(dstPage, srcPage, 0, 0, srcPage->count);
+        }
+
         template<bool dstIsLeaf, bool srcIsLeaf>
         static void copyKey(Page* dstPage, Page* srcPage,
                             IndexType dstIndex, IndexType srcIndex) {
@@ -193,12 +203,7 @@ class BpTree {
         }
 
         template<bool isLeaf>
-        void init(IndexType n, InsertIteratorFrame* frame) {
-            frame->endIndex = count = n;
-        }
-
-        template<bool isLeaf>
-        static void insert(Page* lower, IndexType count, InsertIteratorFrame* frame) {
+        static void insert(InsertIteratorFrame* frame, Page* lower, IndexType count) {
             if(!isLeaf)
                 ++frame->index;
             assert(count > lower->count && count <= capacity<isLeaf>() && frame->index <= lower->count);
@@ -213,10 +218,10 @@ class BpTree {
         }
 
         template<bool isLeaf>
-        static void insertOverflow(Page* lowerInnerParent, Page* higherOuterParent,
+        static void insertOverflow(InsertIteratorFrame* frame,
+                                   Page* lowerInnerParent, Page* higherOuterParent,
                                    Page* lowerOuter, Page* lowerInner, Page* higherInner, Page* higherOuter,
-                                   IndexType lowerInnerParentIndex, IndexType higherOuterParentIndex,
-                                   InsertIteratorFrame* frame) {
+                                   IndexType lowerInnerParentIndex, IndexType higherOuterParentIndex) {
             if(!isLeaf)
                 ++frame->index;
             bool insertKeyInParentNow;
@@ -704,17 +709,16 @@ class BpTree {
         } else if(!isLeaf && data.elementCount == 1)
             return false;
         NativeNaturalType pageCount = (data.elementCount+Page::template capacity<isLeaf>()-1)/Page::template capacity<isLeaf>();
-        // TODO: 1048576 element case, leads to 1048576-4112*255=16 elements on first page (less than half of the capacity)
         if(apply) {
             frame->elementsPerPage = (data.elementCount+pageCount-1)/pageCount;
             frame->pageCount = pageCount-1;
             if(data.layer >= data.startLayer) {
                 if(frame->pageCount == 0) {
                     frame->higherOuterPageRef = 0;
-                    Page::template insert<isLeaf>(page, data.elementCount, frame);
+                    Page::template insert<isLeaf>(frame, page, data.elementCount);
                 } else {
-                    frame->endIndex = data.elementCount-(pageCount-2)*frame->elementsPerPage;
                     frame->higherOuterPageRef = Storage::aquirePage();
+                    frame->endIndex = data.elementCount-(frame->pageCount-1)*frame->elementsPerPage;
                     switch(frame->pageCount) {
                         case 1:
                             frame->lowerInnerPageRef = frame->higherOuterPageRef;
@@ -732,10 +736,11 @@ class BpTree {
                 }
             } else {
                 frame->higherOuterPageRef = 0;
-                frame->pageRef = Storage::aquirePage();
+                frame->endIndex = data.elementCount-frame->pageCount*frame->elementsPerPage;
                 frame->index = (isLeaf) ? 0 : 1;
+                frame->pageRef = Storage::aquirePage();
                 page = getPage<false>(frame->pageRef);
-                page->template init<isLeaf>(data.elementCount-frame->pageCount*frame->elementsPerPage, frame);
+                page->count = frame->endIndex;
                 if(!isLeaf)
                     page->setPageRef(0, iter.fromBegin(data.layer+1)->pageRef);
             }
@@ -770,8 +775,8 @@ class BpTree {
                  *lowerInner = getPage<false>(frame->lowerInnerPageRef),
                  *higherInner = getPage<false>(frame->higherInnerPageRef),
                  *higherOuter = getPage<false>(frame->higherOuterPageRef);
-            Page::template insertOverflow<isLeaf>(data.lowerInnerParent, data.higherOuterParent,
-                    lowerOuter, lowerInner, higherInner, higherOuter, data.lowerInnerParentIndex-1, data.higherOuterParentIndex-1, frame);
+            Page::template insertOverflow<isLeaf>(frame, data.lowerInnerParent, data.higherOuterParent,
+                    lowerOuter, lowerInner, higherInner, higherOuter, data.lowerInnerParentIndex-1, data.higherOuterParentIndex-1);
             if(isLeaf)
                 return;
             if(frame->index < frame->endIndex) {
@@ -832,9 +837,10 @@ class BpTree {
             }
         }
         frame->pageRef = Storage::aquirePage();
-        Page* page = getPage<false>(frame->pageRef);
         frame->index = 0;
-        page->template init<isLeaf>(frame->elementsPerPage, frame);
+        frame->endIndex = frame->elementsPerPage;
+        Page* page = getPage<false>(frame->pageRef);
+        page->count = frame->endIndex;
         return page;
     }
 

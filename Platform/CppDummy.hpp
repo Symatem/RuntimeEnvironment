@@ -29,7 +29,7 @@ void operator delete(void* ptr) noexcept {
 
 template<bool value>
 struct BoolConstant {
-    constexpr const operator bool() {
+    constexpr const operator bool() const {
         return value;
     };
 };

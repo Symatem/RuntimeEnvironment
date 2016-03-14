@@ -3,8 +3,7 @@
 RTE in C++11
 ============
 
-C++ code base of the Symatem RTE.
-This will be used for the WebAssembly, RumpRun unikernel and RISC-V bare metal ports.
+Symatem RTE C++ code base as opposed to the native code base which will be based on this one later on.
 
 Coding Restrictions:
 - No goto

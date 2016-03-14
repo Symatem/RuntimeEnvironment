@@ -23,7 +23,7 @@ void Storage::resizeMemory(NativeNaturalType _pageCount) {
 }
 
 void Storage::load() {
-    file = open("storage", O_RDWR|O_CREAT); // TODO: Debugging
+    file = open("./data", O_RDWR|O_CREAT); // TODO: Debugging
     assert(file >= 0);
     assert(ftruncate(file, bytesForPages(pageCount)) == 0); // TODO: Debugging
     pageCount = lseek(file, 0, SEEK_END)/(bitsPerPage/8);
