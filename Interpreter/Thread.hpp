@@ -12,28 +12,24 @@ struct Thread {
         return Ontology::query(0, triple) == 1;
     }
 
-    bool link(Triple triple) {
+    void link(Triple triple) {
         if(!Ontology::link(triple)) {
             Symbol data = Storage::createSymbol();
             link({data, PreDef_Entity, triple.entity});
             link({data, PreDef_Attribute, triple.attribute});
             link({data, PreDef_Value, triple.value});
             throwException("Already linked", data);
-            return false;
         }
-        return true;
     }
 
-    bool unlink(Triple triple) {
+    void unlink(Triple triple) {
         if(!Ontology::unlink(triple)) {
             Symbol data = Storage::createSymbol();
             link({data, PreDef_Entity, triple.entity});
             link({data, PreDef_Attribute, triple.attribute});
             link({data, PreDef_Value, triple.value});
             throwException("Already unlinked", data);
-            return false;
         }
-        return true;
     }
 
     template <typename T>

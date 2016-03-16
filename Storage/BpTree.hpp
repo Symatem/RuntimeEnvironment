@@ -495,6 +495,10 @@ class BpTree {
         }
     };
 
+    PageRefType rootPageRef;
+    LayerType layerCount;
+    static const LayerType maxLayerCount = 9;
+
     template<bool writeable>
     static Page* getPage(PageRefType& pageRef) {
         return Storage::dereferencePage<Page>(pageRef);
@@ -503,7 +507,7 @@ class BpTree {
     template<bool writeable, typename FrameType = IteratorFrame>
     struct Iterator {
         LayerType end;
-        FrameType stack[8]; // TODO: Adjust Magic Number
+        FrameType stack[maxLayerCount];
 
         FrameType* fromBegin(LayerType layer) {
             assert(layer < end);
@@ -675,9 +679,6 @@ class BpTree {
 	    }
 	}
 
-    PageRefType rootPageRef;
-    LayerType layerCount;
-
     void init() {
         rootPageRef = 0;
         layerCount = 0;
@@ -697,15 +698,15 @@ class BpTree {
     template<typename FrameType, bool isLeaf>
     static bool insertAuxLayer(InsertData& data, Iterator<false, FrameType>& iter) {
         bool apply = isSame<FrameType, InsertIteratorFrame>();
-        Page* page;
+        Page* lowerOuter;
         auto frame = reinterpret_cast<InsertIteratorFrame*>(iter.fromBegin(data.layer));
         if(data.layer >= data.startLayer) {
             if(!isLeaf)
                 --data.elementCount;
             if(data.elementCount == 0)
                 return false;
-            page = getPage<false>(frame->pageRef);
-            data.elementCount += page->count;
+            lowerOuter = getPage<false>(frame->pageRef);
+            data.elementCount += lowerOuter->count;
         } else if(!isLeaf && data.elementCount == 1)
             return false;
         NativeNaturalType pageCount = (data.elementCount+Page::template capacity<isLeaf>()-1)/Page::template capacity<isLeaf>();
@@ -715,10 +716,10 @@ class BpTree {
             if(data.layer >= data.startLayer) {
                 if(frame->pageCount == 0) {
                     frame->higherOuterPageRef = 0;
-                    Page::template insert<isLeaf>(frame, page, data.elementCount);
+                    Page::template insert<isLeaf>(frame, lowerOuter, data.elementCount);
                 } else {
-                    frame->higherOuterPageRef = Storage::aquirePage();
                     frame->endIndex = data.elementCount-(frame->pageCount-1)*frame->elementsPerPage;
+                    frame->higherOuterPageRef = Storage::aquirePage();
                     switch(frame->pageCount) {
                         case 1:
                             frame->lowerInnerPageRef = frame->higherOuterPageRef;
@@ -735,14 +736,14 @@ class BpTree {
                     }
                 }
             } else {
-                frame->higherOuterPageRef = 0;
-                frame->endIndex = data.elementCount-frame->pageCount*frame->elementsPerPage;
-                frame->index = (isLeaf) ? 0 : 1;
                 frame->pageRef = Storage::aquirePage();
-                page = getPage<false>(frame->pageRef);
-                page->count = frame->endIndex;
+                lowerOuter = getPage<false>(frame->pageRef);
                 if(!isLeaf)
-                    page->setPageRef(0, iter.fromBegin(data.layer+1)->pageRef);
+                    lowerOuter->setPageRef(0, iter.fromBegin(data.layer+1)->pageRef);
+                lowerOuter->count = data.elementCount-frame->pageCount*frame->elementsPerPage;
+                frame->higherOuterPageRef = 0;
+                frame->index = (isLeaf) ? 0 : 1;
+                frame->endIndex = lowerOuter->count;
             }
         }
         data.elementCount = pageCount;
@@ -751,9 +752,8 @@ class BpTree {
     }
 
     template<typename FrameType>
-    static LayerType insertAux(InsertData& data, Iterator<false, FrameType>& iter, NativeNaturalType elementCount) {
+    static LayerType insertAux(InsertData& data, Iterator<false, FrameType>& iter) {
         data.layer = iter.end-1;
-        data.elementCount = elementCount;
         insertAuxLayer<FrameType, true>(data, iter);
         while(insertAuxLayer<FrameType, false>(data, iter));
         return data.layer+1;
@@ -762,15 +762,9 @@ class BpTree {
     template<bool isLeaf>
     static void insertSplitLayer(InsertData& data, Iterator<false, InsertIteratorFrame>& iter) {
         InsertIteratorFrame* frame = iter.fromBegin(data.layer);
+        // TODO: What if first split layer has frame->higherOuterPageRef and thus no parent data is written in data ?
+        // Happens if addedLayers > 0 and the root layer is not split but added
         if(frame->higherOuterPageRef) {
-            InsertIteratorFrame* parentFrame = iter.fromBegin(data.layer-1);
-            if(!parentFrame->higherOuterPageRef) {
-                assert(parentFrame->endIndex > 1);
-                assert(parentFrame->index > 0 && parentFrame->index+1 <= parentFrame->endIndex);
-                data.lowerInnerParent = data.higherOuterParent = getPage<false>(parentFrame->pageRef);
-                data.lowerInnerParentIndex = parentFrame->index;
-                data.higherOuterParentIndex = parentFrame->endIndex-1;
-            }
             Page *lowerOuter = getPage<false>(frame->pageRef),
                  *lowerInner = getPage<false>(frame->lowerInnerPageRef),
                  *higherInner = getPage<false>(frame->higherInnerPageRef),
@@ -806,6 +800,12 @@ class BpTree {
                 data.higherOuterParent = higherOuter;
                 data.higherOuterParentIndex = frame->higherOuterEndIndex-1;
             }
+        } else {
+            assert(frame->endIndex > 1);
+            assert(frame->index > 0 && frame->index+1 <= frame->endIndex);
+            data.lowerInnerParent = data.higherOuterParent = getPage<false>(frame->pageRef);
+            data.lowerInnerParentIndex = frame->index;
+            data.higherOuterParentIndex = frame->endIndex-1;
         }
         ++data.layer;
     }
@@ -847,12 +847,19 @@ class BpTree {
     typedef Closure<void(Page*, IndexType, IndexType)> AquireData;
     void insert(Iterator<false>& at, NativeNaturalType elementCount, AquireData aquireData) {
         assert(elementCount > 0);
-        InsertData data = {insertAux<IteratorFrame>(data, at, elementCount)};
-        data.startLayer = (data.startLayer < 0) ? -data.startLayer : 0;
+        InsertData data;
+        data.startLayer = 0;
+        data.elementCount = elementCount;
+        LayerType addedLayers = insertAux<IteratorFrame>(data, at);
+        addedLayers = (addedLayers < 0) ? -addedLayers : 0;
         Iterator<false, InsertIteratorFrame> iter;
-        iter.end = layerCount+data.startLayer;
+        iter.end = layerCount+addedLayers;
         iter.copy(at);
-        data.layer = data.startLayer = insertAux<InsertIteratorFrame>(data, iter, elementCount);
+        data.startLayer = addedLayers;
+        data.elementCount = elementCount;
+        LayerType unmodifiedLayerCount = insertAux<InsertIteratorFrame>(data, iter);
+        assert(addedLayers == 0 || unmodifiedLayerCount == 0);
+        data.layer = max(addedLayers, unmodifiedLayerCount);
         while(data.layer < iter.end-1)
             insertSplitLayer<false>(data, iter);
         if(data.layer < iter.end)
@@ -870,7 +877,7 @@ class BpTree {
             data.layer = iter.end-1;
             bool setKey = true;
             PageRefType childPageRef = frame->pageRef;
-            while(data.layer > data.startLayer) {
+            while(data.layer > unmodifiedLayerCount) {
                 parentFrame = iter.fromBegin(--data.layer);
                 if(parentFrame->index < parentFrame->endIndex) {
                     parentPage = getPage<false>(parentFrame->pageRef);
@@ -889,7 +896,7 @@ class BpTree {
                 }
             }
         }
-        for(data.layer = iter.end-2; data.layer > data.startLayer; --data.layer) {
+        for(data.layer = iter.end-2; data.layer > unmodifiedLayerCount; --data.layer) {
             frame = iter.fromBegin(data.layer);
             if(frame->pageCount == 0)
                 continue;

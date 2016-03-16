@@ -37,11 +37,11 @@ PreDefProcedure(Search) {
 }
 
 struct PreDefProcedure_Link {
-    static bool e(Thread& thread, Triple triple) { return thread.link(triple); };
+    static bool e(Thread& thread, Triple triple) { return Ontology::link(triple); };
 };
 
 struct PreDefProcedure_Unlink {
-    static bool e(Thread& thread, Triple triple) { return thread.unlink(triple); };
+    static bool e(Thread& thread, Triple triple) { return Ontology::unlink(triple); };
 };
 
 template<class op>
