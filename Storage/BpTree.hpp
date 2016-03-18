@@ -738,8 +738,23 @@ class BpTree {
                 lowerOuter = getPage<false>(frame->pageRef);
                 if(!isLeaf)
                     lowerOuter->setPageRef(0, iter.fromBegin(data.layer+1)->pageRef);
-                lowerOuter->count = data.elementCount-frame->pageCount*frame->elementsPerPage;
-                frame->higherOuterPageRef = 0;
+                if(frame->pageCount == 0) {
+                    lowerOuter->count = data.elementCount-frame->pageCount*frame->elementsPerPage;
+                    frame->higherOuterPageRef = 0;
+                } else {
+                    frame->lowerInnerPageRef = 0;
+                    if(frame->pageCount <= 1)
+                        frame->higherInnerPageRef = 0;
+                    else {
+                        frame->higherInnerPageRef = Storage::aquirePage();
+                        frame->higherInnerEndIndex = frame->elementsPerPage;
+                        getPage<false>(frame->higherInnerPageRef)->count = frame->elementsPerPage;
+                    }
+                    frame->higherOuterPageRef = Storage::aquirePage();
+                    Page* higherOuter = getPage<false>(frame->higherOuterPageRef);
+                    Page::distributeCount(lowerOuter, higherOuter, data.elementCount-(frame->pageCount-1)*frame->elementsPerPage);
+                    frame->higherOuterEndIndex = higherOuter->count;
+                }
                 frame->index = (isLeaf) ? 0 : 1;
                 frame->endIndex = lowerOuter->count;
             }

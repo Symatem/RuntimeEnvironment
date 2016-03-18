@@ -432,8 +432,7 @@ namespace Ontology {
             query(9, {symbol, PreDef_Holds, PreDef_Void}, [&](Triple result) {
                 symbols.insertElement(result.pos[0]);
             });
-            // TODO: Prevent double free
-            unlink(symbol);
+            assert(unlink(symbol));
         }
     }
 
