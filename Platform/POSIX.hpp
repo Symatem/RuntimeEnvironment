@@ -23,9 +23,8 @@ void Storage::resizeMemory(NativeNaturalType _pageCount) {
 }
 
 void Storage::load() {
-    file = open("./data", O_RDWR|O_CREAT); // TODO: Debugging
+    file = open("./data", O_RDWR|O_CREAT, 0666);
     assert(file >= 0);
-    assert(ftruncate(file, bytesForPages(pageCount)) == 0); // TODO: Debugging
     pageCount = lseek(file, 0, SEEK_END)/(bitsPerPage/8);
     if(pageCount < minPageCount)
         pageCount = minPageCount;
@@ -75,7 +74,7 @@ void loadFromPath(Thread& thread, Symbol parentPackage, bool execute, char* path
             }
         Storage::bitwiseCopy(reinterpret_cast<NativeNaturalType*>(buffer),
                              reinterpret_cast<NativeNaturalType*>(path),
-                             0, slashIndex*8, pathLen-slashIndex);
+                             0, slashIndex*8, (pathLen-slashIndex)*8);
         buffer[pathLen-slashIndex] = 0;
         Symbol package = Ontology::createFromData(const_cast<const char*>(buffer));
         Ontology::blobIndex.insertElement(package);

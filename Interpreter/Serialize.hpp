@@ -50,7 +50,6 @@ struct Serialize {
     Serialize(Thread& _thread) :Serialize(_thread, Storage::createSymbol()) {}
 
     void serializeBlob(Symbol srcSymbol) {
-        auto src = reinterpret_cast<const char*>(Storage::accessBlobData(srcSymbol));
         NativeNaturalType len = Storage::getBlobSize(srcSymbol);
         if(len) {
             Symbol type = PreDef_Void;
@@ -59,33 +58,35 @@ struct Serialize {
                 case PreDef_Text: {
                     len /= 8;
                     bool spaces = false;
-                    for(NativeNaturalType i = 0; i < len; ++i)
-                        if(src[i] == ' ' || src[i] == '\t' || src[i] == '\n') {
+                    for(NativeNaturalType i = 0; i < len; ++i) {
+                        char src = Storage::readBlobAt<char>(srcSymbol, i);
+                        if(src == ' ' || src == '\t' || src == '\n') {
                             spaces = true;
                             break;
                         }
+                    }
                     if(spaces)
                         put('"');
                     for(NativeNaturalType i = 0; i < len; ++i)
-                        put(src[i]);
+                        put(Storage::readBlobAt<char>(srcSymbol, i));
                     if(spaces)
                         put('"');
                 }   break;
                 case PreDef_Natural:
-                    serializeNumber(thread.accessBlobAs<NativeNaturalType>(srcSymbol));
+                    serializeNumber(thread.readBlob<NativeNaturalType>(srcSymbol));
                     break;
                 case PreDef_Integer:
-                    serializeNumber(thread.accessBlobAs<NativeIntegerType>(srcSymbol));
+                    serializeNumber(thread.readBlob<NativeIntegerType>(srcSymbol));
                     break;
                 case PreDef_Float:
-                    serializeNumber(thread.accessBlobAs<NativeFloatType>(srcSymbol));
+                    serializeNumber(thread.readBlob<NativeFloatType>(srcSymbol));
                     break;
                 default: {
-                    for(NativeNaturalType i = 0; i < strlen(HRLRawBegin); ++i)
-                        put(HRLRawBegin[i]);
+                    puts(HRLRawBegin);
                     len = (len+3)/4;
                     for(NativeNaturalType i = 0; i < len; ++i) {
-                        char nibble = (src[i/2]>>((i%2)*4))&0x0F;
+                        char src = Storage::readBlobAt<char>(srcSymbol, i/2);
+                        char nibble = (src>>((i%2)*4))&0x0F;
                         if(nibble < 0xA)
                             put('0'+nibble);
                         else

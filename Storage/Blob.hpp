@@ -70,7 +70,7 @@ namespace Storage {
         if(a == b)
             return 0;
         NativeNaturalType sizeA = getBlobSize(a),
-                         sizeB = getBlobSize(b);
+                          sizeB = getBlobSize(b);
         if(sizeA < sizeB)
             return -1;
         if(sizeA > sizeB)
@@ -80,7 +80,7 @@ namespace Storage {
         return memcmp(accessBlobData(a), accessBlobData(b), (sizeA+7)/8);
     }
 
-    bool overwriteBlobPartial(Symbol dst, Symbol src, NativeNaturalType dstOffset, NativeNaturalType srcOffset, NativeNaturalType length) {
+    bool sliceBlob(Symbol dst, Symbol src, NativeNaturalType dstOffset, NativeNaturalType srcOffset, NativeNaturalType length) {
         NativeNaturalType dstSize = getBlobSize(dst),
                          srcSize = getBlobSize(src);
         auto end = dstOffset+length;
@@ -103,10 +103,25 @@ namespace Storage {
         modifiedBlob(dst);
     }
 
+    template <typename DataType>
+    DataType readBlobAt(Symbol src, NativeNaturalType srcIndex) {
+        return *(reinterpret_cast<DataType*>(accessBlobData(src))+srcIndex);
+    }
+
+    template <typename DataType>
+    DataType readBlob(Symbol src) {
+        return readBlobAt<DataType>(src, 0);
+    }
+
     template<typename DataType>
-    void overwriteBlob(Symbol dst, DataType src) {
+    void writeBlobAt(Symbol dst, NativeNaturalType dstIndex, DataType src) {
+        *(reinterpret_cast<DataType*>(accessBlobData(dst))+dstIndex) = src;
+    }
+
+    template<typename DataType>
+    void writeBlob(Symbol dst, DataType src) {
         setBlobSize(dst, sizeof(src)*8);
-        *reinterpret_cast<DataType*>(accessBlobData(dst)) = src;
+        writeBlobAt(dst, 0, src);
         modifiedBlob(dst);
     }
 

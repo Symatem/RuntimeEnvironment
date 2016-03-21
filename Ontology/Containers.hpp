@@ -26,6 +26,7 @@ struct Vector {
     ElementType& operator[](NativeNaturalType at) const {
         assert(symbol && at < size());
         return *(reinterpret_cast<ElementType*>(Storage::accessBlobData(symbol))+at);
+        // return Storage::readBlobAt<ElementType>(symbol, at); // TODO
     }
 
     ElementType& front() const {

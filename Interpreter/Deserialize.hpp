@@ -12,21 +12,20 @@ if(Ontology::query(1, {Name##Symbol, PreDef_BlobType, expectedType}) == 0) \
     NativeNaturalType Name##Value = DefaultValue; \
     if(Ontology::getUncertain(thread.block, PreDef_##Name, Name##Symbol)) { \
         checkBlobType(Name, PreDef_Natural) \
-        Name##Value = thread.accessBlobAs<NativeNaturalType>(Name##Symbol); \
+        Name##Value = thread.readBlob<NativeNaturalType>(Name##Symbol); \
     }
 
 class Deserialize {
     Thread& thread;
-    Symbol package, parentEntry, currentEntry;
+    Symbol input, package, parentEntry, currentEntry;
     BlobIndex<false> locals;
     Vector<false, Symbol> stack, queue;
-    const char *pos, *end, *tokenBegin;
-    NativeNaturalType row, column;
+    NativeNaturalType tokenBegin, pos, end, row, column;
 
     void throwException(const char* message) {
         Symbol data = Storage::createSymbol(),
-                   rowSymbol = Ontology::createFromData(row),
-                   columnSymbol = Ontology::createFromData(column);
+               rowSymbol = Ontology::createFromData(row),
+               columnSymbol = Ontology::createFromData(column);
         thread.link({data, PreDef_Holds, rowSymbol});
         thread.link({data, PreDef_Holds, columnSymbol});
         thread.link({data, PreDef_Row, rowSymbol});
@@ -47,49 +46,66 @@ class Deserialize {
         }
     }
 
+    Symbol sliceText() {
+        return Ontology::createFromSlice(input, tokenBegin*8, (pos-tokenBegin)*8);
+    }
+
+    bool tokenBeginsWithString(const char* str) {
+        if(strlen(str) > pos-tokenBegin)
+            return false;
+        for(NativeNaturalType i = 0; i < strlen(str); ++i)
+            if(Storage::readBlobAt<char>(input, tokenBegin+i) != str[i])
+                return false;
+        return true;
+    }
+
     void parseToken(bool isText = false) {
         if(pos > tokenBegin) {
+            char src = Storage::readBlobAt<char>(input, tokenBegin);
             Symbol symbol;
             if(isText)
-                symbol = Ontology::createFromData(tokenBegin, pos-tokenBegin);
-            else if(*tokenBegin == '#') {
-                symbol = Ontology::createFromData(tokenBegin, pos-tokenBegin);
+                symbol = sliceText();
+            else if(src == '#') {
+                symbol = sliceText();
                 locals.insertElement(symbol);
-            } else if(pos-tokenBegin > strlen(HRLRawBegin) && memcmp(tokenBegin, HRLRawBegin, 4) == 0) {
-                const char* src = tokenBegin+strlen(HRLRawBegin);
-                NativeNaturalType nibbleCount = pos-src;
+            } else if(tokenBeginsWithString(HRLRawBegin)) {
+                tokenBegin += strlen(HRLRawBegin);
+                NativeNaturalType nibbleCount = pos-tokenBegin;
                 if(nibbleCount == 0)
                     throwException("Empty raw data");
                 symbol = Storage::createSymbol();
                 Storage::setBlobSize(symbol, nibbleCount*4);
-                char* dst = reinterpret_cast<char*>(Storage::accessBlobData(symbol)), odd = 0, nibble;
-                while(src < pos) {
-                    if(*src >= '0' && *src <= '9')
-                        nibble = *src-'0';
-                    else if(*src >= 'A' && *src <= 'F')
-                        nibble = *src-'A'+0xA;
+                char nibble;
+                NativeNaturalType at = 0;
+                while(tokenBegin < pos) {
+                    src = Storage::readBlobAt<char>(input, tokenBegin);
+                    if(src >= '0' && src <= '9')
+                        nibble = src-'0';
+                    else if(src >= 'A' && src <= 'F')
+                        nibble = src-'A'+0xA;
                     else
                         throwException("Non hex characters");
-                    if(odd == 0) {
-                        *dst = nibble;
-                        odd = 1;
-                    } else {
-                        *(dst++) |= nibble<<4;
-                        odd = 0;
-                    }
-                    ++src;
+                    if(at%2 == 0)
+                        Storage::writeBlobAt<char>(symbol, at/2, nibble);
+                    else
+                        Storage::writeBlobAt<char>(symbol, at/2, Storage::readBlobAt<char>(symbol, at/2)|(nibble<<4));
+                    ++at;
+                    ++tokenBegin;
                 }
+                Storage::modifiedBlob(symbol);
             } else {
                 NativeNaturalType mantissa = 0, devisor = 0;
-                bool isNumber = true, negative = (*tokenBegin == '-');
-                const char* src = tokenBegin+negative;
+                bool isNumber = true, negative = (src == '-');
+                if(negative)
+                    ++tokenBegin;
                 // TODO What if too long, precision loss?
-                while(src < pos) {
+                while(tokenBegin < pos) {
+                    src = Storage::readBlobAt<char>(input, tokenBegin);
                     devisor *= 10;
-                    if(*src >= '0' && *src <= '9') {
+                    if(src >= '0' && src <= '9') {
                         mantissa *= 10;
-                        mantissa += *src-'0';
-                    } else if(*src == '.') {
+                        mantissa += src-'0';
+                    } else if(src == '.') {
                         if(devisor > 0) {
                             isNumber = false;
                             break;
@@ -99,20 +115,21 @@ class Deserialize {
                         isNumber = false;
                         break;
                     }
-                    ++src;
+                    ++tokenBegin;
                 }
                 if(isNumber && devisor != 1) {
                     if(devisor > 0) {
                         NativeFloatType value = mantissa;
                         value /= devisor;
-                        if(negative) value *= -1;
+                        if(negative)
+                            value *= -1;
                         symbol = Ontology::createFromData(value);
                     } else if(negative)
                         symbol = Ontology::createFromData(-static_cast<NativeIntegerType>(mantissa));
                     else
                         symbol = Ontology::createFromData(mantissa);
                 } else
-                    symbol = Ontology::createFromData(tokenBegin, pos-tokenBegin);
+                    symbol = sliceText();
                 Ontology::blobIndex.insertElement(symbol);
             }
             Ontology::link({package, PreDef_Holds, symbol});
@@ -165,8 +182,9 @@ class Deserialize {
     public:
     Deserialize(Thread& _thread) :thread(_thread) {
         package = thread.getGuaranteed(thread.block, PreDef_Package);
-        getSymbolByName(Input)
-        checkBlobType(Input, PreDef_Text)
+        input = thread.getGuaranteed(thread.block, PreDef_Input);
+        if(Ontology::query(1, {input, PreDef_BlobType, PreDef_Text}) == 0)
+            thread.throwException("Invalid Blob Type");
         locals.symbol = Storage::createSymbol();
         thread.link({thread.block, PreDef_Holds, locals.symbol});
         stack.symbol = Storage::createSymbol();
@@ -176,10 +194,10 @@ class Deserialize {
         stack.push_back(currentEntry);
         queue.symbol = currentEntry;
         row = column = 1;
-        tokenBegin = pos = reinterpret_cast<const char*>(Storage::accessBlobData(InputSymbol));
-        end = pos+Storage::getBlobSize(InputSymbol)/8;
-        while(pos < end) {
-            switch(*pos) {
+        end = Storage::getBlobSize(input)/8;
+        for(tokenBegin = pos = 0; pos < end; ++pos) {
+            char src = Storage::readBlobAt<char>(input, pos);
+            switch(src) {
                 case '\n':
                     parseToken();
                     column = 0;
@@ -195,12 +213,13 @@ class Deserialize {
                     while(true) {
                         if(pos == end)
                             throwException("Unterminated text");
-                        bool prev = (*pos != '\\');
+                        bool prev = (src != '\\');
                         ++pos;
+                        src = Storage::readBlobAt<char>(input, pos);
                         if(prev) {
-                            if(*pos == '\\')
+                            if(src == '\\')
                                 continue;
-                            if(*pos == '"')
+                            if(src == '"')
                                 break;
                         }
                     }
@@ -240,7 +259,6 @@ class Deserialize {
                 }   break;
             }
             ++column;
-            ++pos;
         }
         parseToken();
         if(stack.size() != 1)

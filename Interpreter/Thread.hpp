@@ -33,10 +33,10 @@ struct Thread {
     }
 
     template <typename T>
-    T accessBlobAs(Symbol symbol) {
+    T readBlob(Symbol symbol) {
         if(Storage::getBlobSize(symbol) != sizeof(T)*8)
             throwException("Invalid Blob Size");
-        return *reinterpret_cast<T*>(Storage::accessBlobData(symbol));
+        return Storage::readBlob<T>(symbol);
     }
 
     Symbol getGuaranteed(Symbol entity, Symbol attribute) {

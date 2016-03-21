@@ -436,14 +436,6 @@ namespace Ontology {
         }
     }
 
-    void overwriteBlobWithString(Symbol symbol, const char* src, NativeNaturalType len) {
-        link({symbol, PreDef_BlobType, PreDef_Text});
-        Storage::setBlobSize(symbol, len*8);
-        auto dst = reinterpret_cast<char*>(Storage::accessBlobData(symbol));
-        for(NativeNaturalType i = 0; i < len; ++i)
-            dst[i] = src[i];
-    }
-
     template<typename DataType>
     Symbol createFromData(DataType src) {
         Symbol blobType;
@@ -457,18 +449,33 @@ namespace Ontology {
             crash("createFromData<InvalidType>");
         Symbol symbol = Storage::createSymbol();
         link({symbol, PreDef_BlobType, blobType});
-        Storage::overwriteBlob(symbol, src);
+        Storage::writeBlob(symbol, src);
         return symbol;
     }
 
-    Symbol createFromData(const char* src, NativeNaturalType len) {
-        Symbol symbol = Storage::createSymbol();
-        overwriteBlobWithString(symbol, src, len);
-        return symbol;
+    void stringToBlob(const char* src, NativeNaturalType length, Symbol dst) {
+        link({dst, PreDef_BlobType, PreDef_Text});
+        Storage::setBlobSize(dst, length*8);
+        for(NativeNaturalType i = 0; i < length; ++i)
+            Storage::writeBlobAt<char>(dst, i, src[i]);
+        Storage::modifiedBlob(dst);
+    }
+
+    Symbol createFromData(const char* src, NativeNaturalType length) {
+        Symbol dst = Storage::createSymbol();
+        stringToBlob(src, length, dst);
+        return dst;
     }
 
     Symbol createFromData(const char* src) {
         return createFromData(src, strlen(src));
+    }
+
+    Symbol createFromSlice(Symbol src, NativeNaturalType srcOffset, NativeNaturalType length) {
+        Symbol dst = Storage::createSymbol();
+        Storage::setBlobSize(dst, length);
+        Storage::sliceBlob(dst, src, 0, srcOffset, length);
+        return dst;
     }
 
     void tryToFillPreDef() {
@@ -478,7 +485,7 @@ namespace Ontology {
         Storage::maxSymbol = preDefSymbolsEnd;
         for(Symbol symbol = 0; symbol < preDefSymbolsEnd; ++symbol) {
             const char* str = PreDefSymbols[symbol];
-            overwriteBlobWithString(symbol, str, strlen(str));
+            stringToBlob(str, strlen(str), symbol);
             link({PreDef_RunTimeEnvironment, PreDef_Holds, symbol});
             blobIndex.insertElement(symbol);
         }
