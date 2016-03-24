@@ -128,8 +128,7 @@ struct Closure<ReturnType(Arguments...)> {
         return payload[1];
     }
     ReturnType operator()(Arguments... arguments) {
-        if(!*this)
-            crash("empty closure called");
+        assert(*this);
         return reinterpret_cast<CallableContainer<ReturnType(Arguments...)>&>(payload)(arguments...);
     }
 };

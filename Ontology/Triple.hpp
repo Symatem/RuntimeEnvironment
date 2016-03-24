@@ -36,15 +36,15 @@ union Triple {
 
     Triple reordered(NativeNaturalType subIndex) {
         NativeNaturalType alpha[] = {0, 1, 2, 0, 1, 2},
-                          beta[] = {1, 2, 0, 2, 0, 1},
-                         gamma[] = {2, 0, 1, 1, 2, 0};
+                           beta[] = {1, 2, 0, 2, 0, 1},
+                          gamma[] = {2, 0, 1, 1, 2, 0};
         return {pos[alpha[subIndex]], pos[beta[subIndex]], pos[gamma[subIndex]]};
     }
 
     Triple normalized(NativeNaturalType subIndex) {
         NativeNaturalType alpha[] = {0, 2, 1, 0, 1, 2},
-                          beta[] = {1, 0, 2, 2, 0, 1},
-                         gamma[] = {2, 1, 0, 1, 2, 0};
+                           beta[] = {1, 0, 2, 2, 0, 1},
+                          gamma[] = {2, 1, 0, 1, 2, 0};
         return {pos[alpha[subIndex]], pos[beta[subIndex]], pos[gamma[subIndex]]};
     }
 };
@@ -70,7 +70,7 @@ namespace Ontology {
         NativeNaturalType betaIndex;
         Set<false, Symbol> gamma;
         if(beta.find(triple.pos[1], betaIndex))
-            gamma.symbol = beta[betaIndex].value;
+            gamma.symbol = beta.readElementAt(betaIndex).value;
         else {
             gamma.symbol = Storage::createSymbol();
             beta.insert(betaIndex, {triple.pos[1], gamma.symbol});
@@ -82,31 +82,34 @@ namespace Ontology {
     bool link(Triple triple) {
         NativeNaturalType alphaIndex;
         forEachSubIndex {
+            Pair<Symbol, Symbol[6]> element;
             if(!symbols.find(triple.pos[subIndex], alphaIndex)) {
-                symbols.insert(alphaIndex, triple.pos[subIndex]);
+                element.key = triple.pos[subIndex];
                 for(NativeNaturalType i = 0; i < indexMode; ++i)
-                    symbols[alphaIndex].value[i] = Storage::createSymbol();
+                    element.value[i] = Storage::createSymbol();
+                symbols.insert(alphaIndex, element);
             }
-            if(!linkInSubIndex(triple.forwardIndex(symbols[alphaIndex].value, subIndex)))
+            element = symbols.readElementAt(alphaIndex);
+            if(!linkInSubIndex(triple.forwardIndex(element.value, subIndex)))
                 return false;
             if(indexMode == HexaIndex)
-                assert(linkInSubIndex(triple.reverseIndex(symbols[alphaIndex].value, subIndex)));
+                assert(linkInSubIndex(triple.reverseIndex(element.value, subIndex)));
         }
         if(triple.pos[1] == PreDef_BlobType)
             Storage::modifiedBlob(triple.pos[0]);
         return true;
     }
 
-    NativeNaturalType searchGGG(NativeNaturalType index, Triple& triple, Closure<void()> callback) {
+    NativeNaturalType searchGGG(NativeNaturalType subIndex, Triple& triple, Closure<void()> callback) {
         NativeNaturalType alphaIndex, betaIndex, gammaIndex;
         if(!symbols.find(triple.pos[0], alphaIndex))
             return 0;
         Set<false, Symbol, Symbol> beta;
-        beta.symbol = symbols[alphaIndex].value[index];
+        beta.symbol = symbols.readElementAt(alphaIndex).value[subIndex];
         if(!beta.find(triple.pos[1], betaIndex))
             return 0;
         Set<false, Symbol> gamma;
-        gamma.symbol = beta[betaIndex].value;
+        gamma.symbol = beta.readElementAt(betaIndex).value;
         if(!gamma.find(triple.pos[2], gammaIndex))
             return 0;
         if(callback)
@@ -114,36 +117,36 @@ namespace Ontology {
         return 1;
     }
 
-    NativeNaturalType searchGGV(NativeNaturalType index, Triple& triple, Closure<void()> callback) {
+    NativeNaturalType searchGGV(NativeNaturalType subIndex, Triple& triple, Closure<void()> callback) {
         NativeNaturalType alphaIndex, betaIndex;
         if(!symbols.find(triple.pos[0], alphaIndex))
             return 0;
         Set<false, Symbol, Symbol> beta;
-        beta.symbol = symbols[alphaIndex].value[index];
+        beta.symbol = symbols.readElementAt(alphaIndex).value[subIndex];
         if(!beta.find(triple.pos[1], betaIndex))
             return 0;
         Set<false, Symbol> gamma;
-        gamma.symbol = beta[betaIndex].value;
+        gamma.symbol = beta.readElementAt(betaIndex).value;
         if(callback)
-            gamma.iterate([&](Pair<Symbol, NativeNaturalType[0]>& gammaResult) {
+            gamma.iterate([&](Pair<Symbol, NativeNaturalType[0]> gammaResult) {
                 triple.pos[2] = gammaResult;
                 callback();
             });
         return gamma.size();
     }
 
-    NativeNaturalType searchGVV(NativeNaturalType index, Triple& triple, Closure<void()> callback) {
+    NativeNaturalType searchGVV(NativeNaturalType subIndex, Triple& triple, Closure<void()> callback) {
         NativeNaturalType alphaIndex, count = 0;
         if(!symbols.find(triple.pos[0], alphaIndex))
             return 0;
         Set<false, Symbol, Symbol> beta;
-        beta.symbol = symbols[alphaIndex].value[index];
-        beta.iterate([&](Pair<Symbol, Symbol>& betaResult) {
+        beta.symbol = symbols.readElementAt(alphaIndex).value[subIndex];
+        beta.iterate([&](Pair<Symbol, Symbol> betaResult) {
             Set<false, Symbol> gamma;
             gamma.symbol = betaResult.value;
             if(callback) {
                 triple.pos[1] = betaResult.key;
-                gamma.iterate([&](Pair<Symbol, NativeNaturalType[0]>& gammaResult) {
+                gamma.iterate([&](Pair<Symbol, NativeNaturalType[0]> gammaResult) {
                     triple.pos[2] = gammaResult;
                     callback();
                 });
@@ -153,17 +156,17 @@ namespace Ontology {
         return count;
     }
 
-    NativeNaturalType searchGIV(NativeNaturalType index, Triple& triple, Closure<void()> callback) {
+    NativeNaturalType searchGIV(NativeNaturalType subIndex, Triple& triple, Closure<void()> callback) {
         NativeNaturalType alphaIndex;
         if(!symbols.find(triple.pos[0], alphaIndex))
             return 0;
         Set<true, Symbol> result;
         Set<false, Symbol, Symbol> beta;
-        beta.symbol = symbols[alphaIndex].value[index];
-        beta.iterate([&](Pair<Symbol, Symbol>& betaResult) {
+        beta.symbol = symbols.readElementAt(alphaIndex).value[subIndex];
+        beta.iterate([&](Pair<Symbol, Symbol> betaResult) {
             Set<false, Symbol> gamma;
             gamma.symbol = betaResult.value;
-            gamma.iterate([&](Pair<Symbol, NativeNaturalType[0]>& gammaResult) {
+            gamma.iterate([&](Pair<Symbol, NativeNaturalType[0]> gammaResult) {
                 result.insertElement(gammaResult);
             });
         });
@@ -175,37 +178,37 @@ namespace Ontology {
         return result.size();
     }
 
-    NativeNaturalType searchGVI(NativeNaturalType index, Triple& triple, Closure<void()> callback) {
+    NativeNaturalType searchGVI(NativeNaturalType subIndex, Triple& triple, Closure<void()> callback) {
         NativeNaturalType alphaIndex;
         if(!symbols.find(triple.pos[0], alphaIndex))
             return 0;
         Set<false, Symbol, Symbol> beta;
-        beta.symbol = symbols[alphaIndex].value[index];
+        beta.symbol = symbols.readElementAt(alphaIndex).value[subIndex];
         if(callback)
-            beta.iterate([&](Pair<Symbol, Symbol>& betaResult) {
+            beta.iterate([&](Pair<Symbol, Symbol> betaResult) {
                 triple.pos[1] = betaResult.key;
                 callback();
             });
         return beta.size();
     }
 
-    NativeNaturalType searchVII(NativeNaturalType index, Triple& triple, Closure<void()> callback) {
+    NativeNaturalType searchVII(NativeNaturalType subIndex, Triple& triple, Closure<void()> callback) {
         if(callback)
-            symbols.iterate([&](Pair<Symbol, Symbol[6]>& alphaResult) {
+            symbols.iterate([&](Pair<Symbol, Symbol[6]> alphaResult) {
                 triple.pos[0] = alphaResult.key;
                 callback();
             });
         return symbols.size();
     }
 
-    NativeNaturalType searchVVI(NativeNaturalType index, Triple& triple, Closure<void()> callback) {
+    NativeNaturalType searchVVI(NativeNaturalType subIndex, Triple& triple, Closure<void()> callback) {
         NativeNaturalType count = 0;
-        symbols.iterate([&](Pair<Symbol, Symbol[6]>& alphaResult) {
+        symbols.iterate([&](Pair<Symbol, Symbol[6]> alphaResult) {
             Set<false, Symbol, Symbol> beta;
-            beta.symbol = alphaResult.value[index];
+            beta.symbol = alphaResult.value[subIndex];
             if(callback) {
                 triple.pos[0] = alphaResult.key;
-                beta.iterate([&](Pair<Symbol, Symbol>& betaResult) {
+                beta.iterate([&](Pair<Symbol, Symbol> betaResult) {
                     triple.pos[1] = betaResult.key;
                     callback();
                 });
@@ -215,18 +218,18 @@ namespace Ontology {
         return count;
     }
 
-    NativeNaturalType searchVVV(NativeNaturalType index, Triple& triple, Closure<void()> callback) {
+    NativeNaturalType searchVVV(NativeNaturalType subIndex, Triple& triple, Closure<void()> callback) {
         NativeNaturalType count = 0;
-        symbols.iterate([&](Pair<Symbol, Symbol[6]>& alphaResult) {
+        symbols.iterate([&](Pair<Symbol, Symbol[6]> alphaResult) {
             triple.pos[0] = alphaResult.key;
             Set<false, Symbol, Symbol> beta;
-            beta.symbol = alphaResult.value[index];
-            beta.iterate([&](Pair<Symbol, Symbol>& betaResult) {
+            beta.symbol = alphaResult.value[subIndex];
+            beta.iterate([&](Pair<Symbol, Symbol> betaResult) {
                 Set<false, Symbol> gamma;
                 gamma.symbol = betaResult.value;
                 if(callback) {
                     triple.pos[1] = betaResult.key;
-                    gamma.iterate([&](Pair<Symbol, NativeNaturalType[0]>& gammaResult) {
+                    gamma.iterate([&](Pair<Symbol, NativeNaturalType[0]> gammaResult) {
                         triple.pos[2] = gammaResult;
                         callback();
                     });
@@ -239,7 +242,7 @@ namespace Ontology {
 
     NativeNaturalType query(NativeNaturalType mode, Triple triple, Closure<void(Triple)> callback = nullptr) {
         struct QueryMethod {
-            NativeNaturalType index, pos, size;
+            NativeNaturalType subIndex, pos, size;
             NativeNaturalType(*function)(NativeNaturalType, Triple&, Closure<void()>);
         };
         const QueryMethod lookup[] = {
@@ -282,30 +285,30 @@ namespace Ontology {
             callback(result);
         };
         if(indexMode == MonoIndex) {
-            if(method.index != EAV) {
-                method.index = EAV;
+            if(method.subIndex != EAV) {
+                method.subIndex = EAV;
                 method.function = &searchVVV;
                 handleNext = [&]() {
-                    NativeNaturalType index = 0;
-                    if(mode%3 == 1) ++index;
+                    NativeNaturalType subIndex = 0;
+                    if(mode%3 == 1) ++subIndex;
                     if(mode%9 >= 3 && mode%9 < 6) {
-                        triple.pos[index] = triple.pos[1];
-                        ++index;
+                        triple.pos[subIndex] = triple.pos[1];
+                        ++subIndex;
                     }
                     if(mode >= 9 && mode < 18)
-                        triple.pos[index] = triple.pos[2];
+                        triple.pos[subIndex] = triple.pos[2];
                     callback(triple);
                 };
             }
-        } else if(indexMode == TriIndex && method.index >= 3) {
-            method.index -= 3;
+        } else if(indexMode == TriIndex && method.subIndex >= 3) {
+            method.subIndex -= 3;
             method.pos = 2;
             method.function = &searchGIV;
         }
-        triple = triple.reordered(method.index);
+        triple = triple.reordered(method.subIndex);
         if(!callback)
             handleNext = nullptr;
-        return (*method.function)(method.index, triple, handleNext);
+        return (*method.function)(method.subIndex, triple, handleNext);
     }
 
     bool unlinkInSubIndex(Triple triple) {
@@ -315,7 +318,7 @@ namespace Ontology {
         if(!alpha.find(triple.pos[1], alphaIndex))
             return false;
         Set<false, Symbol> beta;
-        beta.symbol = alpha[alphaIndex].value;
+        beta.symbol = alpha.readElementAt(alphaIndex).value;
         if(!beta.find(triple.pos[2], betaIndex))
             return false;
         beta.erase(betaIndex);
@@ -333,10 +336,11 @@ namespace Ontology {
                 continue;
             if(!symbols.find(triple.pos[subIndex], alphaIndex))
                 return false;
-            if(!unlinkInSubIndex(triple.forwardIndex(symbols[alphaIndex].value, subIndex)))
+            Pair<Symbol, Symbol[6]> element = symbols.readElementAt(alphaIndex);
+            if(!unlinkInSubIndex(triple.forwardIndex(element.value, subIndex)))
                 return false;
             if(indexMode == HexaIndex)
-                assert(unlinkInSubIndex(triple.reverseIndex(symbols[alphaIndex].value, subIndex)));
+                assert(unlinkInSubIndex(triple.reverseIndex(element.value, subIndex)));
         }
         if(triple.pos[1] == PreDef_BlobType)
             Storage::modifiedBlob(triple.pos[0]);
@@ -346,14 +350,15 @@ namespace Ontology {
     void tryToReleaseSymbol(Symbol symbol) {
         NativeNaturalType alphaIndex;
         assert(symbols.find(symbol, alphaIndex));
+        Pair<Symbol, Symbol[6]> element = symbols.readElementAt(alphaIndex);
         forEachSubIndex {
             Set<false, Symbol, Symbol> beta;
-            beta.symbol = symbols[alphaIndex].value[subIndex];
+            beta.symbol = element.value[subIndex];
             if(!beta.empty())
                 return;
         }
         for(NativeNaturalType subIndex = 0; subIndex < indexCount; ++subIndex)
-            Storage::releaseSymbol(symbols[alphaIndex].value[subIndex]);
+            Storage::releaseSymbol(element.value[subIndex]);
         Storage::releaseSymbol(symbol);
     }
 
@@ -371,15 +376,16 @@ namespace Ontology {
             Storage::releaseSymbol(symbol);
             return false;
         }
+        Pair<Symbol, Symbol[6]> element = symbols.readElementAt(alphaIndex);
         Set<true, Symbol> dirty;
         forEachSubIndex {
             Set<false, Symbol, Symbol> beta;
-            beta.symbol = symbols[alphaIndex].value[subIndex];
-            beta.iterate([&](Pair<Symbol, Symbol>& betaResult) {
+            beta.symbol = element.value[subIndex];
+            beta.iterate([&](Pair<Symbol, Symbol> betaResult) {
                 dirty.insertElement(betaResult.key);
                 Set<false, Symbol> gamma;
                 gamma.symbol = betaResult.value;
-                gamma.iterate([&](Pair<Symbol, NativeNaturalType[0]>& gammaResult) {
+                gamma.iterate([&](Pair<Symbol, NativeNaturalType[0]> gammaResult) {
                     dirty.insertElement(gammaResult.key);
                     unlinkWithoutReleasing(Triple(symbol, betaResult.key, gammaResult.key).normalized(subIndex), true, symbol);
                 });
@@ -389,7 +395,7 @@ namespace Ontology {
             tryToReleaseSymbol(symbol);
         });
         for(NativeNaturalType subIndex = 0; subIndex < indexCount; ++subIndex)
-            Storage::releaseSymbol(symbols[alphaIndex].value[subIndex]);
+            Storage::releaseSymbol(element.value[subIndex]);
         Storage::releaseSymbol(symbol);
         return true;
     }
@@ -446,11 +452,18 @@ namespace Ontology {
         else if(isSame<DataType, NativeFloatType>())
             blobType = PreDef_Float;
         else
-            crash("createFromData<InvalidType>");
+            assert(false);
         Symbol symbol = Storage::createSymbol();
         link({symbol, PreDef_BlobType, blobType});
         Storage::writeBlob(symbol, src);
         return symbol;
+    }
+
+    Symbol createFromSlice(Symbol src, NativeNaturalType srcOffset, NativeNaturalType length) {
+        Symbol dst = Storage::createSymbol();
+        Storage::setBlobSize(dst, length);
+        Storage::sliceBlob(dst, src, 0, srcOffset, length);
+        return dst;
     }
 
     void stringToBlob(const char* src, NativeNaturalType length, Symbol dst) {
@@ -461,20 +474,9 @@ namespace Ontology {
         Storage::modifiedBlob(dst);
     }
 
-    Symbol createFromData(const char* src, NativeNaturalType length) {
-        Symbol dst = Storage::createSymbol();
-        stringToBlob(src, length, dst);
-        return dst;
-    }
-
     Symbol createFromData(const char* src) {
-        return createFromData(src, strlen(src));
-    }
-
-    Symbol createFromSlice(Symbol src, NativeNaturalType srcOffset, NativeNaturalType length) {
         Symbol dst = Storage::createSymbol();
-        Storage::setBlobSize(dst, length);
-        Storage::sliceBlob(dst, src, 0, srcOffset, length);
+        stringToBlob(src, strlen(src), dst);
         return dst;
     }
 

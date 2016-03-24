@@ -23,23 +23,27 @@ struct Vector {
         return (symbol) ? Storage::getBlobSize(symbol)/(sizeof(ElementType)*8) : 0;
     }
 
-    ElementType& operator[](NativeNaturalType at) const {
+    ElementType readElementAt(NativeNaturalType at) const {
         assert(symbol && at < size());
-        return *(reinterpret_cast<ElementType*>(Storage::accessBlobData(symbol))+at);
-        // return Storage::readBlobAt<ElementType>(symbol, at); // TODO
+        return Storage::readBlobAt<ElementType>(symbol, at);
     }
 
-    ElementType& front() const {
-        return (*this)[0];
+    void writeElementAt(NativeNaturalType at, ElementType element) const {
+        assert(symbol && at < size());
+        Storage::writeBlobAt<ElementType>(symbol, at, element);
     }
 
-    ElementType& back() const {
-        return (*this)[size()-1];
+    ElementType front() const {
+        return readElementAt(0);
     }
 
-    void iterate(Closure<void(ElementType&)> callback) const {
+    ElementType back() const {
+        return readElementAt(size()-1);
+    }
+
+    void iterate(Closure<void(ElementType)> callback) const {
         for(NativeNaturalType at = 0; at < size(); ++at)
-            callback((*this)[at]);
+            callback(readElementAt(at));
     }
 
     void activate() {
@@ -86,6 +90,7 @@ template<typename KeyType, typename ValueType>
 struct Pair {
     KeyType key;
     ValueType value;
+    Pair() {}
     Pair(KeyType _key) :key(_key) {}
     Pair(KeyType _key, ValueType _value) :key(_key), value(_value) {}
     operator KeyType() {
@@ -102,13 +107,13 @@ struct Set : public Vector<guarded, Pair<KeyType, ValueType>> {
 
     NativeNaturalType find(KeyType key) const {
         return binarySearch<NativeNaturalType>(Super::size(), [&](NativeNaturalType at) {
-            return key > (*this)[at];
+            return key > this->readElementAt(at);
         });
     }
 
     bool find(KeyType key, NativeNaturalType& at) const {
         at = find(key);
-        return (at < Super::size() && (*this)[at] == key);
+        return (at < Super::size() && this->readElementAt(at) == key);
     }
 
     bool insertElement(ElementType element) {
@@ -136,7 +141,7 @@ struct BlobIndex : public Set<guarded, Symbol> {
 
     NativeNaturalType find(Symbol key) const {
         return binarySearch<NativeNaturalType>(Super::size(), [&](NativeNaturalType at) {
-            return Storage::compareBlobs(key, (*this)[at]) < 0;
+            return Storage::compareBlobs(key, this->readElementAt(at)) < 0;
         });
     }
 
@@ -144,14 +149,14 @@ struct BlobIndex : public Set<guarded, Symbol> {
         at = find(element);
         if(at == Super::size())
             return false;
-        return (Storage::compareBlobs(element, (*this)[at]) == 0);
+        return (Storage::compareBlobs(element, this->readElementAt(at)) == 0);
     }
 
     void insertElement(Symbol& element) {
         NativeNaturalType at;
         if(find(element, at)) {
             Ontology::unlink(element);
-            element = (*this)[at];
+            element = this->readElementAt(at);
         } else
             Super::insert(at, element);
     }

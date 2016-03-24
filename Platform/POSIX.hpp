@@ -44,14 +44,22 @@ Symbol createFromFile(const char* path) {
     int fd = open(path, O_RDONLY);
     if(fd < 0)
         return PreDef_Void;
-    Symbol symbol = Storage::createSymbol();
-    Ontology::link({symbol, PreDef_BlobType, PreDef_Text});
-    NativeNaturalType len = lseek(fd, 0, SEEK_END);
-    Storage::setBlobSize(symbol, len*8);
+    Symbol dst = Storage::createSymbol();
+    Ontology::link({dst, PreDef_BlobType, PreDef_Text});
+    NativeNaturalType length = lseek(fd, 0, SEEK_END);
+    Storage::setBlobSize(dst, length*8);
     lseek(fd, 0, SEEK_SET);
-    read(fd, reinterpret_cast<char*>(Storage::accessBlobData(symbol)), len);
+    char buffer[64];
+    NativeNaturalType dstIndex = 0;
+    while(length > 0) {
+        NativeNaturalType count = min((NativeNaturalType)sizeof(buffer), length);
+        read(fd, buffer, count);
+        for(NativeNaturalType j = 0; j < count; ++j)
+            Storage::writeBlobAt<char>(dst, dstIndex++, buffer[j]);
+        length -= count;
+    }
     close(fd);
-    return symbol;
+    return dst;
 }
 
 void loadFromPath(Thread& thread, Symbol parentPackage, bool execute, char* path) {
@@ -59,19 +67,19 @@ void loadFromPath(Thread& thread, Symbol parentPackage, bool execute, char* path
     if(path[pathLen-1] == '/')
         path[pathLen-1] = 0;
     struct stat s;
-    char buffer[64];
+    char buffer[64]; // TODO: Use blob instead
     if(stat(path, &s) != 0)
         return;
     if(s.st_mode & S_IFDIR) {
         DIR* dp = opendir(path);
-        if(dp == nullptr)
-            crash("Could not open directory");
+        assert(dp);
         NativeNaturalType slashIndex = 0;
         for(NativeNaturalType i = pathLen-1; i > 0; --i)
             if(path[i] == '/') {
                 slashIndex = i+1;
                 break;
             }
+        // TODO: Use blob instead
         Storage::bitwiseCopy(reinterpret_cast<NativeNaturalType*>(buffer),
                              reinterpret_cast<NativeNaturalType*>(path),
                              0, slashIndex*8, (pathLen-slashIndex)*8);
@@ -92,8 +100,7 @@ void loadFromPath(Thread& thread, Symbol parentPackage, bool execute, char* path
         if(!stringEndsWith(path, ".sym"))
             return;
         Symbol file = createFromFile(path);
-        if(file == PreDef_Void)
-            crash("Could not open file");
+        assert(file != PreDef_Void);
         thread.deserializationTask(file, parentPackage);
         if(thread.uncaughtException())
             crash("Exception occurred while deserializing file");

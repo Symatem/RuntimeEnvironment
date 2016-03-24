@@ -1,4 +1,4 @@
-[![Build Status](https://secure.travis-ci.org/Symatem/VirtualMachine.png)](http://travis-ci.org/Symatem/VirtualMachine)
+[![Build Status](https://secure.travis-ci.org/Symatem/CppCodeBase.svg)](http://travis-ci.org/Symatem/CppCodeBase)
 
 RTE in C++11
 ============

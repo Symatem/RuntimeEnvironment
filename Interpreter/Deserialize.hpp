@@ -255,7 +255,7 @@ class Deserialize {
                     stack.pop_back();
                     currentEntry = parentEntry;
                     queue.symbol = currentEntry;
-                    parentEntry = (stack.size() < 2) ? PreDef_Void : stack[stack.size()-2];
+                    parentEntry = (stack.size() < 2) ? PreDef_Void : stack.readElementAt(stack.size()-2);
                 }   break;
             }
             ++column;
