@@ -79,22 +79,26 @@ namespace Ontology {
         return result;
     }
 
-    bool link(Triple triple) {
+    bool linkTriplePartial(Triple triple, NativeNaturalType subIndex) {
         NativeNaturalType alphaIndex;
-        forEachSubIndex {
-            Pair<Symbol, Symbol[6]> element;
-            if(!symbols.find(triple.pos[subIndex], alphaIndex)) {
-                element.key = triple.pos[subIndex];
-                for(NativeNaturalType i = 0; i < indexMode; ++i)
-                    element.value[i] = Storage::createSymbol();
-                symbols.insert(alphaIndex, element);
-            }
-            element = symbols.readElementAt(alphaIndex);
-            if(!linkInSubIndex(triple.forwardIndex(element.value, subIndex)))
-                return false;
-            if(indexMode == HexaIndex)
-                assert(linkInSubIndex(triple.reverseIndex(element.value, subIndex)));
+        Pair<Symbol, Symbol[6]> element;
+        if(!symbols.find(triple.pos[subIndex], alphaIndex)) {
+            element.key = triple.pos[subIndex];
+            for(NativeNaturalType i = 0; i < indexMode; ++i)
+                element.value[i] = Storage::createSymbol();
+            symbols.insert(alphaIndex, element);
         }
+        element = symbols.readElementAt(alphaIndex);
+        if(!linkInSubIndex(triple.forwardIndex(element.value, subIndex)))
+            return false;
+        if(indexMode == HexaIndex)
+            assert(linkInSubIndex(triple.reverseIndex(element.value, subIndex)));
+        return true;
+    }
+
+    bool link(Triple triple) {
+        forEachSubIndex
+            linkTriplePartial(triple, subIndex);
         if(triple.pos[1] == PreDef_BlobType)
             Storage::modifiedBlob(triple.pos[0]);
         return true;
@@ -309,6 +313,29 @@ namespace Ontology {
         if(!callback)
             handleNext = nullptr;
         return (*method.function)(method.subIndex, triple, handleNext);
+    }
+
+    void setIndexMode(IndexMode _indexMode) {
+        assert(indexMode != _indexMode);
+        if(indexMode < _indexMode) {
+            Triple triple;
+            searchVVV(EAV, triple, [&]() {
+                NativeNaturalType indexCount = (_indexMode == MonoIndex) ? 1 : 3;
+                for(NativeNaturalType subIndex = indexMode; subIndex < indexCount; ++subIndex)
+                    linkTriplePartial(triple, subIndex);
+            });
+        } else
+            symbols.iterate([&](Pair<Symbol, Symbol[6]> alphaResult) {
+                for(NativeNaturalType subIndex = _indexMode; subIndex < indexMode; ++subIndex) {
+                    Set<false, Symbol, Symbol> beta;
+                    beta.symbol = alphaResult.value[subIndex];
+                    beta.iterate([&](Pair<Symbol, Symbol> betaResult) {
+                        Storage::releaseSymbol(betaResult.value);
+                    });
+                    beta.clear();
+                }
+            });
+        indexMode = _indexMode;
     }
 
     bool unlinkInSubIndex(Triple triple) {

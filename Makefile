@@ -5,12 +5,12 @@ TARGET_POSIX := $(BUILDDIR)/SymatemRTE
 
 $(TARGET_POSIX):
 	mkdir -p $(BUILDDIR)
-	$(CC) $(CPPOPTIONS) -o $(TARGET_POSIX) main.cpp
+	$(CC) $(CPPOPTIONS) -o $(TARGET_POSIX) Platform/POSIX.cpp
 
 test: $(TARGET_POSIX)
 	$(TARGET_POSIX) $(STDPATH)/Foundation/ -e $(STDPATH)/Tests/
 
 clear:
-	rm -fr $(BUILDDIR)
+	rm -f $(TARGET_POSIX)
 
 rebuild: clear $(TARGET_POSIX)

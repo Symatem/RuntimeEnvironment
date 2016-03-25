@@ -67,7 +67,7 @@ void loadFromPath(Thread& thread, Symbol parentPackage, bool execute, char* path
     if(path[pathLen-1] == '/')
         path[pathLen-1] = 0;
     struct stat s;
-    char buffer[64]; // TODO: Use blob instead
+    char buffer[64];
     if(stat(path, &s) != 0)
         return;
     if(s.st_mode & S_IFDIR) {
@@ -79,7 +79,6 @@ void loadFromPath(Thread& thread, Symbol parentPackage, bool execute, char* path
                 slashIndex = i+1;
                 break;
             }
-        // TODO: Use blob instead
         Storage::bitwiseCopy(reinterpret_cast<NativeNaturalType*>(buffer),
                              reinterpret_cast<NativeNaturalType*>(path),
                              0, slashIndex*8, (pathLen-slashIndex)*8);
@@ -111,4 +110,29 @@ void loadFromPath(Thread& thread, Symbol parentPackage, bool execute, char* path
         else if(thread.uncaughtException())
             crash("Exception occurred while executing");
     }
+}
+
+
+
+Thread thread;
+
+int main(int argc, char** argv) {
+    Storage::load();
+    Ontology::tryToFillPreDef();
+
+    bool execute = false;
+    for(NativeNaturalType i = 1; i < argc; ++i) {
+        if(memcmp(argv[i], "-h", 2) == 0) {
+            printf("This is not the help page you are looking for.\n");
+            printf("No, seriously, RTFM.\n");
+            exit(2);
+        } else if(memcmp(argv[i], "-e", 2) == 0) {
+            execute = true;
+            continue;
+        }
+        loadFromPath(thread, PreDef_Void, execute, argv[i]);
+    }
+    thread.clear();
+
+    return 0;
 }
