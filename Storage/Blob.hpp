@@ -1,13 +1,7 @@
 #include "BpTree.hpp"
 
-typedef NativeNaturalType Symbol;
-
 namespace Storage {
-    struct Blob {
-        NativeNaturalType size;
-        NativeNaturalType data[0];
-    };
-    BpTree<Symbol, Blob*> blobs;
+    BpTree<Symbol, NativeNaturalType> blobs;
     Symbol maxSymbol = 0;
 
     Symbol createSymbol() {
@@ -20,34 +14,56 @@ namespace Storage {
         // blobIndex.eraseElement(symbol);
     }
 
+    NativeNaturalType accessBlobBits(Symbol symbol) {
+        BpTree<Symbol, NativeNaturalType>::Iterator<false> iter;
+        assert(blobs.at(iter, symbol));
+        return iter.getValue();
+    }
+
+    NativeNaturalType getBlobSize(Symbol symbol) {
+        BpTree<Symbol, NativeNaturalType>::Iterator<false> iter;
+        if(!blobs.at(iter, symbol))
+            return 0;
+        return *dereferenceBits(iter.getValue()-ArchitectureSize);
+    }
+
     void setBlobSize(Symbol symbol, NativeNaturalType size, NativeNaturalType preserve = 0) {
-        BpTree<Symbol, Blob*>::Iterator<false> iter;
-        bool existing = blobs.at(iter, symbol);
-        if(size == 0) {
-            if(existing) {
-                free(iter.getValue());
-                blobs.erase(iter);
-            }
+        BpTree<Symbol, NativeNaturalType>::Iterator<false> iter;
+        NativeNaturalType oldBlob, oldBlobSize;
+        if(blobs.at(iter, symbol)) {
+            oldBlob = iter.getValue();
+            oldBlobSize = getBlobSize(symbol);
+        } else
+            oldBlob = oldBlobSize = 0;
+        if(oldBlob && oldBlobSize == size)
             return;
+
+        NativeNaturalType newBlob;
+        if(size > 0) {
+            newBlob = reinterpret_cast<NativeNaturalType>(malloc((size+2*ArchitectureSize-1)/ArchitectureSize*ArchitectureSize))+sizeof(NativeNaturalType);
+            *reinterpret_cast<NativeNaturalType*>(newBlob+size/ArchitectureSize*sizeof(NativeNaturalType)) = 0;
+            newBlob = (newBlob-reinterpret_cast<NativeNaturalType>(ptr))*8;
         }
-        Blob* newBlob = reinterpret_cast<Blob*>(malloc((size+2*ArchitectureSize-1)/ArchitectureSize*ArchitectureSize));
-        if(existing) {
-            Blob* oldBlob = iter.getValue();
-            if(oldBlob->size > 0) {
-                NativeNaturalType length = min(oldBlob->size, size, preserve);
-                if(length > 0)
-                    bitwiseCopy<-1>(reinterpret_cast<NativeNaturalType*>(&newBlob->data),
-                                    reinterpret_cast<NativeNaturalType*>(&oldBlob->data),
-                                    0, 0, length);
-                free(oldBlob);
-            }
-        } else {
+
+        if(!oldBlob) {
+            if(size == 0)
+                return;
             blobs.insert(iter, symbol, newBlob);
             assert(blobs.at(iter, symbol));
+        } else if(oldBlobSize > 0) {
+            NativeNaturalType length = min(oldBlobSize, size, preserve);
+            if(length > 0)
+                bitwiseCopy<-1>(reinterpret_cast<NativeNaturalType*>(ptr),
+                                reinterpret_cast<const NativeNaturalType*>(ptr),
+                                newBlob, oldBlob, length);
+            free(dereferenceBits(oldBlob-ArchitectureSize));
+            if(size == 0) {
+                blobs.erase(iter);
+                return;
+            }
         }
-        newBlob->size = size;
-        if(size%ArchitectureSize > 0)
-            newBlob->data[size/ArchitectureSize] &= BitMask<NativeNaturalType>::fillLSBs(size%ArchitectureSize);
+
+        *dereferenceBits(newBlob-ArchitectureSize) = size;
         iter.setValue(newBlob);
     }
 
@@ -55,15 +71,26 @@ namespace Storage {
         setBlobSize(symbol, size, size);
     }
 
-    NativeNaturalType getBlobSize(Symbol symbol) {
-        BpTree<Symbol, Blob*>::Iterator<false> iter;
-        return (blobs.at(iter, symbol)) ? iter.getValue()->size : 0;
+    template <typename DataType>
+    DataType readBlobAt(Symbol src, NativeNaturalType srcIndex) {
+        return *(dereferenceBits<DataType>(accessBlobBits(src))+srcIndex);
     }
 
-    NativeNaturalType* accessBlobData(Symbol symbol) {
-        BpTree<Symbol, Blob*>::Iterator<false> iter;
-        assert(blobs.at(iter, symbol));
-        return reinterpret_cast<NativeNaturalType*>(&iter.getValue()->data);
+    template <typename DataType>
+    DataType readBlob(Symbol src) {
+        return readBlobAt<DataType>(src, 0);
+    }
+
+    template<typename DataType>
+    void writeBlobAt(Symbol dst, NativeNaturalType dstIndex, DataType src) {
+        *(dereferenceBits<DataType>(accessBlobBits(dst))+dstIndex) = src;
+    }
+
+    template<typename DataType>
+    void writeBlob(Symbol dst, DataType src) {
+        setBlobSize(dst, sizeof(src)*8);
+        writeBlobAt(dst, 0, src);
+        modifiedBlob(dst);
     }
 
     int compareBlobs(Symbol a, Symbol b) {
@@ -77,19 +104,21 @@ namespace Storage {
             return 1;
         if(sizeA == 0)
             return 0;
-        return memcmp(accessBlobData(a), accessBlobData(b), (sizeA+7)/8);
+        return memcmp(dereferenceBits(accessBlobBits(a)), dereferenceBits(accessBlobBits(b)), (sizeA+7)/8);
     }
 
     bool sliceBlob(Symbol dst, Symbol src, NativeNaturalType dstOffset, NativeNaturalType srcOffset, NativeNaturalType length) {
         NativeNaturalType dstSize = getBlobSize(dst),
-                         srcSize = getBlobSize(src);
+                          srcSize = getBlobSize(src);
         auto end = dstOffset+length;
         if(end <= dstOffset || end > dstSize)
             return false;
         end = srcOffset+length;
         if(end <= srcOffset || end > srcSize)
             return false;
-        bitwiseCopy(accessBlobData(dst), accessBlobData(src), dstOffset, srcOffset, length);
+        bitwiseCopy(reinterpret_cast<NativeNaturalType*>(ptr),
+                    reinterpret_cast<const NativeNaturalType*>(ptr),
+                    accessBlobBits(dst)+dstOffset, accessBlobBits(src)+srcOffset, length);
         modifiedBlob(dst);
         return true;
     }
@@ -99,29 +128,9 @@ namespace Storage {
             return;
         NativeNaturalType srcSize = getBlobSize(src);
         setBlobSize(dst, srcSize);
-        bitwiseCopy(accessBlobData(dst), accessBlobData(src), 0, 0, srcSize);
-        modifiedBlob(dst);
-    }
-
-    template <typename DataType>
-    DataType readBlobAt(Symbol src, NativeNaturalType srcIndex) {
-        return *(reinterpret_cast<DataType*>(accessBlobData(src))+srcIndex);
-    }
-
-    template <typename DataType>
-    DataType readBlob(Symbol src) {
-        return readBlobAt<DataType>(src, 0);
-    }
-
-    template<typename DataType>
-    void writeBlobAt(Symbol dst, NativeNaturalType dstIndex, DataType src) {
-        *(reinterpret_cast<DataType*>(accessBlobData(dst))+dstIndex) = src;
-    }
-
-    template<typename DataType>
-    void writeBlob(Symbol dst, DataType src) {
-        setBlobSize(dst, sizeof(src)*8);
-        writeBlobAt(dst, 0, src);
+        bitwiseCopy(reinterpret_cast<NativeNaturalType*>(ptr),
+                    reinterpret_cast<const NativeNaturalType*>(ptr),
+                    accessBlobBits(dst), accessBlobBits(src), srcSize);
         modifiedBlob(dst);
     }
 
@@ -129,10 +138,12 @@ namespace Storage {
         NativeNaturalType size = getBlobSize(symbol);
         if(begin >= end || end > size)
             return false;
-        NativeNaturalType* data = accessBlobData(symbol);
+        NativeNaturalType data = accessBlobBits(symbol);
         auto rest = size-end;
         if(rest > 0)
-            bitwiseCopy(data, data, begin, end, rest);
+            bitwiseCopy(reinterpret_cast<NativeNaturalType*>(ptr),
+                        reinterpret_cast<const NativeNaturalType*>(ptr),
+                        data+begin, data+end, rest);
         setBlobSizePreservingData(symbol, rest+begin);
         modifiedBlob(symbol);
         return true;
@@ -145,10 +156,14 @@ namespace Storage {
         if(dstSize >= newBlobSize || begin > dstSize)
             return false;
         setBlobSizePreservingData(dst, newBlobSize);
-        NativeNaturalType* dstData = accessBlobData(dst);
+        NativeNaturalType data = accessBlobBits(dst);
         if(rest > 0)
-            bitwiseCopy(dstData, dstData, begin+length, begin, rest);
-        bitwiseCopy(dstData, src, begin, 0, length);
+            bitwiseCopy(reinterpret_cast<NativeNaturalType*>(ptr),
+                        reinterpret_cast<const NativeNaturalType*>(ptr),
+                        data+begin+length, data+begin, rest);
+        bitwiseCopy(reinterpret_cast<NativeNaturalType*>(ptr),
+                    src,
+                    data+begin, 0, length);
         modifiedBlob(dst);
         return true;
     }

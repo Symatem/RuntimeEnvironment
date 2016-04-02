@@ -1,5 +1,7 @@
 #include "../Platform/CppDummy.hpp"
 
+typedef NativeNaturalType Symbol;
+
 template<typename type>
 struct BitMask {
     const static type empty = 0, one = 1, full = ~empty;
@@ -115,6 +117,11 @@ namespace Storage {
     void resizeMemory(NativeNaturalType pageCount);
     void load();
     void unload();
+
+    template<typename DataType = NativeNaturalType>
+    DataType* dereferenceBits(Symbol address) {
+        return reinterpret_cast<DataType*>(address/8+ptr);
+    }
 
     template<typename PageType>
     PageType* dereferencePage(PageRefType pageRef) {
