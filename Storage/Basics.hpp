@@ -1,18 +1,5 @@
 #include "../Platform/CppDummy.hpp"
 
-typedef NativeNaturalType Symbol;
-
-template<typename type>
-struct BitMask {
-    const static type empty = 0, one = 1, full = ~empty;
-    constexpr static type fillLSBs(NativeNaturalType len) {
-        return (len == sizeof(type)*8) ? full : (one<<len)-one;
-    }
-    constexpr static type fillMSBs(NativeNaturalType len) {
-        return (len == 0) ? empty : ~((one<<(sizeof(type)*8-len))-one);
-    }
-};
-
 class BasePage {
     public:
     NativeNaturalType transaction;
@@ -37,6 +24,37 @@ namespace Storage {
     void writeSegmentTo(NativeNaturalType* dst, NativeNaturalType keepMask, NativeNaturalType input) {
         *dst &= keepMask;
         *dst |= (~keepMask)&input;
+    }
+
+    NativeIntegerType bitwiseCompare(const NativeNaturalType* a, const NativeNaturalType* b,
+                                     NativeNaturalType aOffset, NativeNaturalType bOffset,
+                                     NativeNaturalType length) {
+        // TODO: Endian order
+        while(length >= ArchitectureSize) {
+            NativeIntegerType diff = aquireSegmentFrom<-1>(a, aOffset, ArchitectureSize)-aquireSegmentFrom<-1>(b, bOffset, ArchitectureSize);
+            if(diff != 0)
+                return diff;
+            length -= ArchitectureSize;
+        }
+        if(length == 0)
+            return 0;
+        return aquireSegmentFrom<0>(a, aOffset, length)-aquireSegmentFrom<0>(b, bOffset, length);
+    }
+
+    template<bool atEnd = false>
+    bool substrEqual(const char* a, const char* b) {
+        NativeNaturalType aOffset, aLen = strlen(a), bLen = strlen(b);
+        if(atEnd) {
+            if(aLen < bLen)
+                return false;
+            aOffset = (aLen-bLen)*8;
+        } else if(aLen != bLen)
+            return false;
+        else
+            aOffset = 0;
+        return bitwiseCompare(reinterpret_cast<const NativeNaturalType*>(a),
+                              reinterpret_cast<const NativeNaturalType*>(b),
+                              aOffset, 0, bLen*8) == 0;
     }
 
     template<int dir>
@@ -133,6 +151,7 @@ namespace Storage {
     void releasePage(PageRefType pageRef);
 };
 
+// TODO: Use inline linked list instead
 class PagePool {
     typedef uint16_t IndexType;
     PageRefType rootPageRef;

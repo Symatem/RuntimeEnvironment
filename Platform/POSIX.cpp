@@ -96,7 +96,7 @@ void loadFromPath(Thread& thread, Symbol parentPackage, bool execute, char* path
             }
         closedir(dp);
     } else if(s.st_mode & S_IFREG) {
-        if(!stringEndsWith(path, ".sym"))
+        if(!Storage::substrEqual<true>(path, ".sym"))
             return;
         Symbol file = createFromFile(path);
         assert(file != PreDef_Void);
@@ -118,15 +118,15 @@ Thread thread;
 
 int main(int argc, char** argv) {
     Storage::load();
-    Ontology::tryToFillPreDef();
 
+    Ontology::tryToFillPreDef();
     bool execute = false;
     for(NativeNaturalType i = 1; i < argc; ++i) {
-        if(memcmp(argv[i], "-h", 2) == 0) {
+        if(Storage::substrEqual(argv[i], "-h")) {
             printf("This is not the help page you are looking for.\n");
             printf("No, seriously, RTFM.\n");
             exit(2);
-        } else if(memcmp(argv[i], "-e", 2) == 0) {
+        } else if(Storage::substrEqual(argv[i], "-e")) {
             execute = true;
             continue;
         }

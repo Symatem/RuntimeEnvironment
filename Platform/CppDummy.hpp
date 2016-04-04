@@ -150,32 +150,52 @@ typedef long long unsigned int NativeNaturalType;
 typedef long long int NativeIntegerType;
 typedef double NativeFloatType;
 typedef NativeNaturalType PageRefType;
+typedef NativeNaturalType Symbol;
 const NativeNaturalType ArchitectureSize = sizeof(NativeNaturalType)*8;
 
 constexpr NativeNaturalType architecturePadding(NativeNaturalType bits) {
     return (bits+ArchitectureSize-1)/ArchitectureSize*ArchitectureSize;
 }
 
+template<typename DataType>
+struct BitMask {
+    const static NativeNaturalType bits = sizeof(DataType)*8;
+    const static DataType empty = 0, one = 1, full = ~empty;
+    constexpr static DataType fillLSBs(NativeNaturalType len) {
+        return (len == bits) ? full : (one<<len)-one;
+    }
+    constexpr static DataType fillMSBs(NativeNaturalType len) {
+        return (len == 0) ? empty : ~((one<<(bits-len))-one);
+    }
+    constexpr static NativeNaturalType clz(DataType value);
+    constexpr static NativeNaturalType ctz(DataType value);
+    constexpr static NativeNaturalType log2(DataType value) {
+        return bits-clz(value);
+    }
+};
+
+template<>
+constexpr NativeNaturalType BitMask<unsigned long>::clz(unsigned long value) {
+    return __builtin_clzl(value);
+}
+
+template<>
+constexpr NativeNaturalType BitMask<unsigned long>::ctz(unsigned long value) {
+    return __builtin_ctzl(value);
+}
+
+template<>
+constexpr NativeNaturalType BitMask<unsigned long long>::clz(unsigned long long value) {
+    return __builtin_clzll(value);
+}
+
+template<>
+constexpr NativeNaturalType BitMask<unsigned long long>::ctz(unsigned long long value) {
+    return __builtin_ctzll(value);
+}
+
 NativeNaturalType strlen(const char* str) {
     const char* pos;
     for(pos = str; *pos; ++pos);
     return pos-str;
-}
-
-int memcmp(const void* a, const void* b, NativeNaturalType length) {
-    const char *posA = reinterpret_cast<const char*>(a),
-               *posB = reinterpret_cast<const char*>(b),
-               *end = posA+length;
-    while(posA < end) {
-        if(*posA != *posB)
-            return *posA-*posB;
-        ++posA;
-        ++posB;
-    }
-    return 0;
-}
-
-bool stringEndsWith(const char* str, const char* end) {
-    NativeNaturalType endLen = strlen(end);
-    return memcmp(str+strlen(str)-endLen, end, endLen) == 0;
 }

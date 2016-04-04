@@ -14,7 +14,7 @@ namespace Storage {
         // blobIndex.eraseElement(symbol);
     }
 
-    NativeNaturalType accessBlobBits(Symbol symbol) {
+    NativeNaturalType accessBlobData(Symbol symbol) {
         BpTree<Symbol, NativeNaturalType>::Iterator<false> iter;
         assert(blobs.at(iter, symbol));
         return iter.getValue();
@@ -73,7 +73,7 @@ namespace Storage {
 
     template <typename DataType>
     DataType readBlobAt(Symbol src, NativeNaturalType srcIndex) {
-        return *(dereferenceBits<DataType>(accessBlobBits(src))+srcIndex);
+        return *(dereferenceBits<DataType>(accessBlobData(src))+srcIndex);
     }
 
     template <typename DataType>
@@ -83,7 +83,7 @@ namespace Storage {
 
     template<typename DataType>
     void writeBlobAt(Symbol dst, NativeNaturalType dstIndex, DataType src) {
-        *(dereferenceBits<DataType>(accessBlobBits(dst))+dstIndex) = src;
+        *(dereferenceBits<DataType>(accessBlobData(dst))+dstIndex) = src;
     }
 
     template<typename DataType>
@@ -93,18 +93,19 @@ namespace Storage {
         modifiedBlob(dst);
     }
 
-    int compareBlobs(Symbol a, Symbol b) {
+    NativeIntegerType compareBlobs(Symbol a, Symbol b) {
         if(a == b)
             return 0;
-        NativeNaturalType sizeA = getBlobSize(a),
-                          sizeB = getBlobSize(b);
+        NativeNaturalType sizeA = getBlobSize(a), sizeB = getBlobSize(b);
         if(sizeA < sizeB)
             return -1;
         if(sizeA > sizeB)
             return 1;
         if(sizeA == 0)
             return 0;
-        return memcmp(dereferenceBits(accessBlobBits(a)), dereferenceBits(accessBlobBits(b)), (sizeA+7)/8);
+        return bitwiseCompare(reinterpret_cast<const NativeNaturalType*>(ptr),
+                              reinterpret_cast<const NativeNaturalType*>(ptr),
+                              accessBlobData(a), accessBlobData(b), sizeA);
     }
 
     bool sliceBlob(Symbol dst, Symbol src, NativeNaturalType dstOffset, NativeNaturalType srcOffset, NativeNaturalType length) {
@@ -118,7 +119,7 @@ namespace Storage {
             return false;
         bitwiseCopy(reinterpret_cast<NativeNaturalType*>(ptr),
                     reinterpret_cast<const NativeNaturalType*>(ptr),
-                    accessBlobBits(dst)+dstOffset, accessBlobBits(src)+srcOffset, length);
+                    accessBlobData(dst)+dstOffset, accessBlobData(src)+srcOffset, length);
         modifiedBlob(dst);
         return true;
     }
@@ -130,7 +131,7 @@ namespace Storage {
         setBlobSize(dst, srcSize);
         bitwiseCopy(reinterpret_cast<NativeNaturalType*>(ptr),
                     reinterpret_cast<const NativeNaturalType*>(ptr),
-                    accessBlobBits(dst), accessBlobBits(src), srcSize);
+                    accessBlobData(dst), accessBlobData(src), srcSize);
         modifiedBlob(dst);
     }
 
@@ -138,7 +139,7 @@ namespace Storage {
         NativeNaturalType size = getBlobSize(symbol);
         if(begin >= end || end > size)
             return false;
-        NativeNaturalType data = accessBlobBits(symbol);
+        NativeNaturalType data = accessBlobData(symbol);
         auto rest = size-end;
         if(rest > 0)
             bitwiseCopy(reinterpret_cast<NativeNaturalType*>(ptr),
@@ -156,7 +157,7 @@ namespace Storage {
         if(dstSize >= newBlobSize || begin > dstSize)
             return false;
         setBlobSizePreservingData(dst, newBlobSize);
-        NativeNaturalType data = accessBlobBits(dst);
+        NativeNaturalType data = accessBlobData(dst);
         if(rest > 0)
             bitwiseCopy(reinterpret_cast<NativeNaturalType*>(ptr),
                         reinterpret_cast<const NativeNaturalType*>(ptr),
