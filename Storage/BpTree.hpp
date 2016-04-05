@@ -1,8 +1,7 @@
 #include "Basics.hpp"
 
-template<class KeyType, class ValueType>
-class BpTree {
-    public:
+template<typename KeyType, typename ValueType>
+struct BpTree {
     typedef int16_t DistributionType;
     typedef uint16_t IndexType;
     typedef int8_t LayerType;
@@ -18,8 +17,7 @@ class BpTree {
         NativeNaturalType pageCount;
     };
 
-    class Page : public BasePage {
-        public:
+    struct Page : public BasePage {
         static const NativeNaturalType
             HeaderBits = sizeof(BasePage)*8+sizeof(IndexType)*8,
             BodyOffset = architecturePadding(HeaderBits),

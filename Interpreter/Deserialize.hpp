@@ -15,7 +15,7 @@ if(Ontology::query(1, {Name##Symbol, PreDef_BlobType, expectedType}) == 0) \
         Name##Value = thread.readBlob<NativeNaturalType>(Name##Symbol); \
     }
 
-class Deserialize {
+struct Deserialize {
     Thread& thread;
     Symbol input, package, parentEntry, currentEntry;
     BlobIndex<false> locals;
@@ -179,7 +179,6 @@ class Deserialize {
             thread.link({entity, attribute, queue.pop_back()});
     }
 
-    public:
     Deserialize(Thread& _thread) :thread(_thread) {
         package = thread.getGuaranteed(thread.block, PreDef_Package);
         input = thread.getGuaranteed(thread.block, PreDef_Input);

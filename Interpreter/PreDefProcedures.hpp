@@ -44,7 +44,7 @@ struct PreDefProcedure_Unlink {
     static bool e(Thread& thread, Triple triple) { return Ontology::unlink(triple); };
 };
 
-template<class op>
+template<typename op>
 PreDefProcedure(Triple) {
     getSymbolByName(Entity)
     getSymbolByName(Attribute)
@@ -268,7 +268,7 @@ struct PreDefProcedure_LessEqual {
     static bool s(Symbol i, Symbol c) { return Storage::compareBlobs(i, c) <= 0; };
 };
 
-template<class op>
+template<typename op>
 PreDefProcedure(CompareLogic) {
     getSymbolByName(Input)
     getSymbolByName(Comparandum)
@@ -327,7 +327,7 @@ struct PreDefProcedure_BitShiftBarrel {
     };
 };
 
-template<class op>
+template<typename op>
 PreDefProcedure(BitShift) {
     getSymbolByName(Input)
     getSymbolByName(Count)
@@ -370,7 +370,7 @@ struct PreDefProcedure_BitwiseXor {
     static void n(NativeNaturalType& dst, NativeNaturalType src) { dst ^= src; };
 };
 
-template<class op>
+template<typename op>
 PreDefProcedure(AssociativeCommutativeBitwise) {
     NativeNaturalType OutputValue;
     bool first = true;
@@ -401,7 +401,7 @@ struct PreDefProcedure_Multiply {
     static void f(NativeFloatType& dst, NativeFloatType src) { dst *= src; };
 };
 
-template<class op>
+template<typename op>
 PreDefProcedure(AssociativeCommutativeArithmetic) {
     Symbol type;
     union {

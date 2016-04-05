@@ -33,9 +33,9 @@ struct BoolConstant {
         return value;
     };
 };
-template<class type, class otherType>
+template<typename type, typename otherType>
 struct isSame : public BoolConstant<false> {};
-template<class type>
+template<typename type>
 struct isSame<type, type> : public BoolConstant<true> {};
 
 namespace __cxxabiv1 {

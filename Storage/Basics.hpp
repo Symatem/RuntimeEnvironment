@@ -1,7 +1,6 @@
 #include "../Platform/CppDummy.hpp"
 
-class BasePage {
-    public:
+struct BasePage {
     NativeNaturalType transaction;
 };
 
@@ -151,138 +150,38 @@ namespace Storage {
     void releasePage(PageRefType pageRef);
 };
 
-// TODO: Use inline linked list instead
-class PagePool {
-    typedef uint16_t IndexType;
-    PageRefType rootPageRef;
-
-    public:
-    class Page : public BasePage {
-        public:
-        static const NativeNaturalType
-            HeaderBits = sizeof(BasePage)*8+sizeof(IndexType)*8+sizeof(PageRefType)*8,
-            BodyBits = Storage::bitsPerPage-HeaderBits,
-            PageRefBits = sizeof(PageRefType)*8,
-            Capacity = (BodyBits-PageRefBits)/PageRefBits,
-            PageRefsBitOffset = architecturePadding(HeaderBits);
-
-        IndexType count;
-        PageRefType chain, pageRefs[Capacity];
-
-        void init(PageRefType _chain = 0) {
-            count = 0;
-            chain = _chain;
-        }
-
-        bool contains(PageRefType item) {
-            for(NativeNaturalType i = 0; i < count; ++i)
-                if(pageRefs[i] == item)
-                    return true;
-            return false;
-        }
-
-        void debugPrint() {
-            printf("%hu\n", count);
-            for(NativeNaturalType i = 0; i < count; ++i) {
-                if(i > 0)
-                    printf(", ");
-                printf("%llu", pageRefs[i]);
-            }
-            printf("\n");
-        }
-
-        void push(PageRefType pageRef) {
-            assert(count < Capacity);
-            pageRefs[count++] = pageRef;
-        }
-
-        PageRefType pop() {
-            assert(count > 0);
-            return pageRefs[--count];
-        }
-    };
-
-    void init() {
-        rootPageRef = 0;
-    }
-
-    bool empty() const {
-        return (rootPageRef == 0);
-    }
-
-    bool contains(PageRefType item) {
-        PageRefType pageRef = rootPageRef;
-        while(pageRef != 0) {
-            auto page = Storage::dereferencePage<Page>(pageRef);
-            if(pageRef == item || page->contains(item))
-                return true;
-            pageRef = page->chain;
-        }
-        return false;
-    }
-
-    void debugPrint() {
-        PageRefType pageRef = rootPageRef;
-        while(pageRef != 0) {
-            auto page = Storage::dereferencePage<Page>(pageRef);
-            printf("Page %llu ", pageRef);
-            page->debugPrint();
-            pageRef = page->chain;
-        }
-    }
-
-    void push(PageRefType pageRef) {
-        if(rootPageRef == 0) {
-            rootPageRef = pageRef;
-            auto page = Storage::dereferencePage<Page>(rootPageRef);
-            page->init();
-            return;
-        }
-        auto page = Storage::dereferencePage<Page>(rootPageRef);
-        if(page->count == Page::Capacity) {
-            PageRefType chain = rootPageRef;
-            rootPageRef = pageRef;
-            page = Storage::dereferencePage<Page>(rootPageRef);
-            page->init(chain);
-        } else
-            page->push(pageRef);
-    }
-
-    PageRefType pop() {
-        assert(!empty());
-        auto page = Storage::dereferencePage<Page>(rootPageRef);
-        if(page->count == 0) {
-            PageRefType pageRef = rootPageRef;
-            rootPageRef = page->chain;
-            return pageRef;
-        } else
-            return page->pop();
-    }
+struct FreePage : public BasePage {
+    PageRefType next;
 };
 
-class SuperPage : public BasePage {
-    public:
-    PagePool freePool;
+struct SuperPage : public BasePage {
+    PageRefType freePage;
 };
 
 namespace Storage {
     PageRefType aquirePage() {
         assert(ptr);
-        PageRefType pageRef;
         auto superPage = dereferencePage<SuperPage>(0);
-        if(superPage->freePool.empty()) {
+        if(superPage->freePage) {
+            PageRefType pageRef = superPage->freePage;
+            auto freePage = dereferencePage<FreePage>(pageRef);
+            superPage->freePage = freePage->next;
+            return pageRef;
+        } else {
             resizeMemory(pageCount+1);
-            pageRef = pageCount-1;
-        } else
-            pageRef = superPage->freePool.pop();
-        return pageRef;
+            return pageCount-1;
+        }
     }
 
     void releasePage(PageRefType pageRef) {
         assert(ptr);
         if(pageRef == pageCount-1)
             resizeMemory(pageCount-1);
-        else
-            dereferencePage<SuperPage>(0)->freePool.push(pageRef);
+        else {
+            auto superPage = dereferencePage<SuperPage>(0);
+            auto freePage = dereferencePage<FreePage>(pageRef);
+            freePage->next = superPage->freePage;
+            superPage->freePage = pageRef;
+        }
     }
 };
