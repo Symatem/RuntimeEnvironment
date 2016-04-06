@@ -16,21 +16,21 @@ namespace Storage {
 
     NativeNaturalType accessBlobData(Symbol symbol) {
         BpTree<Symbol, NativeNaturalType>::Iterator<false> iter;
-        assert(blobs.at(iter, symbol));
+        assert(blobs.find(iter, symbol));
         return iter.getValue();
     }
 
     NativeNaturalType getBlobSize(Symbol symbol) {
         BpTree<Symbol, NativeNaturalType>::Iterator<false> iter;
-        if(!blobs.at(iter, symbol))
+        if(!blobs.find(iter, symbol))
             return 0;
         return *dereferenceBits(iter.getValue()-ArchitectureSize);
     }
 
     void setBlobSize(Symbol symbol, NativeNaturalType size, NativeNaturalType preserve = 0) {
-        BpTree<Symbol, NativeNaturalType>::Iterator<false> iter;
+        BpTree<Symbol, NativeNaturalType>::Iterator<true> iter;
         NativeNaturalType oldBlob, oldBlobSize;
-        if(blobs.at(iter, symbol)) {
+        if(blobs.find(iter, symbol)) {
             oldBlob = iter.getValue();
             oldBlobSize = getBlobSize(symbol);
         } else
@@ -49,7 +49,7 @@ namespace Storage {
             if(size == 0)
                 return;
             blobs.insert(iter, symbol, newBlob);
-            assert(blobs.at(iter, symbol));
+            assert(blobs.find(iter, symbol));
         } else if(oldBlobSize > 0) {
             NativeNaturalType length = min(oldBlobSize, size, preserve);
             if(length > 0)
