@@ -2,11 +2,24 @@
 
 namespace Storage {
     BpTree<Symbol, NativeNaturalType> blobs;
-    Symbol maxSymbol = 0;
+    BpTree<Symbol> freeSymbols; // TODO: Fix scrutinizeExistence
+    Symbol symbolCount = 0;
+
+    void updateStats() {
+        // usage.wilderness = 0;
+        usage.uninhabitable = 0;
+        usage.totalMetaData = bitsPerPage;
+        usage.inhabitedMetaData = sizeof(SuperPage)*8;
+        usage.totalBlobData = 0;
+        usage.inhabitedBlobData = 0;
+        blobs.updateStats();
+    }
 
     Symbol createSymbol() {
-        // TODO: Symbol free pool
-        return ++maxSymbol;
+        /*if(freeSymbols.elementCount)
+            return freeSymbols.getAndEraseFromSet();
+        else */
+            return symbolCount++;
     }
 
     void modifiedBlob(Symbol symbol) {
@@ -37,14 +50,12 @@ namespace Storage {
             oldBlob = oldBlobSize = 0;
         if(oldBlob && oldBlobSize == size)
             return;
-
         NativeNaturalType newBlob;
         if(size > 0) {
             newBlob = reinterpret_cast<NativeNaturalType>(malloc((size+2*ArchitectureSize-1)/ArchitectureSize*ArchitectureSize))+sizeof(NativeNaturalType);
             *reinterpret_cast<NativeNaturalType*>(newBlob+size/ArchitectureSize*sizeof(NativeNaturalType)) = 0;
             newBlob = (newBlob-reinterpret_cast<NativeNaturalType>(ptr))*8;
         }
-
         if(!oldBlob) {
             if(size == 0)
                 return;
@@ -62,7 +73,6 @@ namespace Storage {
                 return;
             }
         }
-
         *dereferenceBits(newBlob-ArchitectureSize) = size;
         iter.setValue(newBlob);
     }
@@ -170,7 +180,10 @@ namespace Storage {
     }
 
     void releaseSymbol(Symbol symbol) {
-        // TODO: Symbol free pool
         setBlobSize(symbol, 0);
+        /*if(symbol == symbolCount-1)
+            --symbolCount;
+        else
+            freeSymbols.insert(symbol);*/
     }
 };

@@ -169,7 +169,7 @@ struct BitMask {
     }
     constexpr static NativeNaturalType clz(DataType value);
     constexpr static NativeNaturalType ctz(DataType value);
-    constexpr static NativeNaturalType log2(DataType value) {
+    constexpr static NativeNaturalType ceilLog2(DataType value) {
         return bits-clz(value);
     }
 };

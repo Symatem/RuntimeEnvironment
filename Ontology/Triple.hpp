@@ -16,6 +16,12 @@ const char* PreDefSymbols[] = {
     NativeNaturalType indexCount = (indexMode == MonoIndex) ? 1 : 3; \
     for(NativeNaturalType subIndex = 0; subIndex < indexCount; ++subIndex)
 
+#define eraseSymbol \
+    for(NativeNaturalType subIndex = 0; subIndex < indexMode; ++subIndex) \
+        Storage::releaseSymbol(element.value[subIndex]); \
+    Storage::releaseSymbol(symbol); \
+    symbols.erase(alphaIndex);
+
 union Triple {
     Symbol pos[3];
     struct {
@@ -87,8 +93,8 @@ namespace Ontology {
             for(NativeNaturalType i = 0; i < indexMode; ++i)
                 element.value[i] = Storage::createSymbol();
             symbols.insert(alphaIndex, element);
-        }
-        element = symbols.readElementAt(alphaIndex);
+        } else
+            element = symbols.readElementAt(alphaIndex);
         if(!linkInSubIndex(triple.forwardIndex(element.value, subIndex)))
             return false;
         if(indexMode == HexaIndex)
@@ -315,6 +321,7 @@ namespace Ontology {
         return (*method.function)(method.subIndex, triple, handleNext);
     }
 
+    // TODO: Test
     void setIndexMode(IndexMode _indexMode) {
         assert(indexMode != _indexMode);
         if(indexMode < _indexMode) {
@@ -384,9 +391,7 @@ namespace Ontology {
             if(!beta.empty())
                 return;
         }
-        for(NativeNaturalType subIndex = 0; subIndex < indexCount; ++subIndex)
-            Storage::releaseSymbol(element.value[subIndex]);
-        Storage::releaseSymbol(symbol);
+        eraseSymbol
     }
 
     bool unlink(Triple triple) {
@@ -421,9 +426,7 @@ namespace Ontology {
         dirty.iterate([&](Symbol symbol) {
             tryToReleaseSymbol(symbol);
         });
-        for(NativeNaturalType subIndex = 0; subIndex < indexCount; ++subIndex)
-            Storage::releaseSymbol(element.value[subIndex]);
-        Storage::releaseSymbol(symbol);
+        eraseSymbol
         return true;
     }
 
@@ -449,9 +452,9 @@ namespace Ontology {
         });
     }
 
-    bool getUncertain(Symbol alpha, Symbol beta, Symbol& gamma) {
-        return (query(9, {alpha, beta, PreDef_Void}, [&](Triple result) {
-            gamma = result.pos[0];
+    bool getUncertain(Symbol entity, Symbol attribute, Symbol& value) {
+        return (query(9, {entity, attribute, PreDef_Void}, [&](Triple result) {
+            value = result.pos[0];
         }) == 1);
     }
 
@@ -465,7 +468,7 @@ namespace Ontology {
             query(9, {symbol, PreDef_Holds, PreDef_Void}, [&](Triple result) {
                 symbols.insertElement(result.pos[0]);
             });
-            assert(unlink(symbol));
+            unlink(symbol); // TODO
         }
     }
 
@@ -511,7 +514,7 @@ namespace Ontology {
         if(!symbols.empty())
             return;
         const Symbol preDefSymbolsEnd = sizeof(PreDefSymbols)/sizeof(void*);
-        Storage::maxSymbol = preDefSymbolsEnd;
+        Storage::symbolCount = preDefSymbolsEnd;
         for(Symbol symbol = 0; symbol < preDefSymbolsEnd; ++symbol) {
             const char* str = PreDefSymbols[symbol];
             stringToBlob(str, strlen(str), symbol);

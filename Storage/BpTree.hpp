@@ -39,7 +39,7 @@ struct BpTree {
             valueOffset = Storage::bitsPerPage-valueBits*leafKeyCount;
 
         template<bool isLeaf>
-        static NativeNaturalType capacity() {
+        static IndexType capacity() {
             return (isLeaf) ? leafKeyCount : branchKeyCount+1;
         }
 
@@ -498,6 +498,7 @@ struct BpTree {
     };
 
     PageRefType rootPageRef;
+    NativeNaturalType elementCount;
     LayerType layerCount;
     static const LayerType maxLayerCount = 9;
 
@@ -556,7 +557,7 @@ struct BpTree {
         }
 
         template<int dir = 1>
-        NativeNaturalType advanceAtLayer(LayerType atLayer, NativeNaturalType steps = 1) {
+        NativeNaturalType advanceAtLayer(LayerType atLayer, NativeNaturalType steps = 1, Closure<void(LayerType, Page*)> pageTouchCallback = nullptr) {
             if(steps == 0 || end == 0 || atLayer < 0 || atLayer >= end)
                 return steps;
             bool keepRunning;
@@ -601,6 +602,8 @@ struct BpTree {
                         frame = fromBegin(++layer);
                         frame->pageRef = parent->getPageRef(parentIndex);
                         Page* page = getPage<enableCopyOnWrite>(frame->pageRef);
+                        if(pageTouchCallback)
+                            pageTouchCallback(layer, page);
                         // parent->setPageRef(parentIndex, frame->pageRef); // TODO: Update pageRef in getPage
                         frame->endIndex = page->header.count;
                         frame->index = (dir == 1) ? 0 : frame->endIndex-1;
@@ -652,8 +655,8 @@ struct BpTree {
         }
     };
 
-    template<bool enableCopyOnWrite, bool border = false, bool lower = false>
-	bool find(Iterator<enableCopyOnWrite>& iter, KeyType key = 0) {
+    template<bool enableCopyOnWrite, bool border = false, bool upper = false>
+	bool find(Iterator<enableCopyOnWrite>& iter, KeyType key = 0, Closure<void(LayerType, Page*)> pageTouchCallback = nullptr) {
         iter.end = layerCount;
 		if(empty())
             return false;
@@ -663,17 +666,19 @@ struct BpTree {
 	        auto frame = iter.fromBegin(layer);
             frame->pageRef = pageRef;
             Page* page = getPage<enableCopyOnWrite>(frame->pageRef);
+            if(pageTouchCallback)
+                pageTouchCallback(layer, page);
             // parent->setPageRef(parentIndex, frame->pageRef); // TODO: Update pageRef in getPage
             frame->endIndex = page->header.count;
 	        if(++layer == iter.end) {
                 if(border)
-                    frame->index = (lower) ? 0 : page->header.count;
+                    frame->index = (upper) ? page->header.count : 0;
                 else
                     frame->index = page->template indexOfKey<true>(key);
                 return border || (frame->index < page->header.count && page->template getKey<true>(frame->index) == key);
 	        } else {
                 if(border)
-                    frame->index = (lower) ? 0 : page->header.count-1;
+                    frame->index = (upper) ? page->header.count-1 : 0;
                 else
                     frame->index = page->template indexOfKey<false>(key);
                 pageRef = page->getPageRef(frame->index);
@@ -681,8 +686,46 @@ struct BpTree {
 	    }
 	}
 
+    void iterate(Closure<void(Iterator<false>&)> callback) {
+        if(empty())
+            return;
+        Iterator<false> iter;
+        find<false, true, false>(iter);
+        do {
+            callback(iter);
+        } while(iter.advance() == 0);
+    }
+
+    void updateStats(Closure<void(Iterator<false>&)> callback = nullptr) {
+        if(empty())
+            return;
+        Iterator<false> iter;
+        NativeNaturalType branchPageCount = 0, leafPageCount = 0;
+        Closure<void(LayerType, Page*)> pageTouch = [&](LayerType layer, Page* page) {
+            if(layer == layerCount-1) {
+                ++leafPageCount;
+                if(callback)
+                    for(; iter.fromEnd()->index < iter.fromEnd()->endIndex; ++iter.fromEnd()->index)
+                        callback(iter);
+            } else {
+                ++branchPageCount;
+                Storage::usage.inhabitedMetaData += (Page::keyBits+Page::pageRefBits)*page->header.count+Page::pageRefBits;
+            }
+        };
+        find<false, true, false>(iter, 0, pageTouch);
+        while(iter.template advanceAtLayer<1>(iter.end-2, 1, pageTouch) == 0);
+        NativeNaturalType uninhabitable = Page::valueOffset-Page::headerBits-Page::keyBits*Page::leafKeyCount;
+        Storage::usage.uninhabitable += uninhabitable*leafPageCount;
+        Storage::usage.totalMetaData += (Storage::bitsPerPage-uninhabitable)*leafPageCount;
+        Storage::usage.inhabitedMetaData += (Page::keyBits+Page::valueBits)*elementCount;
+        uninhabitable = Page::pageRefOffset-Page::headerBits-Page::keyBits*Page::branchKeyCount;
+        Storage::usage.uninhabitable += uninhabitable*branchPageCount;
+        Storage::usage.totalMetaData += (Storage::bitsPerPage-uninhabitable)*branchPageCount;
+    }
+
     void init() {
         rootPageRef = 0;
+        elementCount = 0;
         layerCount = 0;
     }
 
@@ -874,19 +917,20 @@ struct BpTree {
     }
 
     typedef Closure<void(Page*, IndexType, IndexType)> AquireData;
-    void insert(Iterator<true>& origIter, NativeNaturalType elementCount, AquireData aquireData) {
-        assert(elementCount > 0);
+    void insert(Iterator<true>& origIter, NativeNaturalType n, AquireData aquireData) {
+        assert(n > 0);
         InsertData data;
         data.startLayer = 0;
-        data.elementCount = elementCount;
+        data.elementCount = n;
         LayerType addedLayers = insertPhase1<IteratorFrame>(data, origIter);
         addedLayers = (addedLayers < 0) ? -addedLayers : 0;
         layerCount += addedLayers;
+        elementCount += n;
         Iterator<true, InsertIteratorFrame> iter;
         iter.end = layerCount;
         iter.copy(origIter);
         data.startLayer = addedLayers;
-        data.elementCount = elementCount;
+        data.elementCount = n;
         LayerType unmodifiedLayerCount = insertPhase1<InsertIteratorFrame>(data, iter);
         assert(addedLayers == 0 || unmodifiedLayerCount == 0);
         rootPageRef = iter.fromBegin(0)->pageRef;
@@ -993,6 +1037,8 @@ struct BpTree {
         if(lowerInner == higherInner) {
             if(lowerInnerIndex >= higherInnerIndex)
                 return false;
+            if(isLeaf)
+                elementCount -= higherInnerIndex-lowerInnerIndex;
             Page::template erase1<isLeaf>(lowerInner, lowerInnerIndex, higherInnerIndex);
             if(data.layer == 0) {
                 eraseEmptyLayer<isLeaf>(data, lowerInner);
@@ -1002,6 +1048,8 @@ struct BpTree {
             IteratorFrame* parentFrame = data.to.getParentFrame(data.layer);
             IndexType higherInnerParentIndex = parentFrame->index-1;
             Page* higherInnerParent = getPage(parentFrame->pageRef);
+            if(isLeaf)
+                elementCount -= lowerInner->header.count-lowerInnerIndex+higherInnerIndex;
             if(Page::template erase2<isLeaf>(higherInnerParent, lowerInner, higherInner,
                                              higherInnerParentIndex, lowerInnerIndex, higherInnerIndex)) {
                 Storage::releasePage(data.to.fromBegin(data.layer)->pageRef);
@@ -1009,8 +1057,12 @@ struct BpTree {
             }
             data.iter.copy(data.to);
             while(data.iter.template advanceAtLayer<-1>(data.layer-1) == 0 &&
-                  data.iter.fromBegin(data.layer)->pageRef != data.from.fromBegin(data.layer)->pageRef)
-                Storage::releasePage(data.iter.fromBegin(data.layer)->pageRef);
+                  data.iter.fromBegin(data.layer)->pageRef != data.from.fromBegin(data.layer)->pageRef) {
+                PageRefType pageRef = data.iter.fromBegin(data.layer)->pageRef;
+                if(isLeaf)
+                    elementCount -= getPage(pageRef)->header.count;
+                Storage::releasePage(pageRef);
+            }
         }
         if(lowerInner->header.count < Page::template capacity<isLeaf>()/2) {
             IndexType lowerInnerParentIndex, higherOuterParentIndex;
@@ -1050,5 +1102,13 @@ struct BpTree {
             return false;
         erase(iter);
         return true;
+    }
+
+    KeyType getAndEraseFromSet() {
+        Iterator<true> iter;
+        find<true, true, false>(iter);
+        KeyType key = iter.getKey();
+        erase(iter);
+        return key;
     }
 };

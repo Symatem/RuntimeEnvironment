@@ -130,6 +130,14 @@ namespace Storage {
     int file;
     char* ptr;
     PageRefType pageCount;
+    struct UsageStats {
+        NativeNaturalType wilderness, // TODO
+                          uninhabitable,
+                          totalMetaData,
+                          totalBlobData,
+                          inhabitedMetaData,
+                          inhabitedBlobData;
+    } usage;
 
     void resizeMemory(NativeNaturalType pageCount);
     void load();
@@ -166,6 +174,7 @@ namespace Storage {
             PageRefType pageRef = superPage->freePage;
             auto freePage = dereferencePage<FreePage>(pageRef);
             superPage->freePage = freePage->next;
+            usage.wilderness -= bitsPerPage;
             return pageRef;
         } else {
             resizeMemory(pageCount+1);
@@ -182,6 +191,7 @@ namespace Storage {
             auto freePage = dereferencePage<FreePage>(pageRef);
             freePage->next = superPage->freePage;
             superPage->freePage = pageRef;
+            usage.wilderness += bitsPerPage;
         }
     }
 };

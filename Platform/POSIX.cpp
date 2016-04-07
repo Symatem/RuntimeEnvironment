@@ -40,6 +40,34 @@ void Storage::unload() {
     assert(close(file) == 0);
 }
 
+void printStats() {
+    Storage::updateStats();
+    NativeNaturalType wilderness =
+        Storage::pageCount*Storage::bitsPerPage
+        -Storage::usage.uninhabitable
+        -Storage::usage.totalMetaData
+        -Storage::usage.totalBlobData;
+    assert(Storage::usage.wilderness == wilderness);
+    // assert(Storage::symbolCount == Storage::blobs.elementCount+Storage::freeSymbols.elementCount);
+    printf("Stats:\n");
+    printf("  Total:           %10llu bits\n", Storage::pageCount*Storage::bitsPerPage);
+    printf("    Wilderness:    %10llu bits\n", wilderness);
+    printf("    Uninhabitable: %10llu bits\n", Storage::usage.uninhabitable);
+    printf("    Meta:          %10llu bits\n", Storage::usage.totalMetaData);
+    printf("      Inhabited:   %10llu bits\n", Storage::usage.inhabitedMetaData);
+    printf("      Vacant:      %10llu bits\n", Storage::usage.totalMetaData-Storage::usage.inhabitedMetaData);
+    printf("    Blob:          %10llu bits\n", Storage::usage.totalBlobData);
+    printf("      Inhabited:   %10llu bits\n", Storage::usage.inhabitedBlobData);
+    printf("      Vacant:      %10llu bits\n", Storage::usage.totalBlobData-Storage::usage.inhabitedBlobData);
+    printf("  Total:           %10llu symbols\n", Storage::symbolCount);
+    printf("    Recyclable:    %10llu symbols\n", Storage::symbolCount-Storage::blobs.elementCount);
+    printf("    Used:          %10llu symbols\n", Storage::blobs.elementCount);
+    printf("      Meta:        %10llu symbols\n", Storage::blobs.elementCount-Ontology::symbols.size());
+    printf("      User:        %10llu symbols\n", Ontology::symbols.size());
+    printf("  Total:           %10llu triples\n", Ontology::query(13, {}));
+    printf("\n");
+}
+
 Symbol createFromFile(const char* path) {
     int fd = open(path, O_RDONLY);
     if(fd < 0)
@@ -133,6 +161,7 @@ int main(int argc, char** argv) {
         loadFromPath(thread, PreDef_Void, execute, argv[i]);
     }
     thread.clear();
+    printStats();
 
     return 0;
 }
