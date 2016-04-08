@@ -139,43 +139,31 @@ namespace Storage {
             return;
         NativeNaturalType srcSize = getBlobSize(src);
         setBlobSize(dst, srcSize);
-        bitwiseCopy(reinterpret_cast<NativeNaturalType*>(ptr),
-                    reinterpret_cast<const NativeNaturalType*>(ptr),
-                    accessBlobData(dst), accessBlobData(src), srcSize);
+        sliceBlob(dst, src, 0, 0, srcSize);
         modifiedBlob(dst);
     }
 
-    bool eraseFromBlob(Symbol symbol, NativeNaturalType begin, NativeNaturalType end) {
-        NativeNaturalType size = getBlobSize(symbol);
-        if(begin >= end || end > size)
+    bool decreaseBlobSize(Symbol symbol, NativeNaturalType at, NativeNaturalType count) {
+        NativeNaturalType size = getBlobSize(symbol), end = at+count;
+        if(at >= end || end > size)
             return false;
-        NativeNaturalType data = accessBlobData(symbol);
         auto rest = size-end;
         if(rest > 0)
-            bitwiseCopy(reinterpret_cast<NativeNaturalType*>(ptr),
-                        reinterpret_cast<const NativeNaturalType*>(ptr),
-                        data+begin, data+end, rest);
-        setBlobSizePreservingData(symbol, rest+begin);
+            sliceBlob(symbol, symbol, at, end, rest);
+        setBlobSizePreservingData(symbol, at+rest);
         modifiedBlob(symbol);
         return true;
     }
 
-    bool insertIntoBlob(Symbol dst, const NativeNaturalType* src, NativeNaturalType begin, NativeNaturalType length) {
-        assert(length > 0);
-        NativeNaturalType dstSize = getBlobSize(dst);
-        auto newBlobSize = dstSize+length, rest = dstSize-begin;
-        if(dstSize >= newBlobSize || begin > dstSize)
+    bool increaseBlobSize(Symbol symbol, NativeNaturalType at, NativeNaturalType count) {
+        assert(count > 0);
+        NativeNaturalType size = getBlobSize(symbol);
+        auto newBlobSize = size+count, rest = size-at;
+        if(size >= newBlobSize || at > size)
             return false;
-        setBlobSizePreservingData(dst, newBlobSize);
-        NativeNaturalType data = accessBlobData(dst);
+        setBlobSizePreservingData(symbol, newBlobSize);
         if(rest > 0)
-            bitwiseCopy(reinterpret_cast<NativeNaturalType*>(ptr),
-                        reinterpret_cast<const NativeNaturalType*>(ptr),
-                        data+begin+length, data+begin, rest);
-        bitwiseCopy(reinterpret_cast<NativeNaturalType*>(ptr),
-                    src,
-                    data+begin, 0, length);
-        modifiedBlob(dst);
+            sliceBlob(symbol, symbol, at+count, at, rest);
         return true;
     }
 

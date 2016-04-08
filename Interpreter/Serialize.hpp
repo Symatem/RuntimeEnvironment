@@ -6,13 +6,18 @@ struct Serialize {
     Thread& thread;
     Symbol symbol;
 
-    void put(NativeNaturalType src) {
-        Storage::insertIntoBlob(symbol, &src, Storage::getBlobSize(symbol), 8);
+    void put(char src) {
+        NativeNaturalType at = Storage::getBlobSize(symbol);
+        Storage::increaseBlobSize(symbol, at, 8);
+        Storage::writeBlobAt<char>(symbol, at/8, src);
     }
 
     void puts(const char* src) {
-        Storage::insertIntoBlob(symbol, reinterpret_cast<const NativeNaturalType*>(src),
-                                Storage::getBlobSize(symbol), strlen(src)*8);
+        NativeNaturalType at = Storage::getBlobSize(symbol), length = strlen(src)*8;
+        Storage::increaseBlobSize(symbol, at, length);
+        Storage::bitwiseCopy(reinterpret_cast<NativeNaturalType*>(Storage::ptr),
+                             reinterpret_cast<const NativeNaturalType*>(src),
+                             Storage::accessBlobData(symbol)+at, 0, length);
     }
 
     template<typename NumberType>

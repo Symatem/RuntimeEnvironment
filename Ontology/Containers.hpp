@@ -60,18 +60,17 @@ struct Vector {
 
     void insert(NativeNaturalType at, ElementType element) {
         activate();
-        Storage::insertIntoBlob(symbol, reinterpret_cast<NativeNaturalType*>(&element), at*sizeof(ElementType)*8, sizeof(ElementType)*8);
+        assert(Storage::increaseBlobSize(symbol, at*sizeof(ElementType)*8, sizeof(ElementType)*8));
+        Storage::writeBlobAt<ElementType>(symbol, at, element);
     }
 
-    void erase(NativeNaturalType begin, NativeNaturalType end) {
+    void erase(NativeNaturalType begin, NativeNaturalType length) {
         assert(symbol);
-        assert(begin < end);
-        assert(Storage::getBlobSize(symbol) >= end*sizeof(ElementType)*8);
-        Storage::eraseFromBlob(symbol, begin*sizeof(ElementType)*8, end*sizeof(ElementType)*8);
+        assert(Storage::decreaseBlobSize(symbol, begin*sizeof(ElementType)*8, length*sizeof(ElementType)*8));
     }
 
     void erase(NativeNaturalType at) {
-        erase(at, at+1);
+        erase(at, 1);
     }
 
     void push_back(ElementType element) {

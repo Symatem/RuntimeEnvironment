@@ -146,6 +146,16 @@ PreDefProcedure(Deserialize) {
     Deserialize{thread};
 }
 
+PreDefProcedure(CloneBlob) {
+    getSymbolByName(Input)
+    getSymbolByName(Output)
+    Storage::cloneBlob(OutputSymbol, InputSymbol);
+    Symbol type = PreDef_Void;
+    Ontology::getUncertain(InputSymbol, PreDef_BlobType, type);
+    Ontology::setSolitary({OutputSymbol, PreDef_BlobType, type});
+    thread.popCallStack();
+}
+
 PreDefProcedure(SliceBlob) {
     getSymbolByName(Input)
     getSymbolByName(Target)
@@ -157,30 +167,35 @@ PreDefProcedure(SliceBlob) {
     thread.popCallStack();
 }
 
-PreDefProcedure(AllocateBlob) {
-    getSymbolByName(Input)
-    getUncertainValueByName(Preserve, 0)
-    getSymbolByName(Target)
-    checkBlobType(Input, PreDef_Natural)
-    Storage::setBlobSize(TargetSymbol, thread.readBlob<NativeNaturalType>(InputSymbol), PreserveValue);
-    thread.popCallStack();
-}
-
-PreDefProcedure(CloneBlob) {
-    getSymbolByName(Input)
-    getSymbolByName(Output)
-    Storage::cloneBlob(OutputSymbol, InputSymbol);
-    Symbol type = PreDef_Void;
-    Ontology::getUncertain(InputSymbol, PreDef_BlobType, type);
-    Ontology::setSolitary({OutputSymbol, PreDef_BlobType, type});
-    thread.popCallStack();
-}
-
-PreDefProcedure(GetBlobLength) {
+PreDefProcedure(GetBlobSize) {
     getSymbolByName(Input)
     getSymbolByName(Output)
     Ontology::setSolitary({OutputSymbol, PreDef_BlobType, PreDef_Natural});
     Storage::writeBlob(OutputSymbol, Storage::getBlobSize(InputSymbol));
+    thread.popCallStack();
+}
+
+struct PreDefProcedure_DecreaseBlobSize {
+    static bool e(Symbol target, NativeNaturalType at, NativeNaturalType count) {
+        return Storage::decreaseBlobSize(target, at, count);
+    };
+};
+
+struct PreDefProcedure_IncreaseBlobSize {
+    static bool e(Symbol target, NativeNaturalType at, NativeNaturalType count) {
+        return Storage::increaseBlobSize(target, at, count);
+    };
+};
+
+template<typename op>
+PreDefProcedure(ChangeBlobSize) {
+    getSymbolByName(Target)
+    getSymbolByName(At)
+    getSymbolByName(Count)
+    checkBlobType(At, PreDef_Natural)
+    checkBlobType(Count, PreDef_Natural)
+    if(!op::e(TargetSymbol, thread.readBlob<NativeNaturalType>(AtSymbol), thread.readBlob<NativeNaturalType>(CountSymbol)))
+        thread.throwException("Invalid At or Count Value");
     thread.popCallStack();
 }
 
@@ -562,10 +577,11 @@ bool executePreDefProcedure(Thread& thread, Symbol procedure) {
         PreDefProcedureEntry(Exception)
         PreDefProcedureEntry(Serialize)
         PreDefProcedureEntry(Deserialize)
-        PreDefProcedureEntry(SliceBlob)
-        PreDefProcedureEntry(AllocateBlob)
         PreDefProcedureEntry(CloneBlob)
-        PreDefProcedureEntry(GetBlobLength)
+        PreDefProcedureEntry(SliceBlob)
+        PreDefProcedureEntry(GetBlobSize)
+        PreDefProcedureGroup(ChangeBlobSize, DecreaseBlobSize)
+        PreDefProcedureGroup(ChangeBlobSize, IncreaseBlobSize)
         PreDefProcedureEntry(NumericCast)
         PreDefProcedureEntry(Equal)
         PreDefProcedureGroup(CompareLogic, LessThan)
