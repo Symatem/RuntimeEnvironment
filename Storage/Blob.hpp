@@ -1,4 +1,4 @@
-#include "BpTree.hpp"
+#include "BlobBucket.hpp"
 
 namespace Storage {
     BpTree<Symbol, NativeNaturalType> blobs;
@@ -12,6 +12,13 @@ namespace Storage {
         usage.inhabitedMetaData = sizeof(SuperPage)*8;
         usage.totalBlobData = 0;
         usage.inhabitedBlobData = 0;
+        fullBlobBuckets.updateStats([](BpTree<PageRefType>::Iterator<false>& iter) {
+            dereferencePage<BlobBucket>(iter.getKey())->updateStats();
+        });
+        for(NativeNaturalType i = 0; i < blobBucketTypeCount; ++i)
+            freeBlobBuckets[i].updateStats([](BpTree<PageRefType>::Iterator<false>& iter) {
+                dereferencePage<BlobBucket>(iter.getKey())->updateStats();
+            });
         blobs.updateStats();
     }
 

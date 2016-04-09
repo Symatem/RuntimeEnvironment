@@ -22,7 +22,7 @@ PreDefProcedure(Search) {
             modes[index] = 0;
         }
     getSymbolByName(Output)
-    Vector<false, Symbol> output;
+    BlobVector<false, Symbol> output;
     output.symbol = OutputSymbol;
     auto count = Ontology::query(modes[0] + modes[1]*3 + modes[2]*9, triple, [&](Triple result) {
         for(NativeNaturalType i = 0; i < varyingCount; ++i)
@@ -76,7 +76,7 @@ PreDefProcedure(Create) {
 }
 
 PreDefProcedure(Destroy) {
-    Set<false, Symbol> symbols;
+    BlobSet<false, Symbol> symbols;
     symbols.symbol = Storage::createSymbol();
     Ontology::link({thread.block, PreDef_Holds, symbols.symbol});
     if(Ontology::query(9, {thread.block, PreDef_Input, PreDef_Void}, [&](Triple result) {

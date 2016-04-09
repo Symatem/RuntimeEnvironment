@@ -56,7 +56,7 @@ union Triple {
 };
 
 namespace Ontology {
-    Set<true, Symbol, Symbol[6]> symbols;
+    BlobSet<true, Symbol, Symbol[6]> symbols;
     BlobIndex<true> blobIndex;
 
     enum IndexType {
@@ -71,10 +71,10 @@ namespace Ontology {
     } indexMode = HexaIndex;
 
     bool linkInSubIndex(Triple triple) {
-        Set<false, Symbol, Symbol> beta;
+        BlobSet<false, Symbol, Symbol> beta;
         beta.symbol = triple.pos[0];
         NativeNaturalType betaIndex;
-        Set<false, Symbol> gamma;
+        BlobSet<false, Symbol> gamma;
         if(beta.find(triple.pos[1], betaIndex))
             gamma.symbol = beta.readElementAt(betaIndex).value;
         else {
@@ -114,11 +114,11 @@ namespace Ontology {
         NativeNaturalType alphaIndex, betaIndex, gammaIndex;
         if(!symbols.find(triple.pos[0], alphaIndex))
             return 0;
-        Set<false, Symbol, Symbol> beta;
+        BlobSet<false, Symbol, Symbol> beta;
         beta.symbol = symbols.readElementAt(alphaIndex).value[subIndex];
         if(!beta.find(triple.pos[1], betaIndex))
             return 0;
-        Set<false, Symbol> gamma;
+        BlobSet<false, Symbol> gamma;
         gamma.symbol = beta.readElementAt(betaIndex).value;
         if(!gamma.find(triple.pos[2], gammaIndex))
             return 0;
@@ -131,11 +131,11 @@ namespace Ontology {
         NativeNaturalType alphaIndex, betaIndex;
         if(!symbols.find(triple.pos[0], alphaIndex))
             return 0;
-        Set<false, Symbol, Symbol> beta;
+        BlobSet<false, Symbol, Symbol> beta;
         beta.symbol = symbols.readElementAt(alphaIndex).value[subIndex];
         if(!beta.find(triple.pos[1], betaIndex))
             return 0;
-        Set<false, Symbol> gamma;
+        BlobSet<false, Symbol> gamma;
         gamma.symbol = beta.readElementAt(betaIndex).value;
         if(callback)
             gamma.iterate([&](Pair<Symbol, NativeNaturalType[0]> gammaResult) {
@@ -149,10 +149,10 @@ namespace Ontology {
         NativeNaturalType alphaIndex, count = 0;
         if(!symbols.find(triple.pos[0], alphaIndex))
             return 0;
-        Set<false, Symbol, Symbol> beta;
+        BlobSet<false, Symbol, Symbol> beta;
         beta.symbol = symbols.readElementAt(alphaIndex).value[subIndex];
         beta.iterate([&](Pair<Symbol, Symbol> betaResult) {
-            Set<false, Symbol> gamma;
+            BlobSet<false, Symbol> gamma;
             gamma.symbol = betaResult.value;
             if(callback) {
                 triple.pos[1] = betaResult.key;
@@ -170,11 +170,11 @@ namespace Ontology {
         NativeNaturalType alphaIndex;
         if(!symbols.find(triple.pos[0], alphaIndex))
             return 0;
-        Set<true, Symbol> result;
-        Set<false, Symbol, Symbol> beta;
+        BlobSet<true, Symbol> result;
+        BlobSet<false, Symbol, Symbol> beta;
         beta.symbol = symbols.readElementAt(alphaIndex).value[subIndex];
         beta.iterate([&](Pair<Symbol, Symbol> betaResult) {
-            Set<false, Symbol> gamma;
+            BlobSet<false, Symbol> gamma;
             gamma.symbol = betaResult.value;
             gamma.iterate([&](Pair<Symbol, NativeNaturalType[0]> gammaResult) {
                 result.insertElement(gammaResult);
@@ -192,7 +192,7 @@ namespace Ontology {
         NativeNaturalType alphaIndex;
         if(!symbols.find(triple.pos[0], alphaIndex))
             return 0;
-        Set<false, Symbol, Symbol> beta;
+        BlobSet<false, Symbol, Symbol> beta;
         beta.symbol = symbols.readElementAt(alphaIndex).value[subIndex];
         if(callback)
             beta.iterate([&](Pair<Symbol, Symbol> betaResult) {
@@ -214,7 +214,7 @@ namespace Ontology {
     NativeNaturalType searchVVI(NativeNaturalType subIndex, Triple& triple, Closure<void()> callback) {
         NativeNaturalType count = 0;
         symbols.iterate([&](Pair<Symbol, Symbol[6]> alphaResult) {
-            Set<false, Symbol, Symbol> beta;
+            BlobSet<false, Symbol, Symbol> beta;
             beta.symbol = alphaResult.value[subIndex];
             if(callback) {
                 triple.pos[0] = alphaResult.key;
@@ -232,10 +232,10 @@ namespace Ontology {
         NativeNaturalType count = 0;
         symbols.iterate([&](Pair<Symbol, Symbol[6]> alphaResult) {
             triple.pos[0] = alphaResult.key;
-            Set<false, Symbol, Symbol> beta;
+            BlobSet<false, Symbol, Symbol> beta;
             beta.symbol = alphaResult.value[subIndex];
             beta.iterate([&](Pair<Symbol, Symbol> betaResult) {
-                Set<false, Symbol> gamma;
+                BlobSet<false, Symbol> gamma;
                 gamma.symbol = betaResult.value;
                 if(callback) {
                     triple.pos[1] = betaResult.key;
@@ -334,7 +334,7 @@ namespace Ontology {
         } else
             symbols.iterate([&](Pair<Symbol, Symbol[6]> alphaResult) {
                 for(NativeNaturalType subIndex = _indexMode; subIndex < indexMode; ++subIndex) {
-                    Set<false, Symbol, Symbol> beta;
+                    BlobSet<false, Symbol, Symbol> beta;
                     beta.symbol = alphaResult.value[subIndex];
                     beta.iterate([&](Pair<Symbol, Symbol> betaResult) {
                         Storage::releaseSymbol(betaResult.value);
@@ -346,12 +346,12 @@ namespace Ontology {
     }
 
     bool unlinkInSubIndex(Triple triple) {
-        Set<false, Symbol, Symbol> alpha;
+        BlobSet<false, Symbol, Symbol> alpha;
         alpha.symbol = triple.pos[0];
         NativeNaturalType alphaIndex, betaIndex;
         if(!alpha.find(triple.pos[1], alphaIndex))
             return false;
-        Set<false, Symbol> beta;
+        BlobSet<false, Symbol> beta;
         beta.symbol = alpha.readElementAt(alphaIndex).value;
         if(!beta.find(triple.pos[2], betaIndex))
             return false;
@@ -386,7 +386,7 @@ namespace Ontology {
         assert(symbols.find(symbol, alphaIndex));
         Pair<Symbol, Symbol[6]> element = symbols.readElementAt(alphaIndex);
         forEachSubIndex {
-            Set<false, Symbol, Symbol> beta;
+            BlobSet<false, Symbol, Symbol> beta;
             beta.symbol = element.value[subIndex];
             if(!beta.empty())
                 return;
@@ -409,13 +409,13 @@ namespace Ontology {
             return false;
         }
         Pair<Symbol, Symbol[6]> element = symbols.readElementAt(alphaIndex);
-        Set<true, Symbol> dirty;
+        BlobSet<true, Symbol> dirty;
         forEachSubIndex {
-            Set<false, Symbol, Symbol> beta;
+            BlobSet<false, Symbol, Symbol> beta;
             beta.symbol = element.value[subIndex];
             beta.iterate([&](Pair<Symbol, Symbol> betaResult) {
                 dirty.insertElement(betaResult.key);
-                Set<false, Symbol> gamma;
+                BlobSet<false, Symbol> gamma;
                 gamma.symbol = betaResult.value;
                 gamma.iterate([&](Pair<Symbol, NativeNaturalType[0]> gammaResult) {
                     dirty.insertElement(gammaResult.key);
@@ -431,7 +431,7 @@ namespace Ontology {
     }
 
     void setSolitary(Triple triple, bool linkVoid = false) {
-        Set<true, Symbol> dirty;
+        BlobSet<true, Symbol> dirty;
         bool toLink = (linkVoid || triple.value != PreDef_Void);
         query(9, triple, [&](Triple result) {
             if((triple.pos[2] == result.pos[0]) && (linkVoid || result.pos[0] != PreDef_Void))
@@ -459,7 +459,7 @@ namespace Ontology {
     }
 
     void scrutinizeExistence(Symbol symbol) {
-        Set<true, Symbol> symbols;
+        BlobSet<true, Symbol> symbols;
         symbols.insertElement(symbol);
         while(!symbols.empty()) {
             symbol = symbols.pop_back();

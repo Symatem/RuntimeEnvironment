@@ -19,7 +19,7 @@ struct Deserialize {
     Thread& thread;
     Symbol input, package, parentEntry, currentEntry;
     BlobIndex<false> locals;
-    Vector<false, Symbol> stack, queue;
+    BlobVector<false, Symbol> stack, queue;
     NativeNaturalType tokenBegin, pos, end, row, column;
 
     void throwException(const char* message) {

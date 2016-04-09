@@ -5,12 +5,12 @@ namespace Ontology {
 };
 
 template<bool guarded, typename ElementType>
-struct Vector {
+struct BlobVector {
     Symbol symbol;
 
-    Vector() :symbol(0) {}
+    BlobVector() :symbol(0) {}
 
-    ~Vector() {
+    ~BlobVector() {
         if(guarded && symbol)
             Ontology::unlink(symbol);
     }
@@ -98,11 +98,11 @@ struct Pair {
 };
 
 template<bool guarded, typename KeyType, typename ValueType = NativeNaturalType[0]>
-struct Set : public Vector<guarded, Pair<KeyType, ValueType>> {
+struct BlobSet : public BlobVector<guarded, Pair<KeyType, ValueType>> {
     typedef Pair<KeyType, ValueType> ElementType;
-    typedef Vector<guarded, ElementType> Super;
+    typedef BlobVector<guarded, ElementType> Super;
 
-    Set() :Super() {}
+    BlobSet() :Super() {}
 
     NativeNaturalType find(KeyType key) const {
         return binarySearch<NativeNaturalType>(Super::size(), [&](NativeNaturalType at) {
@@ -133,8 +133,8 @@ struct Set : public Vector<guarded, Pair<KeyType, ValueType>> {
 };
 
 template<bool guarded>
-struct BlobIndex : public Set<guarded, Symbol> {
-    typedef Set<guarded, Symbol> Super;
+struct BlobIndex : public BlobSet<guarded, Symbol> {
+    typedef BlobSet<guarded, Symbol> Super;
 
     BlobIndex() :Super() {}
 
