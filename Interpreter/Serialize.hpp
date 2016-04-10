@@ -49,23 +49,23 @@ struct Serialize {
     }
 
     Serialize(Thread& _thread, Symbol _symbol) :thread(_thread), symbol(_symbol) {
-        Ontology::setSolitary({symbol, PreDef_BlobType, PreDef_Text});
+        Ontology::setSolitary({symbol, Ontology::BlobTypeSymbol, Ontology::TextSymbol});
     }
 
     Serialize(Thread& _thread) :Serialize(_thread, Storage::createSymbol()) {}
 
-    void serializeBlob(Symbol srcSymbol) {
-        NativeNaturalType len = Storage::getBlobSize(srcSymbol);
+    void serializeBlob(Symbol src) {
+        NativeNaturalType len = Storage::getBlobSize(src);
         if(len) {
-            Symbol type = PreDef_Void;
-            Ontology::getUncertain(srcSymbol, PreDef_BlobType, type);
+            Symbol type = Ontology::VoidSymbol;
+            Ontology::getUncertain(src, Ontology::BlobTypeSymbol, type);
             switch(type) {
-                case PreDef_Text: {
+                case Ontology::TextSymbol: {
                     len /= 8;
                     bool spaces = false;
                     for(NativeNaturalType i = 0; i < len; ++i) {
-                        char src = Storage::readBlobAt<char>(srcSymbol, i);
-                        if(src == ' ' || src == '\t' || src == '\n') {
+                        char element = Storage::readBlobAt<char>(src, i);
+                        if(element == ' ' || element == '\t' || element == '\n') {
                             spaces = true;
                             break;
                         }
@@ -73,25 +73,25 @@ struct Serialize {
                     if(spaces)
                         put('"');
                     for(NativeNaturalType i = 0; i < len; ++i)
-                        put(Storage::readBlobAt<char>(srcSymbol, i));
+                        put(Storage::readBlobAt<char>(src, i));
                     if(spaces)
                         put('"');
                 }   break;
-                case PreDef_Natural:
-                    serializeNumber(thread.readBlob<NativeNaturalType>(srcSymbol));
+                case Ontology::NaturalSymbol:
+                    serializeNumber(thread.readBlob<NativeNaturalType>(src));
                     break;
-                case PreDef_Integer:
-                    serializeNumber(thread.readBlob<NativeIntegerType>(srcSymbol));
+                case Ontology::IntegerSymbol:
+                    serializeNumber(thread.readBlob<NativeIntegerType>(src));
                     break;
-                case PreDef_Float:
-                    serializeNumber(thread.readBlob<NativeFloatType>(srcSymbol));
+                case Ontology::FloatSymbol:
+                    serializeNumber(thread.readBlob<NativeFloatType>(src));
                     break;
                 default: {
                     puts(HRLRawBegin);
                     len = (len+3)/4;
                     for(NativeNaturalType i = 0; i < len; ++i) {
-                        char src = Storage::readBlobAt<char>(srcSymbol, i/2);
-                        char nibble = (src>>((i%2)*4))&0x0F;
+                        char element = Storage::readBlobAt<char>(src, i/2);
+                        char nibble = (element>>((i%2)*4))&0x0F;
                         if(nibble < 0xA)
                             put('0'+nibble);
                         else
@@ -101,32 +101,32 @@ struct Serialize {
             }
         } else {
             put('#');
-            serializeNumber(srcSymbol);
+            serializeNumber(src);
         }
     }
 
     void serializeEntity(Symbol entity, Closure<Symbol(Symbol)> followCallback = nullptr) {
         while(true) {
-            Symbol followAttribute, followEntity = PreDef_Void;
+            Symbol followAttribute, followEntity = Ontology::VoidSymbol;
             if(followCallback)
                 followAttribute = followCallback(entity);
             puts("(\n\t");
             serializeBlob(entity);
             puts(";\n");
-            Ontology::query(21, {entity, PreDef_Void, PreDef_Void}, [&](Triple result) {
+            Ontology::query(21, {entity, Ontology::VoidSymbol, Ontology::VoidSymbol}, [&](Ontology::Triple result) {
                 if(followCallback && result.pos[0] == followAttribute) {
                     Ontology::getUncertain(entity, followAttribute, followEntity);
                     return;
                 }
                 put('\t');
                 serializeBlob(result.pos[0]);
-                Ontology::query(9, {entity, result.pos[0], PreDef_Void}, [&](Triple resultB) {
+                Ontology::query(9, {entity, result.pos[0], Ontology::VoidSymbol}, [&](Ontology::Triple resultB) {
                     put(' ');
                     serializeBlob(resultB.pos[0]);
                 });
                 puts(";\n");
             });
-            if(!followCallback || followEntity == PreDef_Void) {
+            if(!followCallback || followEntity == Ontology::VoidSymbol) {
                 put(')');
                 return;
             }

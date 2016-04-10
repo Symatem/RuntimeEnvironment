@@ -1,9 +1,16 @@
 #include "Basics.hpp"
 
+namespace Storage {
+
 struct VoidType {} VoidValue;
 
 template<typename KeyType, typename ValueType = VoidType>
 struct BpTree {
+    static const NativeNaturalType
+        pageRefBits = sizeof(PageRefType)*8,
+        keyBits = sizeof(KeyType)*8,
+        valueBits = sizeof(ValueType)*8;
+
     typedef int16_t DistributionType;
     typedef uint16_t IndexType;
     typedef int8_t LayerType;
@@ -28,9 +35,6 @@ struct BpTree {
 
         static const NativeNaturalType
             headerBits = sizeof(PageHeader)*8,
-            keyBits = sizeof(KeyType)*8,
-            pageRefBits = sizeof(PageRefType)*8,
-            valueBits = sizeof(ValueType)*8,
             keyOffset = architecturePadding(headerBits),
             bodyBits = Storage::bitsPerPage-keyOffset,
             branchKeyCount = (bodyBits-pageRefBits)/(keyBits+pageRefBits),
@@ -88,22 +92,6 @@ struct BpTree {
 
         void setValue(IndexType dst, ValueType content) {
             set<ValueType, valueOffset>(dst, content);
-        }
-
-        template<bool isLeaf>
-        void debugPrint() const {
-            if(!isLeaf)
-                printf("%04llu ", getPageRef(0));
-            for(IndexType i = 0; i < keyCount<isLeaf>(); ++i) {
-                if(i > 0)
-                    printf(" ");
-                printf("[%08llu] ", getKey<isLeaf>(i));
-                if(isLeaf)
-                    printf("%08llu", getValue(i));
-                else
-                    printf("%04llu", getPageRef(i+1));
-            }
-            printf("\n");
         }
 
         template<bool isLeaf>
@@ -640,19 +628,6 @@ struct BpTree {
             FrameType* frame = fromEnd();
             getPage(frame->pageRef)->setValue(frame->index, value);
         }
-
-        void debugPrint() {
-            printf("Iterator %hd\n", static_cast<uint16_t>(end));
-            for(LayerType layer = 0; layer < end; ++layer) {
-                auto frame = fromBegin(layer);
-                printf("    %hhd: %04llu (%hd/%hd)\n", layer, frame->pageRef, frame->index, frame->endIndex);
-                Page* page = getPage(frame->pageRef);
-                if(layer == end-1)
-                    page->template debugPrint<true>();
-                else
-                    page->template debugPrint<false>();
-            }
-        }
     };
 
     template<bool enableCopyOnWrite, bool border = false, bool upper = false>
@@ -709,16 +684,16 @@ struct BpTree {
                         callback(iter);
             } else {
                 ++branchPageCount;
-                Storage::usage.inhabitedMetaData += (Page::keyBits+Page::pageRefBits)*page->header.count+Page::pageRefBits;
+                Storage::usage.inhabitedMetaData += (keyBits+pageRefBits)*page->header.count+pageRefBits;
             }
         };
         find<false, true, false>(iter, 0, pageTouch);
         while(iter.template advanceAtLayer<1>(iter.end-2, 1, pageTouch) == 0);
-        NativeNaturalType uninhabitable = Page::valueOffset-Page::headerBits-Page::keyBits*Page::leafKeyCount;
+        NativeNaturalType uninhabitable = Page::valueOffset-Page::headerBits-keyBits*Page::leafKeyCount;
         Storage::usage.uninhabitable += uninhabitable*leafPageCount;
         Storage::usage.totalMetaData += (Storage::bitsPerPage-uninhabitable)*leafPageCount;
-        Storage::usage.inhabitedMetaData += (Page::keyBits+Page::valueBits)*elementCount;
-        uninhabitable = Page::pageRefOffset-Page::headerBits-Page::keyBits*Page::branchKeyCount;
+        Storage::usage.inhabitedMetaData += (keyBits+valueBits)*elementCount;
+        uninhabitable = Page::pageRefOffset-Page::headerBits-keyBits*Page::branchKeyCount;
         Storage::usage.uninhabitable += uninhabitable*branchPageCount;
         Storage::usage.totalMetaData += (Storage::bitsPerPage-uninhabitable)*branchPageCount;
     }
@@ -1111,4 +1086,6 @@ struct BpTree {
         erase(iter);
         return key;
     }
+};
+
 };

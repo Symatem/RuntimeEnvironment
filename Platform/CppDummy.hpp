@@ -151,10 +151,10 @@ typedef long long int NativeIntegerType;
 typedef double NativeFloatType;
 typedef NativeNaturalType PageRefType;
 typedef NativeNaturalType Symbol;
-const NativeNaturalType ArchitectureSize = sizeof(NativeNaturalType)*8;
+const NativeNaturalType architectureSize = sizeof(NativeNaturalType)*8;
 
 constexpr NativeNaturalType architecturePadding(NativeNaturalType bits) {
-    return (bits+ArchitectureSize-1)/ArchitectureSize*ArchitectureSize;
+    return (bits+architectureSize-1)/architectureSize*architectureSize;
 }
 
 template<typename DataType>

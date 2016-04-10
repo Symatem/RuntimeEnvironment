@@ -1,4 +1,4 @@
-#include "../Interpreter/PreDefProcedures.hpp"
+#include "../Interpreter/Procedures.hpp"
 #include <sys/stat.h>
 #include <sys/mman.h>
 #include <unistd.h>
@@ -71,9 +71,9 @@ void printStats() {
 Symbol createFromFile(const char* path) {
     int fd = open(path, O_RDONLY);
     if(fd < 0)
-        return PreDef_Void;
+        return Ontology::VoidSymbol;
     Symbol dst = Storage::createSymbol();
-    Ontology::link({dst, PreDef_BlobType, PreDef_Text});
+    Ontology::link({dst, Ontology::BlobTypeSymbol, Ontology::TextSymbol});
     NativeNaturalType length = lseek(fd, 0, SEEK_END);
     Storage::setBlobSize(dst, length*8);
     lseek(fd, 0, SEEK_SET);
@@ -111,11 +111,11 @@ void loadFromPath(Thread& thread, Symbol parentPackage, bool execute, char* path
                              reinterpret_cast<NativeNaturalType*>(path),
                              0, slashIndex*8, (pathLen-slashIndex)*8);
         buffer[pathLen-slashIndex] = 0;
-        Symbol package = Ontology::createFromData(const_cast<const char*>(buffer));
+        Symbol package = Ontology::createFromString(const_cast<const char*>(buffer));
         Ontology::blobIndex.insertElement(package);
-        if(parentPackage == PreDef_Void)
+        if(parentPackage == Ontology::VoidSymbol)
             parentPackage = package;
-        thread.link({package, PreDef_Holds, parentPackage});
+        thread.link({package, Ontology::HoldsSymbol, parentPackage});
         struct dirent* entry;
         while((entry = readdir(dp)))
             if(entry->d_name[0] != '.') {
@@ -127,7 +127,7 @@ void loadFromPath(Thread& thread, Symbol parentPackage, bool execute, char* path
         if(!Storage::substrEqual<true>(path, ".sym"))
             return;
         Symbol file = createFromFile(path);
-        assert(file != PreDef_Void);
+        assert(file != Ontology::VoidSymbol);
         thread.deserializationTask(file, parentPackage);
         if(thread.uncaughtException())
             crash("Exception occurred while deserializing file");
@@ -147,7 +147,7 @@ Thread thread;
 int main(int argc, char** argv) {
     Storage::load();
 
-    Ontology::tryToFillPreDef();
+    Ontology::tryToFillPreDefined();
     bool execute = false;
     for(NativeNaturalType i = 1; i < argc; ++i) {
         if(Storage::substrEqual(argv[i], "-h")) {
@@ -158,7 +158,7 @@ int main(int argc, char** argv) {
             execute = true;
             continue;
         }
-        loadFromPath(thread, PreDef_Void, execute, argv[i]);
+        loadFromPath(thread, Ontology::VoidSymbol, execute, argv[i]);
     }
     thread.clear();
     printStats();

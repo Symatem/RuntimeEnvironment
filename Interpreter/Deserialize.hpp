@@ -1,48 +1,48 @@
 #include "Serialize.hpp"
 
-#define getSymbolByName(Name) \
-    Symbol Name##Symbol = thread.getGuaranteed(thread.block, PreDef_##Name);
+#define getSymbolByName(name, Name) \
+    Symbol name = thread.getGuaranteed(thread.block, Ontology::Name##Symbol);
 
-#define checkBlobType(Name, expectedType) \
-if(Ontology::query(1, {Name##Symbol, PreDef_BlobType, expectedType}) == 0) \
+#define checkBlobType(name, expectedType) \
+if(Ontology::query(1, {name, Ontology::BlobTypeSymbol, expectedType}) == 0) \
     thread.throwException("Invalid Blob Type");
 
-#define getUncertainValueByName(Name, DefaultValue) \
-    Symbol Name##Symbol; \
-    NativeNaturalType Name##Value = DefaultValue; \
-    if(Ontology::getUncertain(thread.block, PreDef_##Name, Name##Symbol)) { \
-        checkBlobType(Name, PreDef_Natural) \
-        Name##Value = thread.readBlob<NativeNaturalType>(Name##Symbol); \
+#define getUncertainValueByName(name, Name, DefaultValue) \
+    Symbol name; \
+    NativeNaturalType name##Value = DefaultValue; \
+    if(Ontology::getUncertain(thread.block, Ontology::Name##Symbol, name)) { \
+        checkBlobType(name, Ontology::NaturalSymbol) \
+        name##Value = thread.readBlob<NativeNaturalType>(name); \
     }
 
 struct Deserialize {
     Thread& thread;
     Symbol input, package, parentEntry, currentEntry;
-    BlobIndex<false> locals;
-    BlobVector<false, Symbol> stack, queue;
+    Ontology::BlobIndex<false> locals;
+    Ontology::BlobVector<false, Symbol> stack, queue;
     NativeNaturalType tokenBegin, pos, end, row, column;
 
     void throwException(const char* message) {
         Symbol data = Storage::createSymbol(),
                rowSymbol = Ontology::createFromData(row),
                columnSymbol = Ontology::createFromData(column);
-        thread.link({data, PreDef_Holds, rowSymbol});
-        thread.link({data, PreDef_Holds, columnSymbol});
-        thread.link({data, PreDef_Row, rowSymbol});
-        thread.link({data, PreDef_Column, columnSymbol});
+        thread.link({data, Ontology::HoldsSymbol, rowSymbol});
+        thread.link({data, Ontology::HoldsSymbol, columnSymbol});
+        thread.link({data, Ontology::RowSymbol, rowSymbol});
+        thread.link({data, Ontology::ColumnSymbol, columnSymbol});
         thread.throwException(message, data);
     }
 
     void nextSymbol(Symbol stackEntry, Symbol symbol) {
-        if(thread.valueCountIs(stackEntry, PreDef_UnnestEntity, 0)) {
+        if(thread.valueCountIs(stackEntry, Ontology::UnnestEntitySymbol, 0)) {
             queue.symbol = stackEntry;
             queue.insert(0, symbol);
             queue.symbol = currentEntry;
         } else {
-            Symbol entity = thread.getGuaranteed(stackEntry, PreDef_UnnestEntity),
-                       attribute = thread.getGuaranteed(stackEntry, PreDef_UnnestAttribute);
+            Symbol entity = thread.getGuaranteed(stackEntry, Ontology::UnnestEntitySymbol),
+                   attribute = thread.getGuaranteed(stackEntry, Ontology::UnnestAttributeSymbol);
             thread.link({entity, attribute, symbol});
-            Ontology::setSolitary({stackEntry, PreDef_UnnestEntity, PreDef_Void});
+            Ontology::setSolitary({stackEntry, Ontology::UnnestEntitySymbol, Ontology::VoidSymbol});
         }
     }
 
@@ -132,37 +132,37 @@ struct Deserialize {
                     symbol = sliceText();
                 Ontology::blobIndex.insertElement(symbol);
             }
-            Ontology::link({package, PreDef_Holds, symbol});
+            Ontology::link({package, Ontology::HoldsSymbol, symbol});
             nextSymbol(currentEntry, symbol);
         }
         tokenBegin = pos+1;
     }
 
     void fillInAnonymous(Symbol& entity) {
-        if(entity != PreDef_Void)
+        if(entity != Ontology::VoidSymbol)
             return;
         entity = Storage::createSymbol();
-        thread.link({currentEntry, PreDef_Entity, entity});
-        thread.link({package, PreDef_Holds, entity});
+        thread.link({currentEntry, Ontology::EntitySymbol, entity});
+        thread.link({package, Ontology::HoldsSymbol, entity});
         nextSymbol(parentEntry, entity);
     }
 
     void seperateTokens(bool semicolon) {
         parseToken();
-        Symbol entity = PreDef_Void;
-        Ontology::getUncertain(currentEntry, PreDef_Entity, entity);
+        Symbol entity = Ontology::VoidSymbol;
+        Ontology::getUncertain(currentEntry, Ontology::EntitySymbol, entity);
         if(queue.empty()) {
             if(semicolon) {
-                if(entity != PreDef_Void)
+                if(entity != Ontology::VoidSymbol)
                     throwException("Pointless semicolon");
                 fillInAnonymous(entity);
             }
             return;
         }
         if(semicolon && queue.size() == 1) {
-            if(entity == PreDef_Void) {
+            if(entity == Ontology::VoidSymbol) {
                 entity = queue.pop_back();
-                thread.link({currentEntry, PreDef_Entity, entity});
+                thread.link({currentEntry, Ontology::EntitySymbol, entity});
                 nextSymbol(parentEntry, entity);
             } else
                 thread.link({entity, queue.pop_back(), entity});
@@ -170,26 +170,26 @@ struct Deserialize {
         }
         fillInAnonymous(entity);
         if(semicolon)
-            Ontology::setSolitary({parentEntry, PreDef_UnnestEntity, PreDef_Void});
+            Ontology::setSolitary({parentEntry, Ontology::UnnestEntitySymbol, Ontology::VoidSymbol});
         else
-            Ontology::setSolitary({parentEntry, PreDef_UnnestEntity, entity}, true);
+            Ontology::setSolitary({parentEntry, Ontology::UnnestEntitySymbol, entity}, true);
         Symbol attribute = queue.pop_back();
-        Ontology::setSolitary({parentEntry, PreDef_UnnestAttribute, attribute}, true);
+        Ontology::setSolitary({parentEntry, Ontology::UnnestAttributeSymbol, attribute}, true);
         while(!queue.empty())
             thread.link({entity, attribute, queue.pop_back()});
     }
 
     Deserialize(Thread& _thread) :thread(_thread) {
-        package = thread.getGuaranteed(thread.block, PreDef_Package);
-        input = thread.getGuaranteed(thread.block, PreDef_Input);
-        if(Ontology::query(1, {input, PreDef_BlobType, PreDef_Text}) == 0)
+        package = thread.getGuaranteed(thread.block, Ontology::PackageSymbol);
+        input = thread.getGuaranteed(thread.block, Ontology::InputSymbol);
+        if(Ontology::query(1, {input, Ontology::BlobTypeSymbol, Ontology::TextSymbol}) == 0)
             thread.throwException("Invalid Blob Type");
         locals.symbol = Storage::createSymbol();
-        thread.link({thread.block, PreDef_Holds, locals.symbol});
+        thread.link({thread.block, Ontology::HoldsSymbol, locals.symbol});
         stack.symbol = Storage::createSymbol();
-        thread.link({thread.block, PreDef_Holds, stack.symbol});
+        thread.link({thread.block, Ontology::HoldsSymbol, stack.symbol});
         currentEntry = Storage::createSymbol();
-        thread.link({thread.block, PreDef_Holds, currentEntry});
+        thread.link({thread.block, Ontology::HoldsSymbol, currentEntry});
         stack.push_back(currentEntry);
         queue.symbol = currentEntry;
         row = column = 1;
@@ -228,7 +228,7 @@ struct Deserialize {
                     parseToken();
                     parentEntry = currentEntry;
                     currentEntry = Storage::createSymbol();
-                    thread.link({thread.block, PreDef_Holds, currentEntry});
+                    thread.link({thread.block, Ontology::HoldsSymbol, currentEntry});
                     stack.push_back(currentEntry);
                     queue.symbol = currentEntry;
                     break;
@@ -236,25 +236,25 @@ struct Deserialize {
                     if(stack.size() == 1)
                         throwException("Semicolon outside of any brackets");
                     seperateTokens(true);
-                    if(!thread.valueCountIs(currentEntry, PreDef_UnnestEntity, 0))
+                    if(!thread.valueCountIs(currentEntry, Ontology::UnnestEntitySymbol, 0))
                         throwException("Unnesting failed");
                     break;
                 case ')': {
                     if(stack.size() == 1)
                         throwException("Unmatched closing bracket");
                     seperateTokens(false);
-                    if(stack.size() == 2 && thread.valueCountIs(parentEntry, PreDef_UnnestEntity, 0)) {
+                    if(stack.size() == 2 && thread.valueCountIs(parentEntry, Ontology::UnnestEntitySymbol, 0)) {
                         locals.clear();
-                        if(Ontology::query(12, {thread.getGuaranteed(currentEntry, PreDef_Entity), PreDef_Void, PreDef_Void}) == 0)
+                        if(Ontology::query(12, {thread.getGuaranteed(currentEntry, Ontology::EntitySymbol), Ontology::VoidSymbol, Ontology::VoidSymbol}) == 0)
                             throwException("Nothing declared");
                     }
-                    if(!thread.valueCountIs(currentEntry, PreDef_UnnestEntity, 0))
+                    if(!thread.valueCountIs(currentEntry, Ontology::UnnestEntitySymbol, 0))
                         throwException("Unnesting failed");
                     Ontology::unlink(currentEntry);
                     stack.pop_back();
                     currentEntry = parentEntry;
                     queue.symbol = currentEntry;
-                    parentEntry = (stack.size() < 2) ? PreDef_Void : stack.readElementAt(stack.size()-2);
+                    parentEntry = (stack.size() < 2) ? Ontology::VoidSymbol : stack.readElementAt(stack.size()-2);
                 }   break;
             }
             ++column;
@@ -262,16 +262,16 @@ struct Deserialize {
         parseToken();
         if(stack.size() != 1)
             throwException("Missing closing bracket");
-        if(!thread.valueCountIs(currentEntry, PreDef_UnnestEntity, 0))
+        if(!thread.valueCountIs(currentEntry, Ontology::UnnestEntitySymbol, 0))
             throwException("Unnesting failed");
         if(queue.empty())
             throwException("Empty Input");
-        Symbol OutputSymbol;
-        if(Ontology::getUncertain(thread.block, PreDef_Output, OutputSymbol)) {
-            Symbol TargetSymbol = thread.getTargetSymbol();
-            Ontology::setSolitary({TargetSymbol, OutputSymbol, PreDef_Void});
+        Symbol Output;
+        if(Ontology::getUncertain(thread.block, Ontology::OutputSymbol, Output)) {
+            Symbol Target = thread.getTargetSymbol();
+            Ontology::setSolitary({Target, Output, Ontology::VoidSymbol});
             while(!queue.empty())
-                thread.link({TargetSymbol, OutputSymbol, queue.pop_back()});
+                thread.link({Target, Output, queue.pop_back()});
         }
         thread.popCallStack();
     }

@@ -1,8 +1,8 @@
 #include "../Storage/Blob.hpp"
 
 namespace Ontology {
-    bool unlink(Symbol symbol);
-};
+
+bool unlink(Symbol symbol);
 
 template<bool guarded, typename ElementType>
 struct BlobVector {
@@ -167,4 +167,6 @@ struct BlobIndex : public BlobSet<guarded, Symbol> {
         Super::erase(at);
         return true;
     }
+};
+
 };

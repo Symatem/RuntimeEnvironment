@@ -1,180 +1,182 @@
 #include "BpTree.hpp"
 
 namespace Storage {
-    // TODO: Test BlobBuckets
-    const NativeNaturalType blobBucketTypeCount = 15, blobBucketType[blobBucketTypeCount] =
-        {8, 16, 32, 64, 192, 320, 640, 1152, 2112, 3328, 6016, 7552, 10112, 15232, 30641};
-    // blobBucketTypeCount = 12, {8, 16, 32, 64, 192, 320, 640, 1152, 3328, 7552, 15232, 30641};
-    BpTree<PageRefType> fullBlobBuckets, freeBlobBuckets[blobBucketTypeCount];
 
-    struct BlobBucketHeader : public BasePage {
-        NativeNaturalType type, count, freeIndex;
-    };
+// TODO: Test BlobBuckets
+const NativeNaturalType blobBucketTypeCount = 15, blobBucketType[blobBucketTypeCount] =
+    {8, 16, 32, 64, 192, 320, 640, 1152, 2112, 3328, 6016, 7552, 10112, 15232, 30641};
+// blobBucketTypeCount = 12, {8, 16, 32, 64, 192, 320, 640, 1152, 3328, 7552, 15232, 30641};
+BpTree<PageRefType> fullBlobBuckets, freeBlobBuckets[blobBucketTypeCount];
 
-    struct BlobBucket {
-        BlobBucketHeader header;
+struct BlobBucketHeader : public BasePage {
+    NativeNaturalType type, count, freeIndex;
+};
 
-        NativeNaturalType getDataBits() const {
-            return blobBucketType[header.type];
-        }
+struct BlobBucket {
+    BlobBucketHeader header;
 
-        NativeNaturalType getSizeBits() const {
-            return BitMask<NativeNaturalType>::ceilLog2(getDataBits());
-        }
+    NativeNaturalType getDataBits() const {
+        return blobBucketType[header.type];
+    }
 
-        NativeNaturalType getDataOffset() const {
-            return sizeof(BlobBucketHeader)*8;
-        }
+    NativeNaturalType getSizeBits() const {
+        return BitMask<NativeNaturalType>::ceilLog2(getDataBits());
+    }
 
-        NativeNaturalType getSizeOffset() const {
-            return getSymbolOffset()-getDataBits()*getMaxCount();
-        }
+    NativeNaturalType getDataOffset() const {
+        return sizeof(BlobBucketHeader)*8;
+    }
 
-        NativeNaturalType getSymbolOffset() const {
-            return bitsPerPage-ArchitectureSize*getMaxCount();
-        }
+    NativeNaturalType getSizeOffset() const {
+        return getSymbolOffset()-getDataBits()*getMaxCount();
+    }
 
-        NativeNaturalType indexOfOffset(NativeNaturalType bitOffset) const {
-            return (bitOffset-getDataOffset())/getDataBits();
-        }
+    NativeNaturalType getSymbolOffset() const {
+        return bitsPerPage-architectureSize*getMaxCount();
+    }
 
-        NativeNaturalType offsetOfIndex(NativeNaturalType index) const {
-            return getDataOffset()+index*getDataBits();
-        }
+    NativeNaturalType indexOfOffset(NativeNaturalType bitOffset) const {
+        return (bitOffset-getDataOffset())/getDataBits();
+    }
 
-        NativeNaturalType getMaxCount() const {
-            return (bitsPerPage-getDataOffset())/(getSizeBits()+ArchitectureSize+getDataBits());
-        }
+    NativeNaturalType offsetOfIndex(NativeNaturalType index) const {
+        return getDataOffset()+index*getDataBits();
+    }
 
-        NativeNaturalType getPadding() const {
-            return bitsPerPage-getDataOffset()-(getSizeBits()+ArchitectureSize+getDataBits())*getMaxCount();
-        }
+    NativeNaturalType getMaxCount() const {
+        return (bitsPerPage-getDataOffset())/(getSizeBits()+architectureSize+getDataBits());
+    }
 
-        bool isEmpty() const {
-            return header.count == 0;
-        }
+    NativeNaturalType getPadding() const {
+        return bitsPerPage-getDataOffset()-(getSizeBits()+architectureSize+getDataBits())*getMaxCount();
+    }
 
-        bool isFull() const {
-            return header.count == getMaxCount()-1;
-        }
+    bool isEmpty() const {
+        return header.count == 0;
+    }
 
-        void updateStats() {
-            usage.totalMetaData += getDataOffset();
-            usage.inhabitedMetaData += getDataOffset();
-            usage.totalBlobData += getDataBits()*getMaxCount();
-            usage.inhabitedBlobData += getDataBits()*header.count;
-            usage.uninhabitable += getPadding();
-        }
+    bool isFull() const {
+        return header.count == getMaxCount()-1;
+    }
 
-        void init(NativeNaturalType type) {
-            header.type = type;
-            header.count = 0;
-            header.freeIndex = 0;
-            for(NativeNaturalType index = 0; index < getMaxCount(); ++index) {
-                setSize(index, 0);
-                setSymbol(index, index+1);
-            }
-        }
+    void updateStats() {
+        usage.totalMetaData += getDataOffset();
+        usage.inhabitedMetaData += getDataOffset();
+        usage.totalBlobData += getDataBits()*getMaxCount();
+        usage.inhabitedBlobData += getDataBits()*header.count;
+        usage.uninhabitable += getPadding();
+    }
 
-        void freeIndex(NativeNaturalType index) {
-            --header.count;
+    void init(NativeNaturalType type) {
+        header.type = type;
+        header.count = 0;
+        header.freeIndex = 0;
+        for(NativeNaturalType index = 0; index < getMaxCount(); ++index) {
             setSize(index, 0);
-            setSymbol(index, header.freeIndex);
-            header.freeIndex = index;
+            setSymbol(index, index+1);
         }
+    }
 
-        NativeNaturalType allocateIndex() {
-            ++header.count;
-            NativeNaturalType index = header.freeIndex;
-            header.freeIndex = getSymbol(header.freeIndex);
-            return index;
+    void freeIndex(NativeNaturalType index) {
+        --header.count;
+        setSize(index, 0);
+        setSymbol(index, header.freeIndex);
+        header.freeIndex = index;
+    }
+
+    NativeNaturalType allocateIndex() {
+        ++header.count;
+        NativeNaturalType index = header.freeIndex;
+        header.freeIndex = getSymbol(header.freeIndex);
+        return index;
+    }
+
+    void setSize(NativeNaturalType index, NativeNaturalType size) {
+        Storage::bitwiseCopy<-1>(reinterpret_cast<NativeNaturalType*>(this),
+                                 reinterpret_cast<const NativeNaturalType*>(&size),
+                                 getSizeOffset()+index*getSizeBits(), 0, getSizeBits());
+    }
+
+    NativeNaturalType getSize(NativeNaturalType index) const {
+        NativeNaturalType size;
+        Storage::bitwiseCopy<-1>(reinterpret_cast<NativeNaturalType*>(&size),
+                                 reinterpret_cast<const NativeNaturalType*>(this),
+                                 0, getSizeOffset()+index*getSizeBits(), getSizeBits());
+        return size;
+    }
+
+    void setSymbol(NativeNaturalType index, NativeNaturalType symbol) {
+        Storage::bitwiseCopy<-1>(reinterpret_cast<NativeNaturalType*>(this),
+                                 reinterpret_cast<const NativeNaturalType*>(&symbol),
+                                 getSymbolOffset()+index*architectureSize, 0, architectureSize);
+    }
+
+    NativeNaturalType getSymbol(NativeNaturalType index) const {
+        Symbol symbol;
+        Storage::bitwiseCopy<-1>(reinterpret_cast<NativeNaturalType*>(&symbol),
+                                 reinterpret_cast<const NativeNaturalType*>(this),
+                                 0, getSymbolOffset()+index*architectureSize, architectureSize);
+        return symbol;
+    }
+
+    static NativeNaturalType allocateBlob(NativeNaturalType size, Symbol symbol) {
+        NativeNaturalType type = binarySearch<NativeNaturalType>(blobBucketTypeCount, [&](NativeNaturalType index) {
+            return blobBucketType[index] < size;
+        });
+        if(type >= blobBucketTypeCount)
+            return 0;
+        PageRefType pageRef;
+        BlobBucket* bucket;
+        if(freeBlobBuckets[type].empty()) {
+            pageRef = aquirePage();
+            bucket = dereferencePage<BlobBucket>(pageRef);
+            bucket->init(type);
+            assert(freeBlobBuckets[type].insert(pageRef));
+        } else {
+            pageRef = freeBlobBuckets[type].getAndEraseFromSet();
+            bucket = dereferencePage<BlobBucket>(pageRef);
         }
-
-        void setSize(NativeNaturalType index, NativeNaturalType size) {
-            Storage::bitwiseCopy<-1>(reinterpret_cast<NativeNaturalType*>(this),
-                                     reinterpret_cast<const NativeNaturalType*>(&size),
-                                     getSizeOffset()+index*getSizeBits(), 0, getSizeBits());
+        NativeNaturalType index = bucket->allocateIndex();
+        bucket->setSize(index, size);
+        bucket->setSymbol(index, symbol);
+        if(bucket->isFull()) {
+            assert(fullBlobBuckets.insert(pageRef));
+            assert(freeBlobBuckets[type].erase(pageRef));
         }
+        return pageRef*bitsPerPage+bucket->offsetOfIndex(index);
+    }
 
-        NativeNaturalType getSize(NativeNaturalType index) const {
-            NativeNaturalType size;
-            Storage::bitwiseCopy<-1>(reinterpret_cast<NativeNaturalType*>(&size),
-                                     reinterpret_cast<const NativeNaturalType*>(this),
-                                     0, getSizeOffset()+index*getSizeBits(), getSizeBits());
-            return size;
-        }
+    const static NativeNaturalType addressOffsetMask = bitsPerPage-1;
 
-        void setSymbol(NativeNaturalType index, NativeNaturalType symbol) {
-            Storage::bitwiseCopy<-1>(reinterpret_cast<NativeNaturalType*>(this),
-                                     reinterpret_cast<const NativeNaturalType*>(&symbol),
-                                     getSymbolOffset()+index*ArchitectureSize, 0, ArchitectureSize);
-        }
-
-        NativeNaturalType getSymbol(NativeNaturalType index) const {
-            Symbol symbol;
-            Storage::bitwiseCopy<-1>(reinterpret_cast<NativeNaturalType*>(&symbol),
-                                     reinterpret_cast<const NativeNaturalType*>(this),
-                                     0, getSymbolOffset()+index*ArchitectureSize, ArchitectureSize);
-            return symbol;
-        }
-
-        static NativeNaturalType allocateBlob(NativeNaturalType size, Symbol symbol) {
-            NativeNaturalType type = binarySearch<NativeNaturalType>(blobBucketTypeCount, [&](NativeNaturalType index) {
-                return blobBucketType[index] < size;
-            });
-            if(type >= blobBucketTypeCount)
-                return 0;
-            PageRefType pageRef;
-            BlobBucket* bucket;
-            if(freeBlobBuckets[type].empty()) {
-                pageRef = aquirePage();
-                bucket = dereferencePage<BlobBucket>(pageRef);
-                bucket->init(type);
-                assert(freeBlobBuckets[type].insert(pageRef));
-            } else {
-                pageRef = freeBlobBuckets[type].getAndEraseFromSet();
-                bucket = dereferencePage<BlobBucket>(pageRef);
-            }
-            NativeNaturalType index = bucket->allocateIndex();
-            bucket->setSize(index, size);
-            bucket->setSymbol(index, symbol);
+    static void setBlobSize(NativeNaturalType address, NativeNaturalType size) {
+        PageRefType pageRef = address/bitsPerPage;
+        BlobBucket* bucket = dereferencePage<BlobBucket>(pageRef);
+        NativeNaturalType index = bucket->indexOfOffset(address&addressOffsetMask);
+        if(size == 0) {
             if(bucket->isFull()) {
-                assert(fullBlobBuckets.insert(pageRef));
-                assert(freeBlobBuckets[type].erase(pageRef));
+                assert(fullBlobBuckets.erase(pageRef));
+                assert(freeBlobBuckets[bucket->header.type].insert(pageRef));
             }
-            return pageRef*bitsPerPage+bucket->offsetOfIndex(index);
-        }
+            bucket->freeIndex(index);
+            if(bucket->isEmpty())
+                releasePage(pageRef);
+        } else
+            bucket->setSize(index, size);
+    }
 
-        const static NativeNaturalType addressOffsetMask = bitsPerPage-1;
+    static NativeNaturalType getBlobSize(NativeNaturalType address) {
+        PageRefType pageRef = address/bitsPerPage;
+        BlobBucket* bucket = dereferencePage<BlobBucket>(pageRef);
+        NativeNaturalType index = bucket->indexOfOffset(address&addressOffsetMask);
+        return bucket->getSize(index);
+    }
 
-        static void setBlobSize(NativeNaturalType address, NativeNaturalType size) {
-            PageRefType pageRef = address/bitsPerPage;
-            BlobBucket* bucket = dereferencePage<BlobBucket>(pageRef);
-            NativeNaturalType index = bucket->indexOfOffset(address&addressOffsetMask);
-            if(size == 0) {
-                if(bucket->isFull()) {
-                    assert(fullBlobBuckets.erase(pageRef));
-                    assert(freeBlobBuckets[bucket->header.type].insert(pageRef));
-                }
-                bucket->freeIndex(index);
-                if(bucket->isEmpty())
-                    releasePage(pageRef);
-            } else
-                bucket->setSize(index, size);
-        }
+    static NativeNaturalType getBlobSymbol(NativeNaturalType address) {
+        PageRefType pageRef = address/bitsPerPage;
+        BlobBucket* bucket = dereferencePage<BlobBucket>(pageRef);
+        NativeNaturalType index = bucket->indexOfOffset(address&addressOffsetMask);
+        return bucket->getSymbol(index);
+    }
+};
 
-        static NativeNaturalType getBlobSize(NativeNaturalType address) {
-            PageRefType pageRef = address/bitsPerPage;
-            BlobBucket* bucket = dereferencePage<BlobBucket>(pageRef);
-            NativeNaturalType index = bucket->indexOfOffset(address&addressOffsetMask);
-            return bucket->getSize(index);
-        }
-
-        static NativeNaturalType getBlobSymbol(NativeNaturalType address) {
-            PageRefType pageRef = address/bitsPerPage;
-            BlobBucket* bucket = dereferencePage<BlobBucket>(pageRef);
-            NativeNaturalType index = bucket->indexOfOffset(address&addressOffsetMask);
-            return bucket->getSymbol(index);
-        }
-    };
 };
