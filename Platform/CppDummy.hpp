@@ -1,11 +1,6 @@
 #include <setjmp.h>
-#include <stdio.h>
+#include <stdio.h> // TODO: Remove assert
 #include <stdlib.h> // TODO: Remove malloc and free
-
-[[ noreturn ]] void crash(const char* message) {
-    perror(message);
-    exit(1);
-}
 
 #undef assert
 #define tokenToString(x) #x
@@ -15,28 +10,35 @@
     exit(1); \
 }
 
+void operator delete(void* ptr) noexcept {}
 inline void* operator new(size_t, void* ptr) noexcept {
     return ptr;
 }
 
-void* operator new(size_t size) {
-    crash("operator new called");
-}
-
-void operator delete(void* ptr) noexcept {
-    crash("operator delete called");
-}
-
-template<bool value>
+template<bool _value>
 struct BoolConstant {
-    constexpr const operator bool() const {
-        return value;
-    };
+    static const bool value = _value;
 };
 template<typename type, typename otherType>
 struct isSame : public BoolConstant<false> {};
 template<typename type>
 struct isSame<type, type> : public BoolConstant<true> {};
+
+template<bool B, class T = void>
+struct enableIf {};
+template<class T>
+struct enableIf<true, T> {
+    typedef T type;
+};
+
+template<bool B, class T, class F>
+struct conditional {
+    typedef F type;
+};
+template<class T, class F>
+struct conditional<true, T, F> {
+    typedef T type;
+};
 
 namespace __cxxabiv1 {
 
@@ -56,22 +58,8 @@ namespace __cxxabiv1 {
     DummyTypeInfo(__pointer_to_member_type_info, __pbase_type_info)
 
     extern "C" {
-
-        __attribute__((noreturn))
-        void __cxa_pure_virtual(void) {
-            crash("pure virtual function called");
-        }
-
-        __attribute__((noreturn))
-        void __cxa_deleted_virtual(void) {
-            crash("deleted virtual function called");
-        }
-
-        /*void* __dynamic_cast(const void* srcPtr, const __class_type_info* srcType, const __class_type_info* dstType, ptrdiff_t src2dstOffset) {
-            printf("dynamic_cast");
-            abort();
-        }*/
-
+        void __cxa_pure_virtual(void) {}
+        void __cxa_deleted_virtual(void) {}
     }
 }
 
@@ -152,6 +140,7 @@ typedef double NativeFloatType;
 typedef NativeNaturalType PageRefType;
 typedef NativeNaturalType Symbol;
 const NativeNaturalType architectureSize = sizeof(NativeNaturalType)*8;
+struct VoidType {} VoidValue;
 
 constexpr NativeNaturalType architecturePadding(NativeNaturalType bits) {
     return (bits+architectureSize-1)/architectureSize*architectureSize;

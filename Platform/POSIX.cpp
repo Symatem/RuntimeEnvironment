@@ -4,12 +4,18 @@
 #include <unistd.h>
 #include <dirent.h>
 #include <fcntl.h>
+#include <stdio.h>
 
 #ifdef __APPLE__
 #define MMAP_FUNC mmap
 #else
 #define MMAP_FUNC mmap64
 #endif
+
+[[ noreturn ]] void crash(const char* message) {
+    perror(message);
+    exit(1);
+}
 
 void Storage::resizeMemory(NativeNaturalType _pageCount) {
     if(pageCount)
@@ -41,28 +47,41 @@ void Storage::unload() {
 }
 
 void printStats() {
-    Storage::updateStats();
+    struct Storage::UsageStats usage;
+    usage.uninhabitable = 0;
+    usage.totalMetaData = Storage::bitsPerPage;
+    usage.inhabitedMetaData = sizeof(Storage::SuperPage)*8;
+    usage.totalPayload = 0;
+    usage.inhabitedPayload = 0;
+    Storage::fullBlobBuckets.updateStats(usage, [&](Storage::BpTreeSet<PageRefType>::Iterator<false>& iter) {
+        Storage::dereferencePage<Storage::BlobBucket>(iter.getKey())->updateStats(usage);
+    });
+    for(NativeNaturalType i = 0; i < Storage::blobBucketTypeCount; ++i)
+        Storage::freeBlobBuckets[i].updateStats(usage, [&](Storage::BpTreeSet<PageRefType>::Iterator<false>& iter) {
+            Storage::dereferencePage<Storage::BlobBucket>(iter.getKey())->updateStats(usage);
+        });
+    Storage::blobs.updateStats(usage);
     NativeNaturalType wilderness =
         Storage::pageCount*Storage::bitsPerPage
-        -Storage::usage.uninhabitable
-        -Storage::usage.totalMetaData
-        -Storage::usage.totalBlobData;
-    assert(Storage::usage.wilderness == wilderness);
+        -usage.uninhabitable
+        -usage.totalMetaData
+        -usage.totalPayload;
+    assert(wilderness == Storage::countFreePages()*Storage::bitsPerPage);
     // assert(Storage::symbolCount == Storage::blobs.elementCount+Storage::freeSymbols.elementCount);
     printf("Stats:\n");
     printf("  Total:           %10llu bits\n", Storage::pageCount*Storage::bitsPerPage);
     printf("    Wilderness:    %10llu bits\n", wilderness);
-    printf("    Uninhabitable: %10llu bits\n", Storage::usage.uninhabitable);
-    printf("    Meta:          %10llu bits\n", Storage::usage.totalMetaData);
-    printf("      Inhabited:   %10llu bits\n", Storage::usage.inhabitedMetaData);
-    printf("      Vacant:      %10llu bits\n", Storage::usage.totalMetaData-Storage::usage.inhabitedMetaData);
-    printf("    Blob:          %10llu bits\n", Storage::usage.totalBlobData);
-    printf("      Inhabited:   %10llu bits\n", Storage::usage.inhabitedBlobData);
-    printf("      Vacant:      %10llu bits\n", Storage::usage.totalBlobData-Storage::usage.inhabitedBlobData);
+    printf("    Uninhabitable: %10llu bits\n", usage.uninhabitable);
+    printf("    Meta Data:     %10llu bits\n", usage.totalMetaData);
+    printf("      Inhabited:   %10llu bits\n", usage.inhabitedMetaData);
+    printf("      Vacant:      %10llu bits\n", usage.totalMetaData-usage.inhabitedMetaData);
+    printf("    Payload:       %10llu bits\n", usage.totalPayload);
+    printf("      Inhabited:   %10llu bits\n", usage.inhabitedPayload);
+    printf("      Vacant:      %10llu bits\n", usage.totalPayload-usage.inhabitedPayload);
     printf("  Total:           %10llu symbols\n", Storage::symbolCount);
-    printf("    Recyclable:    %10llu symbols\n", Storage::symbolCount-Storage::blobs.elementCount);
-    printf("    Used:          %10llu symbols\n", Storage::blobs.elementCount);
-    printf("      Meta:        %10llu symbols\n", Storage::blobs.elementCount-Ontology::symbols.size());
+    // printf("    Recyclable:    %10llu symbols\n", Storage::symbolCount-Storage::blobs.elementCount);
+    // printf("    Used:          %10llu symbols\n", Storage::blobs.elementCount);
+    // printf("      Meta:        %10llu symbols\n", Storage::blobs.elementCount-Ontology::symbols.size());
     printf("      User:        %10llu symbols\n", Ontology::symbols.size());
     printf("  Total:           %10llu triples\n", Ontology::query(13, {}));
     printf("\n");

@@ -2,32 +2,36 @@
 
 namespace Storage {
 
-struct VoidType {} VoidValue;
+enum FindMode {
+    First,
+    Last,
+    Key
+};
 
-template<typename KeyType, typename ValueType = VoidType>
+template<typename KeyType, typename RankType, NativeNaturalType valueBits>
 struct BpTree {
-    static const NativeNaturalType
-        pageRefBits = sizeof(PageRefType)*8,
-        keyBits = sizeof(KeyType)*8,
-        valueBits = sizeof(ValueType)*8;
+    typedef unsigned short OffsetType;
+    typedef signed char LayerType;
 
-    typedef int16_t DistributionType;
-    typedef uint16_t IndexType;
-    typedef int8_t LayerType;
+    static const NativeNaturalType
+        keyBits = sizeof(KeyType)*8,
+        rankBits = sizeof(RankType)*8,
+        pageRefBits = sizeof(PageRefType)*8;
 
     struct IteratorFrame {
+        RankType rank;
         PageRefType pageRef;
-        IndexType index, endIndex;
+        OffsetType index, endIndex;
     };
 
     struct InsertIteratorFrame : public IteratorFrame {
         PageRefType lowerInnerPageRef, higherInnerPageRef, higherOuterPageRef;
-        IndexType lowerInnerIndex, higherInnerEndIndex, higherOuterEndIndex, elementsPerPage;
+        OffsetType lowerInnerIndex, higherInnerEndIndex, higherOuterEndIndex, elementsPerPage;
         NativeNaturalType pageCount;
     };
 
     struct PageHeader : public BasePage {
-        IndexType count;
+        OffsetType count;
     };
 
     struct Page {
@@ -37,23 +41,24 @@ struct BpTree {
             headerBits = sizeof(PageHeader)*8,
             keyOffset = architecturePadding(headerBits),
             bodyBits = Storage::bitsPerPage-keyOffset,
-            branchKeyCount = (bodyBits-pageRefBits)/(keyBits+pageRefBits),
+            branchKeyCount = (bodyBits-pageRefBits)/(keyBits+rankBits+pageRefBits),
             leafKeyCount = bodyBits/(keyBits+valueBits),
+            rankOffset = keyOffset+keyBits*branchKeyCount,
             pageRefOffset = Storage::bitsPerPage-pageRefBits*(branchKeyCount+1),
             valueOffset = Storage::bitsPerPage-valueBits*leafKeyCount;
 
         template<bool isLeaf>
-        static IndexType capacity() {
+        static OffsetType capacity() {
             return (isLeaf) ? leafKeyCount : branchKeyCount+1;
         }
 
         template<bool isLeaf>
-        IndexType keyCount() const {
+        OffsetType keyCount() const {
             return (isLeaf) ? header.count : header.count-1;
         }
 
         template<typename Type, NativeNaturalType offset>
-        Type get(IndexType src) const {
+        Type get(OffsetType src) const {
             Type result;
             Storage::bitwiseCopy<-1>(reinterpret_cast<NativeNaturalType*>(&result),
                                      reinterpret_cast<const NativeNaturalType*>(this),
@@ -62,60 +67,52 @@ struct BpTree {
         }
 
         template<bool isLeaf>
-        KeyType getKey(IndexType src) const {
+        KeyType getKey(OffsetType src) const {
             return get<KeyType, keyOffset>(src);
         }
 
-        PageRefType getPageRef(IndexType src) const {
+        RankType getRank(OffsetType src) const {
+            return get<RankType, rankOffset>(src);
+        }
+
+        PageRefType getPageRef(OffsetType src) const {
             return get<PageRefType, pageRefOffset>(src);
         }
 
-        ValueType getValue(IndexType src) const {
-            return get<ValueType, valueOffset>(src);
-        }
-
         template<typename Type, NativeNaturalType offset>
-        void set(IndexType dst, Type content) {
+        void set(OffsetType dst, Type content) {
             Storage::bitwiseCopy<-1>(reinterpret_cast<NativeNaturalType*>(this),
                                      reinterpret_cast<const NativeNaturalType*>(&content),
                                      offset+dst*sizeof(Type)*8, 0, sizeof(Type)*8);
         }
 
         template<bool isLeaf>
-        void setKey(IndexType dst, KeyType content) {
+        void setKey(OffsetType dst, KeyType content) {
             set<KeyType, keyOffset>(dst, content);
         }
 
-        void setPageRef(IndexType dst, PageRefType content) {
-            set<PageRefType, pageRefOffset>(dst, content);
+        void setRank(OffsetType dst, RankType content) {
+            set<RankType, rankOffset>(dst, content);
         }
 
-        void setValue(IndexType dst, ValueType content) {
-            set<ValueType, valueOffset>(dst, content);
+        void setPageRef(OffsetType dst, PageRefType content) {
+            set<PageRefType, pageRefOffset>(dst, content);
         }
 
         template<bool isLeaf>
         bool isValid() const {
             if(header.count <= !isLeaf || header.count > capacity<isLeaf>())
                 return false;
-            for(IndexType i = 1; i < keyCount<isLeaf>(); ++i)
+            for(OffsetType i = 1; i < keyCount<isLeaf>(); ++i)
                 if(getKey<isLeaf>(i-1) >= getKey<isLeaf>(i))
                     return false;
             return true;
         }
 
-        template<bool isLeaf>
-        IndexType indexOfKey(KeyType key) const {
-            return binarySearch<IndexType>(keyCount<isLeaf>(), [&](IndexType at) {
-                return ((isLeaf && key > getKey<true>(at)) ||
-                        (!isLeaf && key >= getKey<false>(at)));
-            });
-        }
-
         template<bool frontKey, int dir = -1>
         static void copyBranchElements(Page* dstPage, Page* srcPage,
-                                       IndexType dstIndex, IndexType srcIndex,
-                                       IndexType n) {
+                                       OffsetType dstIndex, OffsetType srcIndex,
+                                       OffsetType n) {
             if(n == 0)
                 return;
             Storage::bitwiseCopy<dir>(reinterpret_cast<NativeNaturalType*>(dstPage),
@@ -140,8 +137,8 @@ struct BpTree {
 
         template<int dir = -1>
         static void copyLeafElements(Page* dstPage, Page* srcPage,
-                                     IndexType dstIndex, IndexType srcIndex,
-                                     IndexType n) {
+                                     OffsetType dstIndex, OffsetType srcIndex,
+                                     OffsetType n) {
             if(n == 0)
                 return;
             Storage::bitwiseCopy<dir>(reinterpret_cast<NativeNaturalType*>(dstPage),
@@ -168,7 +165,7 @@ struct BpTree {
 
         template<bool dstIsLeaf, bool srcIsLeaf>
         static void copyKey(Page* dstPage, Page* srcPage,
-                            IndexType dstIndex, IndexType srcIndex) {
+                            OffsetType dstIndex, OffsetType srcIndex) {
             // dstPage->template setKey<dstIsLeaf>(dstIndex, srcPage->template getKey<srcIsLeaf>(srcIndex));
             Storage::bitwiseCopy<-1>(reinterpret_cast<NativeNaturalType*>(dstPage),
                                      reinterpret_cast<const NativeNaturalType*>(srcPage),
@@ -177,23 +174,23 @@ struct BpTree {
         }
 
         static void swapKeyInParent(Page* parent, Page* dstPage, Page* srcPage,
-                                    IndexType parentIndex, IndexType dstIndex, IndexType srcIndex) {
+                                    OffsetType parentIndex, OffsetType dstIndex, OffsetType srcIndex) {
             copyKey<false, false>(dstPage, parent, dstIndex, parentIndex);
             copyKey<false, false>(parent, srcPage, parentIndex, srcIndex);
         }
 
-        static void shiftCounts(Page* dstPage, Page* srcPage, IndexType n) {
+        static void shiftCounts(Page* dstPage, Page* srcPage, OffsetType n) {
             dstPage->header.count += n;
             srcPage->header.count -= n;
         }
 
-        static void distributeCount(Page* lower, Page* higher, DistributionType n) {
+        static void distributeCount(Page* lower, Page* higher, NativeIntegerType n) {
             lower->header.count = (n+1)/2;
             higher->header.count = n/2;
         }
 
         template<bool isLeaf>
-        static void insert(InsertIteratorFrame* frame, Page* lower, IndexType count) {
+        static void insert(InsertIteratorFrame* frame, Page* lower, OffsetType count) {
             if(!isLeaf)
                 ++frame->index;
             assert(count > lower->header.count && count <= capacity<isLeaf>() && frame->index <= lower->header.count);
@@ -211,12 +208,12 @@ struct BpTree {
         static void insertOverflow(InsertIteratorFrame* frame,
                                    Page* lowerInnerParent, Page* higherOuterParent,
                                    Page* lowerOuter, Page* lowerInner, Page* higherInner, Page* higherOuter,
-                                   IndexType lowerInnerParentIndex, IndexType higherOuterParentIndex) {
+                                   OffsetType lowerInnerParentIndex, OffsetType higherOuterParentIndex) {
             if(!isLeaf)
                 ++frame->index;
             bool insertKeyInParentNow;
-            DistributionType shiftHigherInner = frame->index+frame->endIndex-lowerOuter->header.count,
-                             shiftHigherOuter = lowerOuter->header.count-frame->index, higherOuterEndIndex;
+            NativeIntegerType shiftHigherInner = frame->index+frame->endIndex-lowerOuter->header.count,
+                              shiftHigherOuter = lowerOuter->header.count-frame->index, higherOuterEndIndex;
             assert(shiftHigherInner > 0 && frame->endIndex <= capacity<isLeaf>()*2 && frame->index <= lowerOuter->header.count);
             lowerInner->header.count = higherInner->header.count = frame->elementsPerPage;
             distributeCount(lowerOuter, higherOuter, frame->endIndex);
@@ -257,7 +254,7 @@ struct BpTree {
         }
 
         template<bool isLeaf>
-        static void erase1(Page* lower, IndexType start, IndexType end) {
+        static void erase1(Page* lower, OffsetType start, OffsetType end) {
             assert(start < end && end <= lower->header.count);
             if(isLeaf)
                 copyLeafElements<-1>(lower, lower, start, end, lower->header.count-end);
@@ -270,9 +267,9 @@ struct BpTree {
 
         template<bool isLeaf>
         static bool erase2(Page* parent, Page* lower, Page* higher,
-                           IndexType parentIndex, IndexType startInLower, IndexType endInHigher) {
+                           OffsetType parentIndex, OffsetType startInLower, OffsetType endInHigher) {
             assert(startInLower <= lower->header.count && endInHigher <= higher->header.count);
-            DistributionType count = startInLower+higher->header.count-endInHigher;
+            NativeIntegerType count = startInLower+higher->header.count-endInHigher;
             if(count <= capacity<isLeaf>()) {
                 lower->header.count = count;
                 if(count == 0)
@@ -334,7 +331,7 @@ struct BpTree {
         }
 
         template<bool isLeaf>
-        static void evacuateDown(Page* parent, Page* lower, Page* higher, IndexType parentIndex) {
+        static void evacuateDown(Page* parent, Page* lower, Page* higher, OffsetType parentIndex) {
             assert(lower->header.count+higher->header.count <= capacity<isLeaf>());
             if(isLeaf)
                 copyLeafElements(lower, higher, lower->header.count, 0, higher->header.count);
@@ -346,7 +343,7 @@ struct BpTree {
         }
 
         template<bool isLeaf>
-        static void evacuateUp(Page* parent, Page* lower, Page* higher, IndexType parentIndex) {
+        static void evacuateUp(Page* parent, Page* lower, Page* higher, OffsetType parentIndex) {
             assert(lower->header.count+higher->header.count <= capacity<isLeaf>());
             if(isLeaf) {
                 copyLeafElements<+1>(higher, higher, lower->header.count, 0, higher->header.count);
@@ -360,7 +357,7 @@ struct BpTree {
         }
 
         template<bool isLeaf>
-        static void shiftDown(Page* parent, Page* lower, Page* higher, IndexType parentIndex, IndexType count) {
+        static void shiftDown(Page* parent, Page* lower, Page* higher, OffsetType parentIndex, OffsetType count) {
             assert(count > 0 && lower->header.count+count <= capacity<isLeaf>());
             if(isLeaf) {
                 copyLeafElements(lower, higher, lower->header.count, 0, count);
@@ -376,7 +373,7 @@ struct BpTree {
         }
 
         template<bool isLeaf>
-        static void shiftUp(Page* parent, Page* lower, Page* higher, IndexType parentIndex, IndexType count) {
+        static void shiftUp(Page* parent, Page* lower, Page* higher, OffsetType parentIndex, OffsetType count) {
             assert(count > 0 && higher->header.count+count <= capacity<isLeaf>());
             if(isLeaf) {
                 copyLeafElements<+1>(higher, higher, count, 0, higher->header.count);
@@ -392,8 +389,8 @@ struct BpTree {
         }
 
         template<bool isLeaf, bool lowerIsMiddle>
-        static bool redistribute2(Page* parent, Page* lower, Page* higher, IndexType parentIndex) {
-            DistributionType count = lower->header.count+higher->header.count;
+        static bool redistribute2(Page* parent, Page* lower, Page* higher, OffsetType parentIndex) {
+            NativeIntegerType count = lower->header.count+higher->header.count;
             if(count <= capacity<isLeaf>()) {
                 if(lowerIsMiddle)
                     evacuateUp<isLeaf>(parent, lower, higher, parentIndex);
@@ -413,8 +410,8 @@ struct BpTree {
         template<bool isLeaf>
         static bool redistribute3(Page* middleParent, Page* higherParent,
                                   Page* lower, Page* middle, Page* higher,
-                                  IndexType middleParentIndex, IndexType higherParentIndex) {
-            DistributionType count = lower->header.count+middle->header.count+higher->header.count;
+                                  OffsetType middleParentIndex, OffsetType higherParentIndex) {
+            NativeIntegerType count = lower->header.count+middle->header.count+higher->header.count;
             if(count <= capacity<isLeaf>()*2) {
                 count = count/2-higher->header.count;
                 if(count < 0) {
@@ -450,7 +447,7 @@ struct BpTree {
                 return true;
             } else {
                 count = count/3;
-                DistributionType shiftLower = lower->header.count-count, shiftUpper = higher->header.count-count;
+                NativeIntegerType shiftLower = lower->header.count-count, shiftUpper = higher->header.count-count;
                 if(shiftLower < 0) {
                     if(shiftUpper < 0)
                         shiftUp<isLeaf>(higherParent, middle, higher, higherParentIndex, -shiftUpper);
@@ -472,7 +469,7 @@ struct BpTree {
         template<bool isLeaf>
         static bool redistribute(Page* middleParent, Page* higherParent,
                                  Page* lower, Page* middle, Page* higher,
-                                 IndexType middleParentIndex, IndexType higherParentIndex) {
+                                 OffsetType middleParentIndex, OffsetType higherParentIndex) {
             if(lower) {
                 if(higher) {
                     return redistribute3<isLeaf>(middleParent, higherParent,
@@ -486,7 +483,6 @@ struct BpTree {
     };
 
     PageRefType rootPageRef;
-    NativeNaturalType elementCount;
     LayerType layerCount;
     static const LayerType maxLayerCount = 9;
 
@@ -544,6 +540,15 @@ struct BpTree {
             return (fromBegin(layer)->index < other.fromBegin(layer)->index) ? -1 : 1;
         }
 
+        void ascend(FrameType*& frame, Page*& page, LayerType& layer) {
+            auto parentFrame = frame;
+            auto parentPage = page;
+            frame = fromBegin(++layer);
+            frame->pageRef = parentPage->getPageRef(parentFrame->index);
+            page = getPage<enableCopyOnWrite>(frame->pageRef);
+            // parentPage->setPageRef(parentFrame->index, frame->pageRef); // TODO: Update pageRef in getPage
+        }
+
         template<int dir = 1>
         NativeNaturalType advanceAtLayer(LayerType atLayer, NativeNaturalType steps = 1, Closure<void(LayerType, Page*)> pageTouchCallback = nullptr) {
             if(steps == 0 || end == 0 || atLayer < 0 || atLayer >= end)
@@ -584,18 +589,13 @@ struct BpTree {
                     LayerType endLayer = atLayer+1;
                     if(endLayer > end-1)
                         endLayer = end-1;
-                    Page* parent = getPage(frame->pageRef);
+                    Page* page = getPage(frame->pageRef);
                     while(layer < endLayer) {
-                        IndexType parentIndex = frame->index;
-                        frame = fromBegin(++layer);
-                        frame->pageRef = parent->getPageRef(parentIndex);
-                        Page* page = getPage<enableCopyOnWrite>(frame->pageRef);
+                        ascend(frame, page, layer);
                         if(pageTouchCallback)
                             pageTouchCallback(layer, page);
-                        // parent->setPageRef(parentIndex, frame->pageRef); // TODO: Update pageRef in getPage
                         frame->endIndex = page->header.count;
                         frame->index = (dir == 1) ? 0 : frame->endIndex-1;
-                        parent = page;
                     }
                 }
             } while(keepRunning);
@@ -612,51 +612,57 @@ struct BpTree {
             return getPage(frame->pageRef)->template getKey<true>(frame->index);
         }
 
-        ValueType getValue() {
-            FrameType* frame = fromEnd();
-            return getPage(frame->pageRef)->getValue(frame->index);
-        }
-
         void setKey(KeyType key) {
             static_assert(enableCopyOnWrite, "Can not write: read only");
             FrameType* frame = fromEnd();
             getPage(frame->pageRef)->template setKey<true>(frame->index, key);
         }
-
-        void setValue(ValueType value) {
-            static_assert(enableCopyOnWrite, "Can not write: read only");
-            FrameType* frame = fromEnd();
-            getPage(frame->pageRef)->setValue(frame->index, value);
-        }
     };
 
-    template<bool enableCopyOnWrite, bool border = false, bool upper = false>
-	bool find(Iterator<enableCopyOnWrite>& iter, KeyType key = 0, Closure<void(LayerType, Page*)> pageTouchCallback = nullptr) {
+    template<FindMode mode, bool enableCopyOnWrite>
+	bool find(Iterator<enableCopyOnWrite>& iter,
+              KeyType key,
+              Closure<void(LayerType, Page*)> pageTouchCallback = nullptr) {
         iter.end = layerCount;
 		if(empty())
             return false;
         LayerType layer = 0;
-        PageRefType pageRef = rootPageRef;
+        auto frame = iter.fromBegin(layer);
+        Page* page = getPage<enableCopyOnWrite>(rootPageRef);
+        frame->pageRef = rootPageRef;
 	    while(true) {
-	        auto frame = iter.fromBegin(layer);
-            frame->pageRef = pageRef;
-            Page* page = getPage<enableCopyOnWrite>(frame->pageRef);
             if(pageTouchCallback)
                 pageTouchCallback(layer, page);
-            // parent->setPageRef(parentIndex, frame->pageRef); // TODO: Update pageRef in getPage
             frame->endIndex = page->header.count;
-	        if(++layer == iter.end) {
-                if(border)
-                    frame->index = (upper) ? page->header.count : 0;
-                else
-                    frame->index = page->template indexOfKey<true>(key);
-                return border || (frame->index < page->header.count && page->template getKey<true>(frame->index) == key);
+	        if(layer == iter.end-1) {
+                switch(mode) {
+                    case First:
+                        frame->index = 0;
+                        return true;
+                    case Last:
+                        frame->index = page->header.count;
+                        return true;
+                    case Key:
+                        frame->index = binarySearch<OffsetType>(page->template keyCount<true>(), [&](OffsetType at) {
+                            return key > page->template getKey<true>(at);
+                        });
+                        return frame->index < page->header.count && page->template getKey<true>(frame->index) == key;
+                }
 	        } else {
-                if(border)
-                    frame->index = (upper) ? page->header.count-1 : 0;
-                else
-                    frame->index = page->template indexOfKey<false>(key);
-                pageRef = page->getPageRef(frame->index);
+                switch(mode) {
+                    case First:
+                        frame->index = 0;
+                        break;
+                    case Last:
+                        frame->index = page->header.count-1;
+                        break;
+                    case Key:
+                        frame->index = binarySearch<OffsetType>(page->template keyCount<false>(), [&](OffsetType at) {
+                            return key >= page->template getKey<false>(at);
+                        });
+                        break;
+                }
+                iter.ascend(frame, page, layer);
 	        }
 	    }
 	}
@@ -671,36 +677,39 @@ struct BpTree {
         } while(iter.advance() == 0);
     }
 
-    void updateStats(Closure<void(Iterator<false>&)> callback = nullptr) {
+    void updateStats(struct UsageStats& usage, Closure<void(Iterator<false>&)> callback = nullptr) {
         if(empty())
             return;
+        // usage.elementCount = 0;
+        // usage.inhabitedPayload = 0;
+        // usage.inhabitedMetaData = 0;
         Iterator<false> iter;
         NativeNaturalType branchPageCount = 0, leafPageCount = 0;
         Closure<void(LayerType, Page*)> pageTouch = [&](LayerType layer, Page* page) {
             if(layer == layerCount-1) {
                 ++leafPageCount;
+                usage.inhabitedPayload += (keyBits+valueBits)*page->header.count;
+                // usage.elementCount += iter.fromEnd()->endIndex;
                 if(callback)
                     for(; iter.fromEnd()->index < iter.fromEnd()->endIndex; ++iter.fromEnd()->index)
                         callback(iter);
             } else {
                 ++branchPageCount;
-                Storage::usage.inhabitedMetaData += (keyBits+pageRefBits)*page->header.count+pageRefBits;
+                usage.inhabitedMetaData += (keyBits+pageRefBits)*page->header.count+pageRefBits;
             }
         };
-        find<false, true, false>(iter, 0, pageTouch);
+        find<First>(iter, 0, pageTouch);
         while(iter.template advanceAtLayer<1>(iter.end-2, 1, pageTouch) == 0);
         NativeNaturalType uninhabitable = Page::valueOffset-Page::headerBits-keyBits*Page::leafKeyCount;
-        Storage::usage.uninhabitable += uninhabitable*leafPageCount;
-        Storage::usage.totalMetaData += (Storage::bitsPerPage-uninhabitable)*leafPageCount;
-        Storage::usage.inhabitedMetaData += (keyBits+valueBits)*elementCount;
+        usage.uninhabitable += uninhabitable*leafPageCount;
+        usage.totalPayload += (Storage::bitsPerPage-uninhabitable)*leafPageCount;
         uninhabitable = Page::pageRefOffset-Page::headerBits-keyBits*Page::branchKeyCount;
-        Storage::usage.uninhabitable += uninhabitable*branchPageCount;
-        Storage::usage.totalMetaData += (Storage::bitsPerPage-uninhabitable)*branchPageCount;
+        usage.uninhabitable += uninhabitable*branchPageCount;
+        usage.totalMetaData += (Storage::bitsPerPage-uninhabitable)*branchPageCount;
     }
 
     void init() {
         rootPageRef = 0;
-        elementCount = 0;
         layerCount = 0;
     }
 
@@ -711,13 +720,13 @@ struct BpTree {
     struct InsertData {
         LayerType startLayer, layer;
         NativeNaturalType elementCount;
-        IndexType lowerInnerParentIndex, higherOuterParentIndex;
+        OffsetType lowerInnerParentIndex, higherOuterParentIndex;
         Page *lowerInnerParent, *higherOuterParent;
     };
 
     template<typename FrameType, bool isLeaf>
     static bool insertPhase1Layer(InsertData& data, Iterator<true, FrameType>& iter) {
-        bool apply = isSame<FrameType, InsertIteratorFrame>();
+        bool apply = isSame<FrameType, InsertIteratorFrame>::value;
         Page* lowerOuter;
         auto frame = reinterpret_cast<InsertIteratorFrame*>(iter.fromBegin(data.layer));
         if(data.layer >= data.startLayer) {
@@ -803,7 +812,7 @@ struct BpTree {
              *higherInner = getPage(frame->higherInnerPageRef),
              *higherOuter = getPage(frame->higherOuterPageRef);
         Page::template insertOverflow<isLeaf>(frame, data.lowerInnerParent, data.higherOuterParent,
-                lowerOuter, lowerInner, higherInner, higherOuter, data.lowerInnerParentIndex-1, data.higherOuterParentIndex-1);
+            lowerOuter, lowerInner, higherInner, higherOuter, data.lowerInnerParentIndex-1, data.higherOuterParentIndex-1);
         if(isLeaf)
             return;
         if(frame->index < frame->endIndex) {
@@ -891,7 +900,7 @@ struct BpTree {
         return page;
     }
 
-    typedef Closure<void(Page*, IndexType, IndexType)> AquireData;
+    typedef Closure<void(Page*, OffsetType, OffsetType)> AquireData;
     void insert(Iterator<true>& origIter, NativeNaturalType n, AquireData aquireData) {
         assert(n > 0);
         InsertData data;
@@ -900,7 +909,6 @@ struct BpTree {
         LayerType addedLayers = insertPhase1<IteratorFrame>(data, origIter);
         addedLayers = (addedLayers < 0) ? -addedLayers : 0;
         layerCount += addedLayers;
-        elementCount += n;
         Iterator<true, InsertIteratorFrame> iter;
         iter.end = layerCount;
         iter.copy(origIter);
@@ -952,21 +960,6 @@ struct BpTree {
         }
     }
 
-    void insert(Iterator<true>& iter, KeyType key, ValueType value = VoidValue) {
-        insert(iter, 1, [&](Page* page, IndexType index, IndexType endIndex) {
-            page->template setKey<true>(index, key);
-            page->setValue(index, value);
-        });
-    }
-
-    bool insert(KeyType key, ValueType value = VoidValue) {
-        Iterator<true> iter;
-        if(find(iter, key))
-            return false;
-        insert(iter, key, value);
-        return true;
-    }
-
     struct EraseData {
         bool spareLowerInner, eraseHigherInner;
         LayerType layer;
@@ -974,7 +967,7 @@ struct BpTree {
     };
 
     template<int dir>
-    static Page* eraseAdvance(EraseData& data, IndexType& parentIndex, Page*& parent) {
+    static Page* eraseAdvance(EraseData& data, OffsetType& parentIndex, Page*& parent) {
         data.iter.copy((dir == -1) ? data.from : data.to);
         if(data.iter.template advanceAtLayer<dir>(data.layer-1) == 0) {
             IteratorFrame* parentFrame = ((dir == -1) ? data.from : data.iter).getParentFrame(data.layer);
@@ -1003,8 +996,8 @@ struct BpTree {
 
     template<bool isLeaf>
     bool eraseLayer(EraseData& data) {
-        IndexType lowerInnerIndex = data.from.fromBegin(data.layer)->index+data.spareLowerInner,
-                  higherInnerIndex = data.to.fromBegin(data.layer)->index+data.eraseHigherInner;
+        OffsetType lowerInnerIndex = data.from.fromBegin(data.layer)->index+data.spareLowerInner,
+                   higherInnerIndex = data.to.fromBegin(data.layer)->index+data.eraseHigherInner;
         Page *lowerInner = getPage(data.from.fromBegin(data.layer)->pageRef),
              *higherInner = getPage(data.to.fromBegin(data.layer)->pageRef);
         data.spareLowerInner = true;
@@ -1012,8 +1005,6 @@ struct BpTree {
         if(lowerInner == higherInner) {
             if(lowerInnerIndex >= higherInnerIndex)
                 return false;
-            if(isLeaf)
-                elementCount -= higherInnerIndex-lowerInnerIndex;
             Page::template erase1<isLeaf>(lowerInner, lowerInnerIndex, higherInnerIndex);
             if(data.layer == 0) {
                 eraseEmptyLayer<isLeaf>(data, lowerInner);
@@ -1021,10 +1012,8 @@ struct BpTree {
             }
         } else {
             IteratorFrame* parentFrame = data.to.getParentFrame(data.layer);
-            IndexType higherInnerParentIndex = parentFrame->index-1;
+            OffsetType higherInnerParentIndex = parentFrame->index-1;
             Page* higherInnerParent = getPage(parentFrame->pageRef);
-            if(isLeaf)
-                elementCount -= lowerInner->header.count-lowerInnerIndex+higherInnerIndex;
             if(Page::template erase2<isLeaf>(higherInnerParent, lowerInner, higherInner,
                                              higherInnerParentIndex, lowerInnerIndex, higherInnerIndex)) {
                 Storage::releasePage(data.to.fromBegin(data.layer)->pageRef);
@@ -1032,15 +1021,11 @@ struct BpTree {
             }
             data.iter.copy(data.to);
             while(data.iter.template advanceAtLayer<-1>(data.layer-1) == 0 &&
-                  data.iter.fromBegin(data.layer)->pageRef != data.from.fromBegin(data.layer)->pageRef) {
-                PageRefType pageRef = data.iter.fromBegin(data.layer)->pageRef;
-                if(isLeaf)
-                    elementCount -= getPage(pageRef)->header.count;
-                Storage::releasePage(pageRef);
-            }
+                  data.iter.fromBegin(data.layer)->pageRef != data.from.fromBegin(data.layer)->pageRef)
+                Storage::releasePage(data.iter.fromBegin(data.layer)->pageRef);
         }
         if(lowerInner->header.count < Page::template capacity<isLeaf>()/2) {
-            IndexType lowerInnerParentIndex, higherOuterParentIndex;
+            OffsetType lowerInnerParentIndex, higherOuterParentIndex;
             Page *lowerInnerParent, *higherOuterParent,
                  *lowerOuter = eraseAdvance<-1>(data, lowerInnerParentIndex, lowerInnerParent),
                  *higherOuter = eraseAdvance<1>(data, higherOuterParentIndex, higherOuterParent);
@@ -1073,18 +1058,10 @@ struct BpTree {
 
     bool erase(KeyType key) {
         Iterator<true> iter;
-        if(!find(iter, key))
+        if(!find<Key>(iter, key))
             return false;
         erase(iter);
         return true;
-    }
-
-    KeyType getAndEraseFromSet() {
-        Iterator<true> iter;
-        find<true, true, false>(iter);
-        KeyType key = iter.getKey();
-        erase(iter);
-        return key;
     }
 };
 

@@ -1,4 +1,4 @@
-#include "BpTree.hpp"
+#include "BpContainers.hpp"
 
 namespace Storage {
 
@@ -6,7 +6,7 @@ namespace Storage {
 const NativeNaturalType blobBucketTypeCount = 15, blobBucketType[blobBucketTypeCount] =
     {8, 16, 32, 64, 192, 320, 640, 1152, 2112, 3328, 6016, 7552, 10112, 15232, 30641};
 // blobBucketTypeCount = 12, {8, 16, 32, 64, 192, 320, 640, 1152, 3328, 7552, 15232, 30641};
-BpTree<PageRefType> fullBlobBuckets, freeBlobBuckets[blobBucketTypeCount];
+BpTreeSet<PageRefType> fullBlobBuckets, freeBlobBuckets[blobBucketTypeCount];
 
 struct BlobBucketHeader : public BasePage {
     NativeNaturalType type, count, freeIndex;
@@ -59,11 +59,11 @@ struct BlobBucket {
         return header.count == getMaxCount()-1;
     }
 
-    void updateStats() {
+    void updateStats(struct UsageStats& usage) {
         usage.totalMetaData += getDataOffset();
         usage.inhabitedMetaData += getDataOffset();
-        usage.totalBlobData += getDataBits()*getMaxCount();
-        usage.inhabitedBlobData += getDataBits()*header.count;
+        usage.totalPayload += getDataBits()*getMaxCount();
+        usage.inhabitedPayload += getDataBits()*header.count;
         usage.uninhabitable += getPadding();
     }
 
@@ -133,7 +133,7 @@ struct BlobBucket {
             bucket->init(type);
             assert(freeBlobBuckets[type].insert(pageRef));
         } else {
-            pageRef = freeBlobBuckets[type].getAndEraseFromSet();
+            pageRef = freeBlobBuckets[type].pullOneOut();
             bucket = dereferencePage<BlobBucket>(pageRef);
         }
         NativeNaturalType index = bucket->allocateIndex();

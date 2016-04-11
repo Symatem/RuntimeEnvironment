@@ -139,14 +139,13 @@ NativeNaturalType bytesForPages(NativeNaturalType _pageCount) {
 int file;
 char* ptr;
 PageRefType pageCount;
-struct UsageStats {
-    NativeNaturalType wilderness, // TODO
-                      uninhabitable,
+struct UsageStats { // TODO: Split for BlobBuckets and B+Trees
+    NativeNaturalType uninhabitable,
                       totalMetaData,
-                      totalBlobData,
+                      totalPayload,
                       inhabitedMetaData,
-                      inhabitedBlobData;
-} usage;
+                      inhabitedPayload;
+};
 
 void resizeMemory(NativeNaturalType pageCount);
 void load();
@@ -170,7 +169,6 @@ PageRefType aquirePage() {
         PageRefType pageRef = superPage->freePage;
         auto freePage = dereferencePage<FreePage>(pageRef);
         superPage->freePage = freePage->next;
-        usage.wilderness -= bitsPerPage;
         return pageRef;
     } else {
         resizeMemory(pageCount+1);
@@ -187,8 +185,20 @@ void releasePage(PageRefType pageRef) {
         auto freePage = dereferencePage<FreePage>(pageRef);
         freePage->next = superPage->freePage;
         superPage->freePage = pageRef;
-        usage.wilderness += bitsPerPage;
     }
+}
+
+NativeNaturalType countFreePages() {
+    auto superPage = dereferencePage<SuperPage>(0);
+    if(!superPage->freePage)
+        return 0;
+    NativeNaturalType count = 1;
+    auto freePage = dereferencePage<FreePage>(superPage->freePage);
+    while(freePage->next) {
+        freePage = dereferencePage<FreePage>(freePage->next);
+        ++count;
+    }
+    return count;
 }
 
 };

@@ -476,11 +476,11 @@ void scrutinizeExistence(Symbol symbol) {
 template<typename DataType>
 Symbol createFromData(DataType src) {
     Symbol blobType;
-    if(isSame<DataType, NativeNaturalType>())
+    if(isSame<DataType, NativeNaturalType>::value)
         blobType = NaturalSymbol;
-    else if(isSame<DataType, NativeIntegerType>())
+    else if(isSame<DataType, NativeIntegerType>::value)
         blobType = IntegerSymbol;
-    else if(isSame<DataType, NativeFloatType>())
+    else if(isSame<DataType, NativeFloatType>::value)
         blobType = FloatSymbol;
     else
         assert(false);

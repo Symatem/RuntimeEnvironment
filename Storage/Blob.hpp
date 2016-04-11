@@ -2,30 +2,13 @@
 
 namespace Storage {
 
-BpTree<Symbol, NativeNaturalType> blobs;
-BpTree<Symbol> freeSymbols; // TODO: Fix scrutinizeExistence
+BpTreeMap<Symbol, NativeNaturalType> blobs;
+BpTreeSet<Symbol> freeSymbols; // TODO: Fix scrutinizeExistence
 Symbol symbolCount = 0;
-
-void updateStats() {
-    // usage.wilderness = 0;
-    usage.uninhabitable = 0;
-    usage.totalMetaData = bitsPerPage;
-    usage.inhabitedMetaData = sizeof(SuperPage)*8;
-    usage.totalBlobData = 0;
-    usage.inhabitedBlobData = 0;
-    fullBlobBuckets.updateStats([](BpTree<PageRefType>::Iterator<false>& iter) {
-        dereferencePage<BlobBucket>(iter.getKey())->updateStats();
-    });
-    for(NativeNaturalType i = 0; i < blobBucketTypeCount; ++i)
-        freeBlobBuckets[i].updateStats([](BpTree<PageRefType>::Iterator<false>& iter) {
-            dereferencePage<BlobBucket>(iter.getKey())->updateStats();
-        });
-    blobs.updateStats();
-}
 
 Symbol createSymbol() {
     /*if(freeSymbols.elementCount)
-        return freeSymbols.getAndEraseFromSet();
+        return freeSymbols.pullOneOut();
     else */
         return symbolCount++;
 }
@@ -36,22 +19,22 @@ void modifiedBlob(Symbol symbol) {
 }
 
 NativeNaturalType accessBlobData(Symbol symbol) {
-    BpTree<Symbol, NativeNaturalType>::Iterator<false> iter;
-    assert(blobs.find(iter, symbol));
+    BpTreeMap<Symbol, NativeNaturalType>::Iterator<false> iter;
+    assert(blobs.find<Key>(iter, symbol));
     return iter.getValue();
 }
 
 NativeNaturalType getBlobSize(Symbol symbol) {
-    BpTree<Symbol, NativeNaturalType>::Iterator<false> iter;
-    if(!blobs.find(iter, symbol))
+    BpTreeMap<Symbol, NativeNaturalType>::Iterator<false> iter;
+    if(!blobs.find<Key>(iter, symbol))
         return 0;
     return *dereferenceBits(iter.getValue()-architectureSize);
 }
 
 void setBlobSize(Symbol symbol, NativeNaturalType size, NativeNaturalType preserve = 0) {
-    BpTree<Symbol, NativeNaturalType>::Iterator<true> iter;
+    BpTreeMap<Symbol, NativeNaturalType>::Iterator<true> iter;
     NativeNaturalType oldBlob, oldBlobSize;
-    if(blobs.find(iter, symbol)) {
+    if(blobs.find<Key>(iter, symbol)) {
         oldBlob = iter.getValue();
         oldBlobSize = getBlobSize(symbol);
     } else
@@ -68,7 +51,7 @@ void setBlobSize(Symbol symbol, NativeNaturalType size, NativeNaturalType preser
         if(size == 0)
             return;
         blobs.insert(iter, symbol, newBlob);
-        assert(blobs.find(iter, symbol));
+        assert(blobs.find<Key>(iter, symbol));
     } else if(oldBlobSize > 0) {
         NativeNaturalType length = min(oldBlobSize, size, preserve);
         if(length > 0)
