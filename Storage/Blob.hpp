@@ -8,7 +8,7 @@ Symbol symbolCount = 0;
 
 Symbol createSymbol() {
     /*if(freeSymbols.elementCount)
-        return freeSymbols.pullOneOut();
+        return freeSymbols.pullOneOut<First>();
     else */
         return symbolCount++;
 }

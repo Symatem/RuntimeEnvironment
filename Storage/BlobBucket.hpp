@@ -133,7 +133,7 @@ struct BlobBucket {
             bucket->init(type);
             assert(freeBlobBuckets[type].insert(pageRef));
         } else {
-            pageRef = freeBlobBuckets[type].pullOneOut();
+            pageRef = freeBlobBuckets[type].pullOneOut<First>();
             bucket = dereferencePage<BlobBucket>(pageRef);
         }
         NativeNaturalType index = bucket->allocateIndex();
@@ -141,7 +141,7 @@ struct BlobBucket {
         bucket->setSymbol(index, symbol);
         if(bucket->isFull()) {
             assert(fullBlobBuckets.insert(pageRef));
-            assert(freeBlobBuckets[type].erase(pageRef));
+            assert(freeBlobBuckets[type].erase<Key>(pageRef));
         }
         return pageRef*bitsPerPage+bucket->offsetOfIndex(index);
     }
@@ -154,7 +154,7 @@ struct BlobBucket {
         NativeNaturalType index = bucket->indexOfOffset(address&addressOffsetMask);
         if(size == 0) {
             if(bucket->isFull()) {
-                assert(fullBlobBuckets.erase(pageRef));
+                assert(fullBlobBuckets.erase<Key>(pageRef));
                 assert(freeBlobBuckets[bucket->header.type].insert(pageRef));
             }
             bucket->freeIndex(index);

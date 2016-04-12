@@ -12,9 +12,10 @@
 #define MMAP_FUNC mmap64
 #endif
 
-[[ noreturn ]] void crash(const char* message) {
-    perror(message);
-    exit(1);
+int file;
+
+NativeNaturalType bytesForPages(NativeNaturalType pageCount) {
+    return (pageCount*Storage::bitsPerPage+Storage::mmapBucketSize-1)/Storage::mmapBucketSize*Storage::mmapBucketSize/8;
 }
 
 void Storage::resizeMemory(NativeNaturalType _pageCount) {
@@ -26,24 +27,6 @@ void Storage::resizeMemory(NativeNaturalType _pageCount) {
     assert(MMAP_FUNC(ptr, bytesForPages(pageCount),
                      PROT_READ|PROT_WRITE, MAP_FIXED|MAP_FILE|MAP_SHARED,
                      file, 0) == ptr);
-}
-
-void Storage::load() {
-    file = open("./data", O_RDWR|O_CREAT, 0666);
-    assert(file >= 0);
-    pageCount = lseek(file, 0, SEEK_END)/(bitsPerPage/8);
-    if(pageCount < minPageCount)
-        pageCount = minPageCount;
-    ptr = reinterpret_cast<char*>(MMAP_FUNC(nullptr, bytesForPages(maxPageCount), PROT_NONE, MAP_FILE|MAP_SHARED, file, 0));
-    assert(ptr != MAP_FAILED);
-    resizeMemory(pageCount);
-}
-
-void Storage::unload() {
-    if(pageCount)
-        munmap(ptr, bytesForPages(pageCount));
-    assert(ftruncate(file, bytesForPages(pageCount)) == 0);
-    assert(close(file) == 0);
 }
 
 void printStats() {
@@ -148,14 +131,19 @@ void loadFromPath(Thread& thread, Symbol parentPackage, bool execute, char* path
         Symbol file = createFromFile(path);
         assert(file != Ontology::VoidSymbol);
         thread.deserializationTask(file, parentPackage);
-        if(thread.uncaughtException())
-            crash("Exception occurred while deserializing file");
+        if(thread.uncaughtException()) {
+            printf("Exception occurred while deserializing file %s.\n", path);
+            exit(2);
+        }
         if(!execute)
             return;
-        if(!thread.executeDeserialized())
-            crash("Nothing to execute");
-        else if(thread.uncaughtException())
-            crash("Exception occurred while executing");
+        if(!thread.executeDeserialized()) {
+            printf("Nothing to execute in file %s.\n", path);
+            exit(3);
+        } else if(thread.uncaughtException()) {
+            printf("Exception occurred while executing file %s.\n", path);
+            exit(4);
+        }
     }
 }
 
@@ -164,15 +152,23 @@ void loadFromPath(Thread& thread, Symbol parentPackage, bool execute, char* path
 Thread thread;
 
 int main(int argc, char** argv) {
-    Storage::load();
+    file = open("./data", O_RDWR|O_CREAT, 0666);
+    assert(file >= 0);
+    Storage::pageCount = lseek(file, 0, SEEK_END)/(Storage::bitsPerPage/8);
+    if(Storage::pageCount < Storage::minPageCount)
+        Storage::pageCount = Storage::minPageCount;
+    Storage::ptr = reinterpret_cast<char*>(MMAP_FUNC(nullptr, bytesForPages(Storage::maxPageCount), PROT_NONE, MAP_FILE|MAP_SHARED, file, 0));
+    assert(Storage::ptr != MAP_FAILED);
 
+    Storage::resizeMemory(Storage::pageCount);
     Ontology::tryToFillPreDefined();
+
     bool execute = false;
     for(NativeNaturalType i = 1; i < argc; ++i) {
         if(Storage::substrEqual(argv[i], "-h")) {
             printf("This is not the help page you are looking for.\n");
             printf("No, seriously, RTFM.\n");
-            exit(2);
+            exit(4);
         } else if(Storage::substrEqual(argv[i], "-e")) {
             execute = true;
             continue;
@@ -182,5 +178,9 @@ int main(int argc, char** argv) {
     thread.clear();
     printStats();
 
+    if(Storage::pageCount)
+        munmap(Storage::ptr, bytesForPages(Storage::pageCount));
+    assert(ftruncate(file, bytesForPages(Storage::pageCount)) == 0);
+    assert(close(file) == 0);
     return 0;
 }

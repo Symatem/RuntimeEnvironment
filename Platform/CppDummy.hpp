@@ -11,7 +11,7 @@
 }
 
 void operator delete(void* ptr) noexcept {}
-inline void* operator new(size_t, void* ptr) noexcept {
+inline void* operator new(unsigned long, void* ptr) noexcept {
     return ptr;
 }
 

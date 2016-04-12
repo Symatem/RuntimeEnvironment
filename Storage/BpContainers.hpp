@@ -17,7 +17,7 @@ struct BpTreeMap : public BpTree<KeyType, VoidType, sizeof(ValueType)*8> {
         }
 
         void setValue(ValueType value) {
-            static_assert(enableCopyOnWrite, "Can not write: read only");
+            static_assert(enableCopyOnWrite);
             FrameType* frame = SuperIterator::fromEnd();
             Super::getPage(frame->pageRef)->template set<ValueType, Super::Page::valueOffset>(frame->index, value);
         }
@@ -44,9 +44,10 @@ struct BpTreeSet : public BpTree<KeyType, VoidType, 0> {
     typedef BpTree<KeyType, VoidType, 0> Super;
     typedef typename Super::template Iterator<true> SuperIterator;
 
-    KeyType pullOneOut() {
+    template<FindMode mode>
+    typename enableIf<mode == First || mode == Last, KeyType>::type pullOneOut() {
         SuperIterator iter;
-        Super::template find<First>(iter);
+        Super::template find<mode>(iter);
         KeyType key = iter.getKey();
         Super::erase(iter);
         return key;
@@ -65,6 +66,11 @@ struct BpTreeSet : public BpTree<KeyType, VoidType, 0> {
         insert(iter, key);
         return true;
     }
+};
+
+struct BpTreeBlob : public BpTree<VoidType, NativeNaturalType, 1> {
+    typedef BpTree<VoidType, NativeNaturalType, 1> Super;
+    
 };
 
 };

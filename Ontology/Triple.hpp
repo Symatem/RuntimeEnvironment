@@ -24,15 +24,12 @@ const char* PreDefinedSymbols[] = {
     Storage::releaseSymbol(symbol); \
     symbols.erase(alphaIndex);
 
-union Triple {
+struct Triple {
     Symbol pos[3];
-    struct {
-        Symbol entity, attribute, value;
-    };
 
     Triple() {};
     Triple(Symbol _entity, Symbol _attribute, Symbol _value)
-        :entity(_entity), attribute(_attribute), value(_value) {}
+        :pos{_entity, _attribute, _value} {}
 
     Triple forwardIndex(NativeNaturalType* subIndices, NativeNaturalType subIndex) {
         return {subIndices[subIndex], pos[(subIndex+1)%3], pos[(subIndex+2)%3]};
@@ -68,8 +65,8 @@ enum IndexMode {
     HexaIndex = 6
 } indexMode = HexaIndex;
 
-BlobSet<true, Symbol, Symbol[6]> symbols;
-BlobIndex<true> blobIndex;
+BlobSet<false, Symbol, Symbol[6]> symbols;
+BlobIndex<false> blobIndex;
 
 bool linkInSubIndex(Triple triple) {
     BlobSet<false, Symbol, Symbol> beta;
@@ -433,7 +430,7 @@ bool unlink(Symbol symbol) {
 
 void setSolitary(Triple triple, bool linkVoidSymbol = false) {
     BlobSet<true, Symbol> dirty;
-    bool toLink = (linkVoidSymbol || triple.value != VoidSymbol);
+    bool toLink = (linkVoidSymbol || triple.pos[2] != VoidSymbol);
     query(9, triple, [&](Triple result) {
         if((triple.pos[2] == result.pos[0]) && (linkVoidSymbol || result.pos[0] != VoidSymbol))
             toLink = false;
@@ -512,10 +509,13 @@ Symbol createFromString(const char* src) {
 }
 
 void tryToFillPreDefined() {
-    if(!symbols.empty())
-        return;
     const Symbol preDefinedSymbolsEnd = sizeof(PreDefinedSymbols)/sizeof(void*);
     Storage::symbolCount = preDefinedSymbolsEnd;
+    // TODO: Persist these symbols
+    blobIndex.symbol = Storage::createSymbol();
+    symbols.symbol = Storage::createSymbol();
+    if(!symbols.empty())
+        return;
     for(Symbol symbol = 0; symbol < preDefinedSymbolsEnd; ++symbol) {
         const char* str = PreDefinedSymbols[symbol];
         stringToBlob(str, strlen(str), symbol);

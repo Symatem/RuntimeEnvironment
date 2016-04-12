@@ -5,7 +5,8 @@ namespace Storage {
 enum FindMode {
     First,
     Last,
-    Key
+    Key,
+    Rank
 };
 
 template<typename KeyType, typename RankType, NativeNaturalType valueBits>
@@ -41,7 +42,7 @@ struct BpTree {
             headerBits = sizeof(PageHeader)*8,
             keyOffset = architecturePadding(headerBits),
             bodyBits = Storage::bitsPerPage-keyOffset,
-            branchKeyCount = (bodyBits-pageRefBits)/(keyBits+rankBits+pageRefBits),
+            branchKeyCount = (bodyBits-rankBits-pageRefBits)/(keyBits+rankBits+pageRefBits),
             leafKeyCount = bodyBits/(keyBits+valueBits),
             rankOffset = keyOffset+keyBits*branchKeyCount,
             pageRefOffset = Storage::bitsPerPage-pageRefBits*(branchKeyCount+1),
@@ -166,7 +167,6 @@ struct BpTree {
         template<bool dstIsLeaf, bool srcIsLeaf>
         static void copyKey(Page* dstPage, Page* srcPage,
                             OffsetType dstIndex, OffsetType srcIndex) {
-            // dstPage->template setKey<dstIsLeaf>(dstIndex, srcPage->template getKey<srcIsLeaf>(srcIndex));
             Storage::bitwiseCopy<-1>(reinterpret_cast<NativeNaturalType*>(dstPage),
                                      reinterpret_cast<const NativeNaturalType*>(srcPage),
                                      keyOffset+dstIndex*keyBits, keyOffset+srcIndex*keyBits,
@@ -491,6 +491,13 @@ struct BpTree {
         return Storage::dereferencePage<Page>(pageRef);
     }
 
+    static void iteratorAscendSetRank(IteratorFrame* parentFrame, IteratorFrame* frame, Page* page, enableIf<false>) {}
+    static void iteratorAscendSetRank(IteratorFrame* parentFrame, IteratorFrame* frame, Page* page, enableIf<true>) {
+        frame->rank = parentFrame->rank;
+        if(parentFrame->index)
+            frame->rank += page->getRank(parentFrame->index-1);
+    }
+
     template<bool enableCopyOnWrite, typename FrameType = IteratorFrame>
     struct Iterator {
         LayerType end;
@@ -522,9 +529,8 @@ struct BpTree {
             return true;
         }
 
-        template<bool srcEenableCopyOnWrite>
-        void copy(Iterator<srcEenableCopyOnWrite>& src) {
-            static_assert(!enableCopyOnWrite || srcEenableCopyOnWrite, "Can not copy from read only to copy on write");
+        template<bool srcEnableCopyOnWrite>
+        typename enableIf<!enableCopyOnWrite || srcEnableCopyOnWrite, void>::type copy(Iterator<srcEnableCopyOnWrite>& src) {
             LayerType offset = end-src.end;
             for(LayerType layer = 0; layer < src.end; ++layer)
                 Storage::bitwiseCopy<-1>(reinterpret_cast<NativeNaturalType*>(fromBegin(layer+offset)),
@@ -544,6 +550,7 @@ struct BpTree {
             auto parentFrame = frame;
             auto parentPage = page;
             frame = fromBegin(++layer);
+            iteratorAscendSetRank(parentFrame, frame, page, enableIf<!isSame<RankType, VoidType>::value>());
             frame->pageRef = parentPage->getPageRef(parentFrame->index);
             page = getPage<enableCopyOnWrite>(frame->pageRef);
             // parentPage->setPageRef(parentFrame->index, frame->pageRef); // TODO: Update pageRef in getPage
@@ -607,27 +614,47 @@ struct BpTree {
             return advanceAtLayer(end-1, steps);
         }
 
+        KeyType getRank() {
+            FrameType* frame = fromEnd();
+            return frame->rank+frame->index;
+        }
+
         KeyType getKey() {
             FrameType* frame = fromEnd();
             return getPage(frame->pageRef)->template getKey<true>(frame->index);
         }
 
         void setKey(KeyType key) {
-            static_assert(enableCopyOnWrite, "Can not write: read only");
+            static_assert(enableCopyOnWrite);
             FrameType* frame = fromEnd();
             getPage(frame->pageRef)->template setKey<true>(frame->index, key);
         }
     };
 
+    static void findSetRank(IteratorFrame* frame, enableIf<false>) {}
+    static void findSetRank(IteratorFrame* frame, enableIf<true>) {
+        frame->rank = 0;
+    }
+    template<bool isLeaf, typename _RankType>
+    static void findRankIndex(IteratorFrame* frame, Page* page, _RankType rank, enableIf<false>) {}
+    template<bool isLeaf, typename _RankType>
+    static void findRankIndex(IteratorFrame* frame, Page* page, _RankType rank, enableIf<true>) {
+        rank -= frame->rank;
+        frame->index = (isLeaf) ? isLeaf : binarySearch<OffsetType>(page->template keyCount<false>(), [&](OffsetType at) {
+            return rank >= page->getRank(at);
+        });
+    }
+
     template<FindMode mode, bool enableCopyOnWrite>
 	bool find(Iterator<enableCopyOnWrite>& iter,
-              KeyType key,
+              typename conditional<mode == Rank, RankType, KeyType>::type keyOrRank = 0,
               Closure<void(LayerType, Page*)> pageTouchCallback = nullptr) {
         iter.end = layerCount;
 		if(empty())
             return false;
         LayerType layer = 0;
         auto frame = iter.fromBegin(layer);
+        findSetRank(frame, enableIf<!isSame<RankType, VoidType>::value>());
         Page* page = getPage<enableCopyOnWrite>(rootPageRef);
         frame->pageRef = rootPageRef;
 	    while(true) {
@@ -644,9 +671,12 @@ struct BpTree {
                         return true;
                     case Key:
                         frame->index = binarySearch<OffsetType>(page->template keyCount<true>(), [&](OffsetType at) {
-                            return key > page->template getKey<true>(at);
+                            return keyOrRank > page->template getKey<true>(at);
                         });
-                        return frame->index < page->header.count && page->template getKey<true>(frame->index) == key;
+                        return frame->index < page->header.count && page->template getKey<true>(frame->index) == keyOrRank;
+                    case Rank:
+                        findRankIndex<true>(frame, page, keyOrRank, enableIf<!isSame<RankType, VoidType>::value>());
+                        return frame->index < page->header.count;
                 }
 	        } else {
                 switch(mode) {
@@ -658,8 +688,11 @@ struct BpTree {
                         break;
                     case Key:
                         frame->index = binarySearch<OffsetType>(page->template keyCount<false>(), [&](OffsetType at) {
-                            return key >= page->template getKey<false>(at);
+                            return keyOrRank >= page->template getKey<false>(at);
                         });
+                        break;
+                    case Rank:
+                        findRankIndex<false>(frame, page, keyOrRank, enableIf<!isSame<RankType, VoidType>::value>());
                         break;
                 }
                 iter.ascend(frame, page, layer);
@@ -695,7 +728,7 @@ struct BpTree {
                         callback(iter);
             } else {
                 ++branchPageCount;
-                usage.inhabitedMetaData += (keyBits+pageRefBits)*page->header.count+pageRefBits;
+                usage.inhabitedMetaData += (keyBits+rankBits+pageRefBits)*page->header.count+rankBits+pageRefBits;
             }
         };
         find<First>(iter, 0, pageTouch);
@@ -703,7 +736,7 @@ struct BpTree {
         NativeNaturalType uninhabitable = Page::valueOffset-Page::headerBits-keyBits*Page::leafKeyCount;
         usage.uninhabitable += uninhabitable*leafPageCount;
         usage.totalPayload += (Storage::bitsPerPage-uninhabitable)*leafPageCount;
-        uninhabitable = Page::pageRefOffset-Page::headerBits-keyBits*Page::branchKeyCount;
+        uninhabitable = Page::keyOffset-Page::headerBits+Page::pageRefOffset-Page::rankOffset-rankBits*(Page::branchKeyCount+1);
         usage.uninhabitable += uninhabitable*branchPageCount;
         usage.totalMetaData += (Storage::bitsPerPage-uninhabitable)*branchPageCount;
     }
@@ -1056,9 +1089,10 @@ struct BpTree {
         erase(iter, iter);
     }
 
-    bool erase(KeyType key) {
+    template<FindMode mode>
+    bool erase(typename conditional<mode == Rank, RankType, KeyType>::type keyOrRank = 0) {
         Iterator<true> iter;
-        if(!find<Key>(iter, key))
+        if(!find<mode>(iter, keyOrRank))
             return false;
         erase(iter);
         return true;

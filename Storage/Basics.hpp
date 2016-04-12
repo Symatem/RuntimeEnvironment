@@ -132,11 +132,6 @@ const NativeNaturalType
       minPageCount = 1,
       maxPageCount = 2000*512;
 
-NativeNaturalType bytesForPages(NativeNaturalType _pageCount) {
-    return (_pageCount*bitsPerPage+mmapBucketSize-1)/mmapBucketSize*mmapBucketSize/8;
-}
-
-int file;
 char* ptr;
 PageRefType pageCount;
 struct UsageStats { // TODO: Split for BlobBuckets and B+Trees
@@ -148,8 +143,6 @@ struct UsageStats { // TODO: Split for BlobBuckets and B+Trees
 };
 
 void resizeMemory(NativeNaturalType pageCount);
-void load();
-void unload();
 
 template<typename DataType = NativeNaturalType>
 DataType* dereferenceBits(Symbol address) {

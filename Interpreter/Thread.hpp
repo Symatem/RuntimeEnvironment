@@ -15,9 +15,9 @@ struct Thread {
     void link(Ontology::Triple triple) {
         if(!Ontology::link(triple)) {
             Symbol data = Storage::createSymbol();
-            link({data, Ontology::EntitySymbol, triple.entity});
-            link({data, Ontology::AttributeSymbol, triple.attribute});
-            link({data, Ontology::ValueSymbol, triple.value});
+            link({data, Ontology::EntitySymbol, triple.pos[0]});
+            link({data, Ontology::AttributeSymbol, triple.pos[1]});
+            link({data, Ontology::ValueSymbol, triple.pos[2]});
             throwException("Already linked", data);
         }
     }
@@ -25,9 +25,9 @@ struct Thread {
     void unlink(Ontology::Triple triple) {
         if(!Ontology::unlink(triple)) {
             Symbol data = Storage::createSymbol();
-            link({data, Ontology::EntitySymbol, triple.entity});
-            link({data, Ontology::AttributeSymbol, triple.attribute});
-            link({data, Ontology::ValueSymbol, triple.value});
+            link({data, Ontology::EntitySymbol, triple.pos[0]});
+            link({data, Ontology::AttributeSymbol, triple.pos[1]});
+            link({data, Ontology::ValueSymbol, triple.pos[2]});
             throwException("Already unlinked", data);
         }
     }
