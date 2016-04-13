@@ -1,6 +1,14 @@
-#include <setjmp.h>
-#include <stdio.h> // TODO: Remove assert
+#include <setjmp.h> // TODO: Replace setjmp/longjmp
+#include <stdio.h> // TODO: Remove perror, exit
 #include <stdlib.h> // TODO: Remove malloc and free
+
+typedef long long unsigned int NativeNaturalType;
+typedef long long int NativeIntegerType;
+typedef double NativeFloatType;
+typedef NativeNaturalType PageRefType;
+typedef NativeNaturalType Symbol;
+const NativeNaturalType architectureSize = sizeof(NativeNaturalType)*8;
+struct VoidType {} VoidValue;
 
 #undef assert
 #define tokenToString(x) #x
@@ -8,11 +16,6 @@
 #define assert(condition) if(!(condition)) { \
     perror("Assertion failed in " __FILE__ ":" macroToString(__LINE__)); \
     exit(1); \
-}
-
-void operator delete(void* ptr) noexcept {}
-inline void* operator new(unsigned long, void* ptr) noexcept {
-    return ptr;
 }
 
 template<bool _value>
@@ -41,9 +44,7 @@ struct conditional<true, T, F> {
 };
 
 namespace __cxxabiv1 {
-
 #define DummyTypeInfo(Child, Parent) struct Child : public Parent { virtual ~Child(); }; Child::~Child() {}
-
     struct type_info {};
     DummyTypeInfo(__shim_type_info, type_info)
     DummyTypeInfo(__fundamental_type_info, __shim_type_info)
@@ -56,31 +57,24 @@ namespace __cxxabiv1 {
     DummyTypeInfo(__pbase_type_info, __shim_type_info)
     DummyTypeInfo(__pointer_type_info, __pbase_type_info)
     DummyTypeInfo(__pointer_to_member_type_info, __pbase_type_info)
+}
 
-    extern "C" {
-        void __cxa_pure_virtual(void) {}
-        void __cxa_deleted_virtual(void) {}
+extern "C" {
+    void __cxa_pure_virtual(void) {}
+    void __cxa_deleted_virtual(void) {}
+    NativeNaturalType strlen(const char* str) {
+        const char* pos;
+        for(pos = str; *pos; ++pos);
+        return pos-str;
+    }
+    int atexit(void (*func)()) {
+        return 1;
     }
 }
 
-template <typename T>
-T min(T a, T b) {
-    return (a < b) ? a : b;
-}
-
-template<typename T, typename... Args>
-T min(T c, Args... args) {
-    return min(c, min(args...));
-}
-
-template <typename T>
-T max(T a, T b) {
-    return (a > b) ? a : b;
-}
-
-template<typename T, typename... Args>
-T max(T c, Args... args) {
-    return max(c, max(args...));
+void operator delete(void* ptr) noexcept {}
+inline void* operator new(unsigned long, void* ptr) noexcept {
+    return ptr;
 }
 
 template<typename FunctionType>
@@ -134,18 +128,6 @@ IndexType binarySearch(IndexType end, Closure<bool(IndexType)> compare) {
     return begin;
 }
 
-typedef long long unsigned int NativeNaturalType;
-typedef long long int NativeIntegerType;
-typedef double NativeFloatType;
-typedef NativeNaturalType PageRefType;
-typedef NativeNaturalType Symbol;
-const NativeNaturalType architectureSize = sizeof(NativeNaturalType)*8;
-struct VoidType {} VoidValue;
-
-constexpr NativeNaturalType architecturePadding(NativeNaturalType bits) {
-    return (bits+architectureSize-1)/architectureSize*architectureSize;
-}
-
 template<typename DataType>
 struct BitMask {
     const static NativeNaturalType bits = sizeof(DataType)*8;
@@ -183,8 +165,26 @@ constexpr NativeNaturalType BitMask<unsigned long long>::ctz(unsigned long long 
     return __builtin_ctzll(value);
 }
 
-NativeNaturalType strlen(const char* str) {
-    const char* pos;
-    for(pos = str; *pos; ++pos);
-    return pos-str;
+constexpr NativeNaturalType architecturePadding(NativeNaturalType bits) {
+    return (bits+architectureSize-1)/architectureSize*architectureSize;
+}
+
+template<typename T>
+T min(T a, T b) {
+    return (a < b) ? a : b;
+}
+
+template<typename T, typename... Args>
+T min(T c, Args... args) {
+    return min(c, min(args...));
+}
+
+template<typename T>
+T max(T a, T b) {
+    return (a > b) ? a : b;
+}
+
+template<typename T, typename... Args>
+T max(T c, Args... args) {
+    return max(c, max(args...));
 }

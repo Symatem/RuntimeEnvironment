@@ -59,12 +59,13 @@ struct BlobBucket {
         return header.count == getMaxCount()-1;
     }
 
-    void updateStats(struct UsageStats& usage) {
-        usage.totalMetaData += getDataOffset();
-        usage.inhabitedMetaData += getDataOffset();
-        usage.totalPayload += getDataBits()*getMaxCount();
-        usage.inhabitedPayload += getDataBits()*header.count;
-        usage.uninhabitable += getPadding();
+    void generateStats(struct Stats& stats) {
+        stats.elementCount += header.count;
+        stats.uninhabitable += getPadding();
+        stats.totalMetaData += getDataOffset();
+        stats.inhabitedMetaData += getDataOffset();
+        stats.totalPayload += getDataBits()*getMaxCount();
+        stats.inhabitedPayload += getDataBits()*header.count;
     }
 
     void init(NativeNaturalType type) {

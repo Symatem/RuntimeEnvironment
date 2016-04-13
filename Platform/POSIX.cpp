@@ -6,69 +6,61 @@
 #include <fcntl.h>
 #include <stdio.h>
 
-#ifdef __APPLE__
-#define MMAP_FUNC mmap
-#else
-#define MMAP_FUNC mmap64
-#endif
-
-int file;
-
-NativeNaturalType bytesForPages(NativeNaturalType pageCount) {
-    return (pageCount*Storage::bitsPerPage+Storage::mmapBucketSize-1)/Storage::mmapBucketSize*Storage::mmapBucketSize/8;
+void resetStats(struct Storage::Stats& stats) {
+    stats.elementCount = 0;
+    stats.uninhabitable = 0;
+    stats.totalMetaData = 0;
+    stats.inhabitedMetaData = 0;
+    stats.totalPayload = 0;
+    stats.inhabitedPayload = 0;
 }
 
-void Storage::resizeMemory(NativeNaturalType _pageCount) {
-    if(pageCount)
-        munmap(ptr, bytesForPages(pageCount));
-    assert(_pageCount < maxPageCount);
-    pageCount = _pageCount;
-    assert(ftruncate(file, bytesForPages(pageCount)) == 0);
-    assert(MMAP_FUNC(ptr, bytesForPages(pageCount),
-                     PROT_READ|PROT_WRITE, MAP_FIXED|MAP_FILE|MAP_SHARED,
-                     file, 0) == ptr);
+void printStatsPartial(struct Storage::Stats& stats) {
+    printf("    Uninhabitable: %10llu bits\n", stats.uninhabitable);
+    printf("    Meta Data:     %10llu bits\n", stats.totalMetaData);
+    printf("      Inhabited:   %10llu bits\n", stats.inhabitedMetaData);
+    printf("      Vacant:      %10llu bits\n", stats.totalMetaData-stats.inhabitedMetaData);
+    printf("    Payload:       %10llu bits\n", stats.totalPayload);
+    printf("      Inhabited:   %10llu bits\n", stats.inhabitedPayload);
+    printf("      Vacant:      %10llu bits\n", stats.totalPayload-stats.inhabitedPayload);
 }
 
 void printStats() {
-    struct Storage::UsageStats usage;
-    usage.uninhabitable = 0;
-    usage.totalMetaData = Storage::bitsPerPage;
-    usage.inhabitedMetaData = sizeof(Storage::SuperPage)*8;
-    usage.totalPayload = 0;
-    usage.inhabitedPayload = 0;
-    Storage::fullBlobBuckets.updateStats(usage, [&](Storage::BpTreeSet<PageRefType>::Iterator<false>& iter) {
-        Storage::dereferencePage<Storage::BlobBucket>(iter.getKey())->updateStats(usage);
+    struct Storage::Stats stats;
+    printf("Stats:\n");
+    printf("  Global:          %10llu bits\n", Storage::pageCount*Storage::bitsPerPage);
+    printf("    Wilderness:    %10llu bits\n", Storage::countFreePages()*Storage::bitsPerPage);
+    printf("    Super Page:    %10llu bits\n", Storage::bitsPerPage);
+    printf("      Inhabited:   %10llu bits\n", sizeof(Storage::SuperPage)*8ULL);
+    printf("      Vacant:      %10llu bits\n", Storage::bitsPerPage-sizeof(Storage::SuperPage)*8ULL);
+
+    resetStats(stats);
+    Storage::fullBlobBuckets.generateStats(stats, [&](Storage::BpTreeSet<PageRefType>::Iterator<false>& iter) {
+        Storage::dereferencePage<Storage::BlobBucket>(iter.getKey())->generateStats(stats);
     });
     for(NativeNaturalType i = 0; i < Storage::blobBucketTypeCount; ++i)
-        Storage::freeBlobBuckets[i].updateStats(usage, [&](Storage::BpTreeSet<PageRefType>::Iterator<false>& iter) {
-            Storage::dereferencePage<Storage::BlobBucket>(iter.getKey())->updateStats(usage);
+        Storage::freeBlobBuckets[i].generateStats(stats, [&](Storage::BpTreeSet<PageRefType>::Iterator<false>& iter) {
+            Storage::dereferencePage<Storage::BlobBucket>(iter.getKey())->generateStats(stats);
         });
-    Storage::blobs.updateStats(usage);
-    NativeNaturalType wilderness =
-        Storage::pageCount*Storage::bitsPerPage
-        -usage.uninhabitable
-        -usage.totalMetaData
-        -usage.totalPayload;
-    assert(wilderness == Storage::countFreePages()*Storage::bitsPerPage);
-    // assert(Storage::symbolCount == Storage::blobs.elementCount+Storage::freeSymbols.elementCount);
-    printf("Stats:\n");
-    printf("  Total:           %10llu bits\n", Storage::pageCount*Storage::bitsPerPage);
-    printf("    Wilderness:    %10llu bits\n", wilderness);
-    printf("    Uninhabitable: %10llu bits\n", usage.uninhabitable);
-    printf("    Meta Data:     %10llu bits\n", usage.totalMetaData);
-    printf("      Inhabited:   %10llu bits\n", usage.inhabitedMetaData);
-    printf("      Vacant:      %10llu bits\n", usage.totalMetaData-usage.inhabitedMetaData);
-    printf("    Payload:       %10llu bits\n", usage.totalPayload);
-    printf("      Inhabited:   %10llu bits\n", usage.inhabitedPayload);
-    printf("      Vacant:      %10llu bits\n", usage.totalPayload-usage.inhabitedPayload);
-    printf("  Total:           %10llu symbols\n", Storage::symbolCount);
-    // printf("    Recyclable:    %10llu symbols\n", Storage::symbolCount-Storage::blobs.elementCount);
-    // printf("    Used:          %10llu symbols\n", Storage::blobs.elementCount);
-    // printf("      Meta:        %10llu symbols\n", Storage::blobs.elementCount-Ontology::symbols.size());
-    printf("      User:        %10llu symbols\n", Ontology::symbols.size());
-    printf("  Total:           %10llu triples\n", Ontology::query(13, {}));
+    printf("  Blob Buckets:    %10llu\n", stats.elementCount); // TODO elementCount is both, B+Tree and Blobs
+    printStatsPartial(stats);
+
+    resetStats(stats);
+    Storage::blobs.generateStats(stats);
+    printf("  Symbols:         %10llu\n", Storage::symbolCount);
+    printf("    Recyclable:    %10llu\n", Storage::symbolCount-stats.elementCount);
+    printf("    Used:          %10llu\n", stats.elementCount);
+    printf("      Meta:        %10llu\n", stats.elementCount-Ontology::symbols.size());
+    printf("      User:        %10llu\n", Ontology::symbols.size());
+    printStatsPartial(stats);
+
+    printf("  Triples:         %10llu\n", Ontology::query(13, {}));
     printf("\n");
 }
+
+
+
+Thread thread;
 
 Symbol createFromFile(const char* path) {
     int fd = open(path, O_RDONLY);
@@ -92,7 +84,7 @@ Symbol createFromFile(const char* path) {
     return dst;
 }
 
-void loadFromPath(Thread& thread, Symbol parentPackage, bool execute, char* path) {
+void loadFromPath(Symbol parentPackage, bool execute, char* path) {
     NativeNaturalType pathLen = strlen(path);
     if(path[pathLen-1] == '/')
         path[pathLen-1] = 0;
@@ -122,7 +114,7 @@ void loadFromPath(Thread& thread, Symbol parentPackage, bool execute, char* path
         while((entry = readdir(dp)))
             if(entry->d_name[0] != '.') {
                 sprintf(buffer, "%s/%s", path, entry->d_name);
-                loadFromPath(thread, package, execute, buffer);
+                loadFromPath(package, execute, buffer);
             }
         closedir(dp);
     } else if(s.st_mode & S_IFREG) {
@@ -149,7 +141,28 @@ void loadFromPath(Thread& thread, Symbol parentPackage, bool execute, char* path
 
 
 
-Thread thread;
+#ifdef __APPLE__
+#define MMAP_FUNC mmap
+#else
+#define MMAP_FUNC mmap64
+#endif
+
+int file;
+
+NativeNaturalType bytesForPages(NativeNaturalType pageCount) {
+    return (pageCount*Storage::bitsPerPage+Storage::mmapBucketSize-1)/Storage::mmapBucketSize*Storage::mmapBucketSize/8;
+}
+
+void Storage::resizeMemory(NativeNaturalType _pageCount) {
+    if(pageCount)
+        munmap(heapBegin, bytesForPages(pageCount));
+    assert(_pageCount < maxPageCount);
+    pageCount = _pageCount;
+    assert(ftruncate(file, bytesForPages(pageCount)) == 0);
+    assert(MMAP_FUNC(heapBegin, bytesForPages(pageCount),
+                     PROT_READ|PROT_WRITE, MAP_FIXED|MAP_FILE|MAP_SHARED,
+                     file, 0) == heapBegin);
+}
 
 int main(int argc, char** argv) {
     file = open("./data", O_RDWR|O_CREAT, 0666);
@@ -157,8 +170,8 @@ int main(int argc, char** argv) {
     Storage::pageCount = lseek(file, 0, SEEK_END)/(Storage::bitsPerPage/8);
     if(Storage::pageCount < Storage::minPageCount)
         Storage::pageCount = Storage::minPageCount;
-    Storage::ptr = reinterpret_cast<char*>(MMAP_FUNC(nullptr, bytesForPages(Storage::maxPageCount), PROT_NONE, MAP_FILE|MAP_SHARED, file, 0));
-    assert(Storage::ptr != MAP_FAILED);
+    Storage::heapBegin = reinterpret_cast<char*>(MMAP_FUNC(nullptr, bytesForPages(Storage::maxPageCount), PROT_NONE, MAP_FILE|MAP_SHARED, file, 0));
+    assert(Storage::heapBegin != MAP_FAILED);
 
     Storage::resizeMemory(Storage::pageCount);
     Ontology::tryToFillPreDefined();
@@ -173,13 +186,13 @@ int main(int argc, char** argv) {
             execute = true;
             continue;
         }
-        loadFromPath(thread, Ontology::VoidSymbol, execute, argv[i]);
+        loadFromPath(Ontology::VoidSymbol, execute, argv[i]);
     }
     thread.clear();
     printStats();
 
     if(Storage::pageCount)
-        munmap(Storage::ptr, bytesForPages(Storage::pageCount));
+        munmap(Storage::heapBegin, bytesForPages(Storage::pageCount));
     assert(ftruncate(file, bytesForPages(Storage::pageCount)) == 0);
     assert(close(file) == 0);
     return 0;

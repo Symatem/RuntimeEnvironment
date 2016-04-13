@@ -510,12 +510,11 @@ Symbol createFromString(const char* src) {
 
 void tryToFillPreDefined() {
     const Symbol preDefinedSymbolsEnd = sizeof(PreDefinedSymbols)/sizeof(void*);
-    Storage::symbolCount = preDefinedSymbolsEnd;
-    // TODO: Persist these symbols
-    blobIndex.symbol = Storage::createSymbol();
-    symbols.symbol = Storage::createSymbol();
+    symbols.symbol = preDefinedSymbolsEnd;
+    blobIndex.symbol = preDefinedSymbolsEnd+1;
     if(!symbols.empty())
         return;
+    Storage::symbolCount = preDefinedSymbolsEnd+2;
     for(Symbol symbol = 0; symbol < preDefinedSymbolsEnd; ++symbol) {
         const char* str = PreDefinedSymbols[symbol];
         stringToBlob(str, strlen(str), symbol);

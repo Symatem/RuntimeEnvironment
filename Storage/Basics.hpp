@@ -2,6 +2,15 @@
 
 namespace Storage {
 
+struct Stats {
+    NativeNaturalType elementCount,
+                      uninhabitable,
+                      totalMetaData,
+                      totalPayload,
+                      inhabitedMetaData,
+                      inhabitedPayload;
+};
+
 struct BasePage {
     NativeNaturalType transaction;
 };
@@ -132,31 +141,24 @@ const NativeNaturalType
       minPageCount = 1,
       maxPageCount = 2000*512;
 
-char* ptr;
+void* heapBegin;
 PageRefType pageCount;
-struct UsageStats { // TODO: Split for BlobBuckets and B+Trees
-    NativeNaturalType uninhabitable,
-                      totalMetaData,
-                      totalPayload,
-                      inhabitedMetaData,
-                      inhabitedPayload;
-};
 
 void resizeMemory(NativeNaturalType pageCount);
 
 template<typename DataType = NativeNaturalType>
 DataType* dereferenceBits(Symbol address) {
-    return reinterpret_cast<DataType*>(address/8+ptr);
+    return reinterpret_cast<DataType*>(reinterpret_cast<char*>(heapBegin)+address/8);
 }
 
 template<typename PageType>
 PageType* dereferencePage(PageRefType pageRef) {
     assert(pageRef < pageCount);
-    return reinterpret_cast<PageType*>(ptr+bitsPerPage/8*pageRef);
+    return reinterpret_cast<PageType*>(reinterpret_cast<char*>(heapBegin)+bitsPerPage/8*pageRef);
 }
 
 PageRefType aquirePage() {
-    assert(ptr);
+    assert(heapBegin);
     auto superPage = dereferencePage<SuperPage>(0);
     if(superPage->freePage) {
         PageRefType pageRef = superPage->freePage;
@@ -170,7 +172,7 @@ PageRefType aquirePage() {
 }
 
 void releasePage(PageRefType pageRef) {
-    assert(ptr);
+    assert(heapBegin);
     if(pageRef == pageCount-1)
         resizeMemory(pageCount-1);
     else {

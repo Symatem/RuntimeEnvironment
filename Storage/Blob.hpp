@@ -3,7 +3,7 @@
 namespace Storage {
 
 BpTreeMap<Symbol, NativeNaturalType> blobs;
-BpTreeSet<Symbol> freeSymbols; // TODO: Fix scrutinizeExistence
+// BpTreeSet<Symbol> freeSymbols; // TODO: Fix scrutinizeExistence
 Symbol symbolCount = 0;
 
 Symbol createSymbol() {
@@ -45,7 +45,7 @@ void setBlobSize(Symbol symbol, NativeNaturalType size, NativeNaturalType preser
     if(size > 0) {
         newBlob = reinterpret_cast<NativeNaturalType>(malloc((size+2*architectureSize-1)/architectureSize*architectureSize))+sizeof(NativeNaturalType);
         *reinterpret_cast<NativeNaturalType*>(newBlob+size/architectureSize*sizeof(NativeNaturalType)) = 0;
-        newBlob = (newBlob-reinterpret_cast<NativeNaturalType>(ptr))*8;
+        newBlob = (newBlob-reinterpret_cast<NativeNaturalType>(heapBegin))*8;
     }
     if(!oldBlob) {
         if(size == 0)
@@ -55,8 +55,8 @@ void setBlobSize(Symbol symbol, NativeNaturalType size, NativeNaturalType preser
     } else if(oldBlobSize > 0) {
         NativeNaturalType length = min(oldBlobSize, size, preserve);
         if(length > 0)
-            bitwiseCopy<-1>(reinterpret_cast<NativeNaturalType*>(ptr),
-                            reinterpret_cast<const NativeNaturalType*>(ptr),
+            bitwiseCopy<-1>(reinterpret_cast<NativeNaturalType*>(heapBegin),
+                            reinterpret_cast<const NativeNaturalType*>(heapBegin),
                             newBlob, oldBlob, length);
         free(dereferenceBits(oldBlob-architectureSize));
         if(size == 0) {
@@ -104,8 +104,8 @@ NativeIntegerType compareBlobs(Symbol a, Symbol b) {
         return 1;
     if(sizeA == 0)
         return 0;
-    return bitwiseCompare(reinterpret_cast<const NativeNaturalType*>(ptr),
-                          reinterpret_cast<const NativeNaturalType*>(ptr),
+    return bitwiseCompare(reinterpret_cast<const NativeNaturalType*>(heapBegin),
+                          reinterpret_cast<const NativeNaturalType*>(heapBegin),
                           accessBlobData(a), accessBlobData(b), sizeA);
 }
 
@@ -118,8 +118,8 @@ bool sliceBlob(Symbol dst, Symbol src, NativeNaturalType dstOffset, NativeNatura
     end = srcOffset+length;
     if(end <= srcOffset || end > srcSize)
         return false;
-    bitwiseCopy(reinterpret_cast<NativeNaturalType*>(ptr),
-                reinterpret_cast<const NativeNaturalType*>(ptr),
+    bitwiseCopy(reinterpret_cast<NativeNaturalType*>(heapBegin),
+                reinterpret_cast<const NativeNaturalType*>(heapBegin),
                 accessBlobData(dst)+dstOffset, accessBlobData(src)+srcOffset, length);
     modifiedBlob(dst);
     return true;

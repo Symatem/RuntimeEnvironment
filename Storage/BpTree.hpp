@@ -483,7 +483,7 @@ struct BpTree {
     };
 
     PageRefType rootPageRef;
-    LayerType layerCount;
+    LayerType layerCount; // TODO: Remove
     static const LayerType maxLayerCount = 9;
 
     template<bool enableCopyOnWrite = false>
@@ -710,35 +710,32 @@ struct BpTree {
         } while(iter.advance() == 0);
     }
 
-    void updateStats(struct UsageStats& usage, Closure<void(Iterator<false>&)> callback = nullptr) {
+    void generateStats(struct Stats& stats, Closure<void(Iterator<false>&)> callback = nullptr) {
         if(empty())
             return;
-        // usage.elementCount = 0;
-        // usage.inhabitedPayload = 0;
-        // usage.inhabitedMetaData = 0;
         Iterator<false> iter;
         NativeNaturalType branchPageCount = 0, leafPageCount = 0;
         Closure<void(LayerType, Page*)> pageTouch = [&](LayerType layer, Page* page) {
             if(layer == layerCount-1) {
                 ++leafPageCount;
-                usage.inhabitedPayload += (keyBits+valueBits)*page->header.count;
-                // usage.elementCount += iter.fromEnd()->endIndex;
+                stats.inhabitedPayload += (keyBits+valueBits)*page->header.count;
+                stats.elementCount += iter.fromEnd()->endIndex;
                 if(callback)
                     for(; iter.fromEnd()->index < iter.fromEnd()->endIndex; ++iter.fromEnd()->index)
                         callback(iter);
             } else {
                 ++branchPageCount;
-                usage.inhabitedMetaData += (keyBits+rankBits+pageRefBits)*page->header.count+rankBits+pageRefBits;
+                stats.inhabitedMetaData += (keyBits+rankBits+pageRefBits)*page->header.count+rankBits+pageRefBits;
             }
         };
         find<First>(iter, 0, pageTouch);
         while(iter.template advanceAtLayer<1>(iter.end-2, 1, pageTouch) == 0);
         NativeNaturalType uninhabitable = Page::valueOffset-Page::headerBits-keyBits*Page::leafKeyCount;
-        usage.uninhabitable += uninhabitable*leafPageCount;
-        usage.totalPayload += (Storage::bitsPerPage-uninhabitable)*leafPageCount;
+        stats.uninhabitable += uninhabitable*leafPageCount;
+        stats.totalPayload += (Storage::bitsPerPage-uninhabitable)*leafPageCount;
         uninhabitable = Page::keyOffset-Page::headerBits+Page::pageRefOffset-Page::rankOffset-rankBits*(Page::branchKeyCount+1);
-        usage.uninhabitable += uninhabitable*branchPageCount;
-        usage.totalMetaData += (Storage::bitsPerPage-uninhabitable)*branchPageCount;
+        stats.uninhabitable += uninhabitable*branchPageCount;
+        stats.totalMetaData += (Storage::bitsPerPage-uninhabitable)*branchPageCount;
     }
 
     void init() {
