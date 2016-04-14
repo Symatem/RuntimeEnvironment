@@ -12,13 +12,13 @@ struct BpTreeMap : public BpTree<KeyType, VoidType, sizeof(ValueType)*8> {
         typedef typename Super::template Iterator<enableCopyOnWrite, FrameType> SuperIterator;
 
         ValueType getValue() {
-            FrameType* frame = SuperIterator::fromEnd();
+            FrameType* frame = (*this)[0];
             return Super::getPage(frame->pageRef)->template get<ValueType, Super::Page::valueOffset>(frame->index);
         }
 
         void setValue(ValueType value) {
             static_assert(enableCopyOnWrite);
-            FrameType* frame = SuperIterator::fromEnd();
+            FrameType* frame = (*this)[0];
             Super::getPage(frame->pageRef)->template set<ValueType, Super::Page::valueOffset>(frame->index, value);
         }
     };
@@ -70,7 +70,7 @@ struct BpTreeSet : public BpTree<KeyType, VoidType, 0> {
 
 struct BpTreeBlob : public BpTree<VoidType, NativeNaturalType, 1> {
     typedef BpTree<VoidType, NativeNaturalType, 1> Super;
-    
+
 };
 
 };

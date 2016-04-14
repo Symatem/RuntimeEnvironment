@@ -170,9 +170,8 @@ int main(int argc, char** argv) {
     Storage::pageCount = lseek(file, 0, SEEK_END)/(Storage::bitsPerPage/8);
     if(Storage::pageCount < Storage::minPageCount)
         Storage::pageCount = Storage::minPageCount;
-    Storage::heapBegin = reinterpret_cast<char*>(MMAP_FUNC(nullptr, bytesForPages(Storage::maxPageCount), PROT_NONE, MAP_FILE|MAP_SHARED, file, 0));
+    Storage::heapBegin = MMAP_FUNC(nullptr, bytesForPages(Storage::maxPageCount), PROT_NONE, MAP_FILE|MAP_SHARED, file, 0);
     assert(Storage::heapBegin != MAP_FAILED);
-
     Storage::resizeMemory(Storage::pageCount);
     Ontology::tryToFillPreDefined();
 
