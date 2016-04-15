@@ -43,9 +43,9 @@ void setBlobSize(Symbol symbol, NativeNaturalType size, NativeNaturalType preser
         return;
     NativeNaturalType newBlob;
     if(size > 0) {
-        newBlob = reinterpret_cast<NativeNaturalType>(malloc((size+2*architectureSize-1)/architectureSize*architectureSize))+sizeof(NativeNaturalType);
+        newBlob = pointerToNatural(malloc((size+2*architectureSize-1)/architectureSize*architectureSize))+sizeof(NativeNaturalType);
         *reinterpret_cast<NativeNaturalType*>(newBlob+size/architectureSize*sizeof(NativeNaturalType)) = 0;
-        newBlob = (newBlob-reinterpret_cast<NativeNaturalType>(heapBegin))*8;
+        newBlob = (newBlob-pointerToNatural(heapBegin))*8;
     }
     if(!oldBlob) {
         if(size == 0)
@@ -89,7 +89,7 @@ void writeBlobAt(Symbol dst, NativeNaturalType dstIndex, DataType src) {
 
 template<typename DataType>
 void writeBlob(Symbol dst, DataType src) {
-    setBlobSize(dst, sizeof(src)*8);
+    setBlobSize(dst, sizeOfInBits<DataType>::value);
     writeBlobAt(dst, 0, src);
     modifiedBlob(dst);
 }

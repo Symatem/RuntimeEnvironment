@@ -2,22 +2,6 @@
 #include <stdio.h> // TODO: Remove perror, exit
 #include <stdlib.h> // TODO: Remove malloc and free
 
-typedef long long unsigned int NativeNaturalType;
-typedef long long int NativeIntegerType;
-typedef double NativeFloatType;
-typedef NativeNaturalType PageRefType;
-typedef NativeNaturalType Symbol;
-const NativeNaturalType architectureSize = sizeof(NativeNaturalType)*8;
-struct VoidType {} VoidValue;
-
-#undef assert
-#define tokenToString(x) #x
-#define macroToString(x) tokenToString(x)
-#define assert(condition) if(!(condition)) { \
-    perror("Assertion failed in " __FILE__ ":" macroToString(__LINE__)); \
-    exit(1); \
-}
-
 template<bool _value>
 struct BoolConstant {
     static const bool value = _value;
@@ -41,6 +25,68 @@ struct conditional {
 template<class T, class F>
 struct conditional<true, T, F> {
     typedef T type;
+};
+
+typedef char unsigned Natural8;
+typedef char Integer8;
+typedef short unsigned Natural16;
+typedef short Integer16;
+typedef unsigned Natural32;
+typedef int Integer32;
+typedef float Float32;
+typedef long long unsigned Natural64;
+typedef long long int Integer64;
+typedef double Float64;
+
+#define tokenToString(x) #x
+#define macroToString(x) tokenToString(x)
+#ifdef WEB_ASSEMBLY
+typedef Natural32 NativeNaturalType;
+typedef Integer32 NativeIntegerType;
+typedef Float32 NativeFloatType;
+#define assert(condition) if(!(condition)) { \
+    asm("unreachable"); \
+}
+#else
+typedef Natural64 NativeNaturalType;
+typedef Integer64 NativeIntegerType;
+typedef Float64 NativeFloatType;
+#undef assert
+#define assert(condition) if(!(condition)) { \
+    perror("Assertion failed in " __FILE__ ":" macroToString(__LINE__)); \
+    abort(); \
+}
+#endif
+
+typedef NativeNaturalType PageRefType;
+typedef NativeNaturalType Symbol;
+const NativeNaturalType architectureSize = sizeof(NativeNaturalType)*8;
+NativeNaturalType pointerToNatural(void* ptr) {
+    return reinterpret_cast<long unsigned>(ptr);
+}
+
+struct VoidType {
+    template<typename DataType>
+    VoidType& operator=(DataType) { return *this; }
+    template<typename DataType>
+    VoidType& operator+=(DataType) { return *this; }
+};
+template<typename DataType>
+DataType operator-(const DataType value, const VoidType&) {
+    return value;
+}
+template<typename DataType>
+DataType operator>=(const DataType, const VoidType&) {
+    return true;
+}
+
+template<class Type>
+struct sizeOfInBits {
+    static constexpr NativeNaturalType value = sizeof(Type)*8;
+};
+template<>
+struct sizeOfInBits<VoidType> {
+    static constexpr NativeNaturalType value = 0;
 };
 
 namespace __cxxabiv1 {
@@ -67,7 +113,7 @@ extern "C" {
         for(pos = str; *pos; ++pos);
         return pos-str;
     }
-    int atexit(void (*func)()) {
+    Integer32 atexit(void (*func)()) {
         return 1;
     }
 }
@@ -130,7 +176,7 @@ IndexType binarySearch(IndexType end, Closure<bool(IndexType)> compare) {
 
 template<typename DataType>
 struct BitMask {
-    const static NativeNaturalType bits = sizeof(DataType)*8;
+    const static NativeNaturalType bits = sizeOfInBits<DataType>::value;
     const static DataType empty = 0, one = 1, full = ~empty;
     constexpr static DataType fillLSBs(NativeNaturalType len) {
         return (len == bits) ? full : (one<<len)-one;
@@ -146,22 +192,22 @@ struct BitMask {
 };
 
 template<>
-constexpr NativeNaturalType BitMask<unsigned long>::clz(unsigned long value) {
+constexpr NativeNaturalType BitMask<Natural32>::clz(Natural32 value) {
     return __builtin_clzl(value);
 }
 
 template<>
-constexpr NativeNaturalType BitMask<unsigned long>::ctz(unsigned long value) {
+constexpr NativeNaturalType BitMask<Natural32>::ctz(Natural32 value) {
     return __builtin_ctzl(value);
 }
 
 template<>
-constexpr NativeNaturalType BitMask<unsigned long long>::clz(unsigned long long value) {
+constexpr NativeNaturalType BitMask<Natural64>::clz(Natural64 value) {
     return __builtin_clzll(value);
 }
 
 template<>
-constexpr NativeNaturalType BitMask<unsigned long long>::ctz(unsigned long long value) {
+constexpr NativeNaturalType BitMask<Natural64>::ctz(Natural64 value) {
     return __builtin_ctzll(value);
 }
 

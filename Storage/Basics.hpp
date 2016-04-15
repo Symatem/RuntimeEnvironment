@@ -23,7 +23,7 @@ struct SuperPage : public BasePage {
     PageRefType freePage;
 };
 
-template<int dir>
+template<NativeIntegerType dir>
 NativeNaturalType aquireSegmentFrom(const NativeNaturalType* src, NativeNaturalType& srcOffset, NativeNaturalType length) {
     if(dir == +1)
         srcOffset -= length;
@@ -74,7 +74,7 @@ bool substrEqual(const char* a, const char* b) {
                           aOffset, 0, bLen*8) == 0;
 }
 
-template<int dir>
+template<NativeIntegerType dir>
 void bitwiseCopy(NativeNaturalType* dst, const NativeNaturalType* src,
                  NativeNaturalType dstOffset, NativeNaturalType srcOffset,
                  NativeNaturalType length) {

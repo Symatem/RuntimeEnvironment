@@ -20,7 +20,7 @@ struct BlobVector {
     }
 
     NativeNaturalType size() const {
-        return (symbol) ? Storage::getBlobSize(symbol)/(sizeof(ElementType)*8) : 0;
+        return (symbol) ? Storage::getBlobSize(symbol)/sizeOfInBits<ElementType>::value : 0;
     }
 
     ElementType readElementAt(NativeNaturalType at) const {
@@ -60,13 +60,13 @@ struct BlobVector {
 
     void insert(NativeNaturalType at, ElementType element) {
         activate();
-        assert(Storage::increaseBlobSize(symbol, at*sizeof(ElementType)*8, sizeof(ElementType)*8));
+        assert(Storage::increaseBlobSize(symbol, at*sizeOfInBits<ElementType>::value, sizeOfInBits<ElementType>::value));
         Storage::writeBlobAt<ElementType>(symbol, at, element);
     }
 
     void erase(NativeNaturalType begin, NativeNaturalType length) {
         assert(symbol);
-        assert(Storage::decreaseBlobSize(symbol, begin*sizeof(ElementType)*8, length*sizeof(ElementType)*8));
+        assert(Storage::decreaseBlobSize(symbol, begin*sizeOfInBits<ElementType>::value, length*sizeOfInBits<ElementType>::value));
     }
 
     void erase(NativeNaturalType at) {

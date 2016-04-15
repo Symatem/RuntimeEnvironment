@@ -31,8 +31,8 @@ void printStats() {
     printf("  Global:          %10llu bits\n", Storage::pageCount*Storage::bitsPerPage);
     printf("    Wilderness:    %10llu bits\n", Storage::countFreePages()*Storage::bitsPerPage);
     printf("    Super Page:    %10llu bits\n", Storage::bitsPerPage);
-    printf("      Inhabited:   %10llu bits\n", sizeof(Storage::SuperPage)*8ULL);
-    printf("      Vacant:      %10llu bits\n", Storage::bitsPerPage-sizeof(Storage::SuperPage)*8ULL);
+    printf("      Inhabited:   %10llu bits\n", sizeOfInBits<Storage::SuperPage>::value);
+    printf("      Vacant:      %10llu bits\n", Storage::bitsPerPage-sizeOfInBits<Storage::SuperPage>::value);
 
     resetStats(stats);
     Storage::fullBlobBuckets.generateStats(stats, [&](Storage::BpTreeSet<PageRefType>::Iterator<false>& iter) {
@@ -63,7 +63,7 @@ void printStats() {
 Thread thread;
 
 Symbol createFromFile(const char* path) {
-    int fd = open(path, O_RDONLY);
+    Integer32 fd = open(path, O_RDONLY);
     if(fd < 0)
         return Ontology::VoidSymbol;
     Symbol dst = Storage::createSymbol();
@@ -147,7 +147,7 @@ void loadFromPath(Symbol parentPackage, bool execute, char* path) {
 #define MMAP_FUNC mmap64
 #endif
 
-int file;
+Integer32 file;
 
 NativeNaturalType bytesForPages(NativeNaturalType pageCount) {
     return (pageCount*Storage::bitsPerPage+Storage::mmapBucketSize-1)/Storage::mmapBucketSize*Storage::mmapBucketSize/8;
@@ -164,7 +164,7 @@ void Storage::resizeMemory(NativeNaturalType _pageCount) {
                      file, 0) == heapBegin);
 }
 
-int main(int argc, char** argv) {
+Integer32 main(Integer32 argc, Integer8** argv) {
     file = open("./data", O_RDWR|O_CREAT, 0666);
     assert(file >= 0);
     Storage::pageCount = lseek(file, 0, SEEK_END)/(Storage::bitsPerPage/8);

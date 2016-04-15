@@ -3,8 +3,8 @@
 namespace Storage {
 
 template<typename KeyType, typename ValueType>
-struct BpTreeMap : public BpTree<KeyType, VoidType, sizeof(ValueType)*8> {
-    typedef BpTree<KeyType, VoidType, sizeof(ValueType)*8> Super;
+struct BpTreeMap : public BpTree<KeyType, VoidType, sizeOfInBits<ValueType>::value> {
+    typedef BpTree<KeyType, VoidType, sizeOfInBits<ValueType>::value> Super;
     typedef typename Super::IteratorFrame FrameType;
 
     template<bool enableCopyOnWrite>

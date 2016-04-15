@@ -3,7 +3,11 @@ STDPATH := ../StandardLibrary
 BUILDDIR := build
 TARGET_NAME := SymatemRTE
 
-all: $(BUILDDIR)/ $(BUILDDIR)/$(TARGET_NAME)
+posix: $(BUILDDIR)/ $(BUILDDIR)/$(TARGET_NAME)
+
+wasm: $(BUILDDIR)/ $(BUILDDIR)/$(TARGET_NAME).wasm
+
+all: posix wasm
 
 test: $(BUILDDIR)/$(TARGET_NAME)
 	$(BUILDDIR)/$(TARGET_NAME) $(STDPATH)/Foundation/ -e $(STDPATH)/Tests/
@@ -20,7 +24,7 @@ $(BUILDDIR)/$(TARGET_NAME): Platform/POSIX.cpp
 	$(CC) $(CPPOPTIONS) -o $(BUILDDIR)/$(TARGET_NAME) Platform/POSIX.cpp
 
 $(BUILDDIR)/$(TARGET_NAME).llvm: Platform/WASM.cpp
-	$(LLVM_BIN)/clang-3.9 $(CPPOPTIONS) -S -emit-llvm -o $(BUILDDIR)/$(TARGET_NAME).llvm Platform/WASM.cpp
+	$(LLVM_BIN)/clang-3.9 $(CPPOPTIONS) -DWEB_ASSEMBLY -S -emit-llvm -o $(BUILDDIR)/$(TARGET_NAME).llvm Platform/WASM.cpp
 
 $(BUILDDIR)/$(TARGET_NAME).asm: $(BUILDDIR)/$(TARGET_NAME).llvm
 	$(LLVM_BIN)/llc -march=wasm32 -filetype=asm -o $(BUILDDIR)/pre.asm $(BUILDDIR)/$(TARGET_NAME).llvm

@@ -34,7 +34,7 @@ struct Thread {
 
     template <typename T>
     T readBlob(Symbol symbol) {
-        if(Storage::getBlobSize(symbol) != sizeof(T)*8)
+        if(Storage::getBlobSize(symbol) != sizeOfInBits<T>::value)
             throwException("Invalid Blob Size");
         return Storage::readBlob<T>(symbol);
     }
