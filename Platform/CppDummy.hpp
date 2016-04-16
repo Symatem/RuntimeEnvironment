@@ -1,5 +1,4 @@
 #include <setjmp.h> // TODO: Replace setjmp/longjmp
-#include <stdio.h> // TODO: Remove perror, exit
 #include <stdlib.h> // TODO: Remove malloc and free
 
 template<bool _value>
@@ -10,13 +9,6 @@ template<typename type, typename otherType>
 struct isSame : public BoolConstant<false> {};
 template<typename type>
 struct isSame<type, type> : public BoolConstant<true> {};
-
-template<bool B, class T = void>
-struct enableIf {};
-template<class T>
-struct enableIf<true, T> {
-    typedef T type;
-};
 
 template<bool B, class T, class F>
 struct conditional {
@@ -38,34 +30,24 @@ typedef long long unsigned Natural64;
 typedef long long int Integer64;
 typedef double Float64;
 
-#define tokenToString(x) #x
-#define macroToString(x) tokenToString(x)
 #ifdef WEB_ASSEMBLY
 typedef Natural32 NativeNaturalType;
 typedef Integer32 NativeIntegerType;
 typedef Float32 NativeFloatType;
-#define assert(condition) if(!(condition)) { \
-    asm("unreachable"); \
-}
 #else
 typedef Natural64 NativeNaturalType;
 typedef Integer64 NativeIntegerType;
 typedef Float64 NativeFloatType;
-#undef assert
-#define assert(condition) if(!(condition)) { \
-    perror("Assertion failed in " __FILE__ ":" macroToString(__LINE__)); \
-    abort(); \
-}
 #endif
 
 typedef NativeNaturalType PageRefType;
 typedef NativeNaturalType Symbol;
 const NativeNaturalType architectureSize = sizeof(NativeNaturalType)*8;
-NativeNaturalType pointerToNatural(void* ptr) {
-    return reinterpret_cast<long unsigned>(ptr);
-}
 
 struct VoidType {
+    VoidType() {}
+    template<typename DataType>
+    VoidType(DataType) {}
     template<typename DataType>
     VoidType& operator=(DataType) { return *this; }
     template<typename DataType>
@@ -89,8 +71,33 @@ struct sizeOfInBits<VoidType> {
     static constexpr NativeNaturalType value = 0;
 };
 
+extern "C" {
+#define EXPORT __attribute__((visibility("default")))
+#define DO_NOT_INLINE __attribute__((noinline))
+#define tokenToString(x) #x
+#define macroToString(x) tokenToString(x)
+#define assert(condition) \
+    if(!(condition)) \
+        assertFailed("Assertion failed in " __FILE__ ":" macroToString(__LINE__));
+    void assertFailed(const char* str);
+    NativeNaturalType strlen(const char* str) {
+        const char* pos;
+        for(pos = str; *pos; ++pos);
+        return pos-str;
+    }
+    Integer32 atexit(void (*func)()) {
+        return 1;
+    }
+    void __cxa_pure_virtual(void) {}
+    void __cxa_deleted_virtual(void) {}
+}
+
 namespace __cxxabiv1 {
-#define DummyTypeInfo(Child, Parent) struct Child : public Parent { virtual ~Child(); }; Child::~Child() {}
+#define DummyTypeInfo(Child, Parent) \
+    struct Child : public Parent { \
+        virtual ~Child(); \
+    }; \
+    Child::~Child() {}
     struct type_info {};
     DummyTypeInfo(__shim_type_info, type_info)
     DummyTypeInfo(__fundamental_type_info, __shim_type_info)
@@ -103,19 +110,6 @@ namespace __cxxabiv1 {
     DummyTypeInfo(__pbase_type_info, __shim_type_info)
     DummyTypeInfo(__pointer_type_info, __pbase_type_info)
     DummyTypeInfo(__pointer_to_member_type_info, __pbase_type_info)
-}
-
-extern "C" {
-    void __cxa_pure_virtual(void) {}
-    void __cxa_deleted_virtual(void) {}
-    NativeNaturalType strlen(const char* str) {
-        const char* pos;
-        for(pos = str; *pos; ++pos);
-        return pos-str;
-    }
-    Integer32 atexit(void (*func)()) {
-        return 1;
-    }
 }
 
 void operator delete(void* ptr) noexcept {}
@@ -213,6 +207,10 @@ constexpr NativeNaturalType BitMask<Natural64>::ctz(Natural64 value) {
 
 constexpr NativeNaturalType architecturePadding(NativeNaturalType bits) {
     return (bits+architectureSize-1)/architectureSize*architectureSize;
+}
+
+NativeNaturalType pointerToNatural(void* ptr) {
+    return reinterpret_cast<long unsigned>(ptr);
 }
 
 template<typename T>

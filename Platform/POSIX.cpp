@@ -139,7 +139,10 @@ void loadFromPath(Symbol parentPackage, bool execute, char* path) {
     }
 }
 
-
+void assertFailed(const char* str) {
+    puts(str);
+    abort();
+}
 
 #ifdef __APPLE__
 #define MMAP_FUNC mmap

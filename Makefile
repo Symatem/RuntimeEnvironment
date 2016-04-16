@@ -1,4 +1,4 @@
-CPPOPTIONS := -std=c++1z -fno-exceptions -fno-stack-protector -fno-use-cxa-atexit
+CPPOPTIONS := -std=c++1z -fno-exceptions -fno-stack-protector -fno-use-cxa-atexit -fvisibility=hidden
 STDPATH := ../StandardLibrary
 BUILDDIR := build
 TARGET_NAME := SymatemRTE

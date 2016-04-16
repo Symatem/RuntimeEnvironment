@@ -1,6 +1,9 @@
 #include "../Interpreter/Procedures.hpp"
 
 extern "C" {
+
+    // TODO: EXPORT some functions to be used from the outside
+
     NativeNaturalType memcpy(NativeNaturalType dst, NativeNaturalType src, NativeNaturalType len) {
         for(NativeNaturalType i = 0; i < len; ++i)
             *reinterpret_cast<char*>(dst+i) = *reinterpret_cast<char*>(src+i);
@@ -12,17 +15,21 @@ extern "C" {
             *reinterpret_cast<char*>(dst+i) = value;
         return 0;
     }
+
+    void assertFailed(const char* str) {
+        asm("unreachable");
+    }
+
+    DO_NOT_INLINE NativeNaturalType getMemorySize() {
+        NativeNaturalType result;
+        asm("memory_size $0=");
+        return result;
+    }
+
+    DO_NOT_INLINE void growMemory(NativeNaturalType delta) {
+        asm("grow_memory $discard=, $0");
+    }
 };
-
-__attribute__((noinline)) NativeNaturalType getMemorySize() {
-    NativeNaturalType result;
-    asm("memory_size $0=");
-    return result;
-}
-
-__attribute__((noinline)) void growMemory(NativeNaturalType delta) {
-    asm("grow_memory $discard=, $0");
-}
 
 void Storage::resizeMemory(NativeNaturalType _pageCount) {
     assert(_pageCount < maxPageCount);

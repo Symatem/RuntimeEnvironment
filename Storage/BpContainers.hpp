@@ -45,7 +45,8 @@ struct BpTreeSet : public BpTree<KeyType, VoidType, 0> {
     typedef typename Super::template Iterator<true> SuperIterator;
 
     template<FindMode mode>
-    typename enableIf<mode == First || mode == Last, KeyType>::type pullOneOut() {
+    KeyType pullOneOut() {
+        static_assert(mode == First || mode == Last);
         SuperIterator iter;
         Super::template find<mode>(iter);
         KeyType key = iter.getKey();
