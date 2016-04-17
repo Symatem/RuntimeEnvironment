@@ -49,18 +49,36 @@ struct VoidType {
     template<typename DataType>
     VoidType(DataType) {}
     template<typename DataType>
-    VoidType& operator=(DataType) { return *this; }
+    operator DataType() {
+        return 0;
+    }
     template<typename DataType>
-    VoidType& operator+=(DataType) { return *this; }
+    VoidType& operator+=(DataType) {
+        return *this;
+    }
+    VoidType operator-(VoidType) {
+        return VoidType();
+    }
 };
-template<typename DataType>
-DataType operator-(const DataType value, const VoidType&) {
-    return value;
+bool operator>(VoidType, VoidType) {
+    return false;
+}
+bool operator==(VoidType, VoidType) {
+    return false;
 }
 template<typename DataType>
-DataType operator>=(const DataType, const VoidType&) {
-    return true;
+bool operator>=(VoidType, DataType) {
+    return false;
 }
+template<typename DataType>
+VoidType operator-(VoidType, DataType) {
+    return VoidType();
+}
+template<typename DataType>
+VoidType operator-(DataType, VoidType) {
+    return VoidType();
+}
+
 
 template<class Type>
 struct sizeOfInBits {

@@ -18,6 +18,59 @@ void modifiedBlob(Symbol symbol) {
     // blobIndex.eraseElement(symbol);
 }
 
+struct Blob {
+    BpTreeMap<Symbol, NativeNaturalType>::Iterator<true> iter;
+    bool fragmented;
+    PageRefType pageRef;
+    NativeNaturalType offset;
+    BpTreeBlob bpTree;
+    BlobBucket* bucket;
+    NativeNaturalType index;
+
+    bool categorize(Symbol symbol) {
+        if(!blobs.find<Key>(iter, symbol))
+            return false;
+        NativeNaturalType address = iter.getValue();
+        PageRefType pageRef = address/bitsPerPage;
+        NativeNaturalType offset = address-pageRef*bitsPerPage;
+        if(offset) {
+            fragmented = false;
+            bucket = dereferencePage<BlobBucket>(pageRef);
+            index = bucket->indexOfOffset(offset);
+        } else {
+            fragmented = true;
+            bpTree.rootPageRef = pageRef;
+        }
+        return true;
+    }
+
+    NativeNaturalType allocate(NativeNaturalType size) {
+        NativeNaturalType type = BlobBucket::getBucketType(size);
+        if(type < blobBucketTypeCount) {
+            fragmented = false;
+            if(freeBlobBuckets[type].empty()) {
+                pageRef = aquirePage();
+                bucket = dereferencePage<BlobBucket>(pageRef);
+                bucket->init(type);
+                assert(freeBlobBuckets[type].insert(pageRef));
+            } else {
+                pageRef = freeBlobBuckets[type].pullOneOut<First>();
+                bucket = dereferencePage<BlobBucket>(pageRef);
+            }
+            index = bucket->allocateIndex(size, iter.getKey(), pageRef);
+            return pageRef*bitsPerPage+bucket->offsetOfIndex(index);
+        } else {
+            fragmented = true;
+            // TODO: Allocate tree
+            return bpTree.rootPageRef;
+        }
+    }
+
+    NativeNaturalType getSize() {
+        return (fragmented) ? bpTree.getElementCount() : bucket->getSize(index);
+    }
+};
+
 NativeNaturalType accessBlobData(Symbol symbol) {
     BpTreeMap<Symbol, NativeNaturalType>::Iterator<false> iter;
     assert(blobs.find<Key>(iter, symbol));

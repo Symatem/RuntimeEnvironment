@@ -9,7 +9,7 @@ const NativeNaturalType blobBucketTypeCount = 15, blobBucketType[blobBucketTypeC
 BpTreeSet<PageRefType> fullBlobBuckets, freeBlobBuckets[blobBucketTypeCount];
 
 struct BlobBucketHeader : public BasePage {
-    NativeNaturalType type, count, freeIndex;
+    Natural16 type, count, freeIndex;
 };
 
 struct BlobBucket {
@@ -24,7 +24,7 @@ struct BlobBucket {
     }
 
     NativeNaturalType getDataOffset() const {
-        return sizeof(BlobBucketHeader)*8;
+        return architecturePadding(sizeOfInBits<BlobBucketHeader>::value);
     }
 
     NativeNaturalType getSizeOffset() const {
@@ -78,17 +78,32 @@ struct BlobBucket {
         }
     }
 
-    void freeIndex(NativeNaturalType index) {
+    void freeIndex(NativeNaturalType index, PageRefType pageRef) {
+        if(isFull()) {
+            assert(fullBlobBuckets.erase<Key>(pageRef));
+            assert(freeBlobBuckets[header.type].insert(pageRef));
+        }
         --header.count;
-        setSize(index, 0);
-        setSymbol(index, header.freeIndex);
-        header.freeIndex = index;
+        if(isEmpty()) {
+            assert(freeBlobBuckets[header.type].erase<Key>(pageRef));
+            releasePage(pageRef);
+        } else {
+            setSize(index, 0);
+            setSymbol(index, header.freeIndex);
+            header.freeIndex = index;
+        }
     }
 
-    NativeNaturalType allocateIndex() {
+    NativeNaturalType allocateIndex(NativeNaturalType size, Symbol symbol, PageRefType pageRef) {
         ++header.count;
         NativeNaturalType index = header.freeIndex;
         header.freeIndex = getSymbol(header.freeIndex);
+        setSize(index, size);
+        setSymbol(index, symbol);
+        if(isFull()) {
+            assert(fullBlobBuckets.insert(pageRef));
+            assert(freeBlobBuckets[header.type].erase<Key>(pageRef));
+        }
         return index;
     }
 
@@ -120,63 +135,10 @@ struct BlobBucket {
         return symbol;
     }
 
-    static NativeNaturalType allocateBlob(NativeNaturalType size, Symbol symbol) {
-        NativeNaturalType type = binarySearch<NativeNaturalType>(blobBucketTypeCount, [&](NativeNaturalType index) {
+    static NativeNaturalType getBucketType(NativeNaturalType size) {
+        return binarySearch<NativeNaturalType>(blobBucketTypeCount, [&](NativeNaturalType index) {
             return blobBucketType[index] < size;
         });
-        if(type >= blobBucketTypeCount)
-            return 0;
-        PageRefType pageRef;
-        BlobBucket* bucket;
-        if(freeBlobBuckets[type].empty()) {
-            pageRef = aquirePage();
-            bucket = dereferencePage<BlobBucket>(pageRef);
-            bucket->init(type);
-            assert(freeBlobBuckets[type].insert(pageRef));
-        } else {
-            pageRef = freeBlobBuckets[type].pullOneOut<First>();
-            bucket = dereferencePage<BlobBucket>(pageRef);
-        }
-        NativeNaturalType index = bucket->allocateIndex();
-        bucket->setSize(index, size);
-        bucket->setSymbol(index, symbol);
-        if(bucket->isFull()) {
-            assert(fullBlobBuckets.insert(pageRef));
-            assert(freeBlobBuckets[type].erase<Key>(pageRef));
-        }
-        return pageRef*bitsPerPage+bucket->offsetOfIndex(index);
-    }
-
-    const static NativeNaturalType addressOffsetMask = bitsPerPage-1;
-
-    static void setBlobSize(NativeNaturalType address, NativeNaturalType size) {
-        PageRefType pageRef = address/bitsPerPage;
-        BlobBucket* bucket = dereferencePage<BlobBucket>(pageRef);
-        NativeNaturalType index = bucket->indexOfOffset(address&addressOffsetMask);
-        if(size == 0) {
-            if(bucket->isFull()) {
-                assert(fullBlobBuckets.erase<Key>(pageRef));
-                assert(freeBlobBuckets[bucket->header.type].insert(pageRef));
-            }
-            bucket->freeIndex(index);
-            if(bucket->isEmpty())
-                releasePage(pageRef);
-        } else
-            bucket->setSize(index, size);
-    }
-
-    static NativeNaturalType getBlobSize(NativeNaturalType address) {
-        PageRefType pageRef = address/bitsPerPage;
-        BlobBucket* bucket = dereferencePage<BlobBucket>(pageRef);
-        NativeNaturalType index = bucket->indexOfOffset(address&addressOffsetMask);
-        return bucket->getSize(index);
-    }
-
-    static NativeNaturalType getBlobSymbol(NativeNaturalType address) {
-        PageRefType pageRef = address/bitsPerPage;
-        BlobBucket* bucket = dereferencePage<BlobBucket>(pageRef);
-        NativeNaturalType index = bucket->indexOfOffset(address&addressOffsetMask);
-        return bucket->getSymbol(index);
     }
 };
 
