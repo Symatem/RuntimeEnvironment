@@ -37,8 +37,7 @@ struct BpTree {
         static_assert(rankBits);
         if(empty())
             return 0;
-        Page* page = getPage(rootPageRef);
-        return (page->header.layer == 0) ? page->header.count : page->getRank(page->header.count);
+        return getPage(rootPageRef)->getElementCount();
     }
 
     struct IteratorFrame {
@@ -123,15 +122,8 @@ struct BpTree {
             set<PageRefType, pageRefOffset>(dst, content);
         }
 
-        template<bool isLeaf>
-        void init(LayerType layer) {
-            header.layer = layer;
-            if(!isLeaf && rankBits)
-                setRank(0, 0);
-        }
-
         void integrateRanks(OffsetType at, OffsetType end) {
-            if(rankBits == 0)
+            if(rankBits == 0 || at >= end)
                 return;
             RankType sum;
             if(at == 0) {
@@ -146,7 +138,7 @@ struct BpTree {
         }
 
         void disintegrateRanks(OffsetType begin, OffsetType at) {
-            if(rankBits == 0)
+            if(rankBits == 0 || begin >= at)
                 return;
             RankType higher = getRank(--at);
             for(; at > begin; --at) {
@@ -157,6 +149,10 @@ struct BpTree {
             if(begin == 0)
                 return;
             setRank(begin, higher-getRank(begin-1));
+        }
+
+        RankType getElementCount() {
+            return (header.layer == 0) ? header.count : getRank(header.count-1);
         }
 
         template<bool frontKey, NativeIntegerType dir = -1>
@@ -312,7 +308,7 @@ struct BpTree {
             if(isLeaf)
                 copyLeafElements<-1>(lower, lower, start, end, lower->header.count-end);
             else {
-                // lower->disintegrateRanks(start, end); // TODO
+                lower->disintegrateRanks(0, lower->header.count);
                 if(start > 0)
                     copyBranchElements<true, -1>(lower, lower, start, end, lower->header.count-end);
                 else if(end < lower->header.count)
@@ -325,9 +321,11 @@ struct BpTree {
         static bool erase2(Page* parent, Page* lower, Page* higher,
                            OffsetType parentIndex, OffsetType startInLower, OffsetType endInHigher) {
             assert(startInLower <= lower->header.count && endInHigher <= higher->header.count);
+            if(!isLeaf) {
+                lower->disintegrateRanks(0, lower->header.count);
+                higher->disintegrateRanks(0, higher->header.count);
+            }
             NativeIntegerType count = startInLower+higher->header.count-endInHigher;
-            // if(!isLeaf) // TODO
-            //    lower->disintegrateRanks(startInLower, lower->header.count);
             if(count <= capacity<isLeaf>()) {
                 lower->header.count = count;
                 if(count == 0)
@@ -450,17 +448,25 @@ struct BpTree {
         static bool redistribute2(Page* parent, Page* lower, Page* higher, OffsetType parentIndex) {
             NativeIntegerType count = lower->header.count+higher->header.count;
             if(count <= capacity<isLeaf>()) {
-                if(lowerIsMiddle)
+                if(lowerIsMiddle) {
+                    higher->disintegrateRanks(0, higher->header.count);
                     evacuateUp<isLeaf>(parent, lower, higher, parentIndex);
-                else
+                    higher->integrateRanks(0, higher->header.count);
+                } else {
                     evacuateDown<isLeaf>(parent, lower, higher, parentIndex);
+                    lower->integrateRanks(lower->header.count-higher->header.count, lower->header.count);
+                }
                 return true;
             } else {
                 count = ((lowerIsMiddle)?higher:lower)->header.count-count/2;
-                if(lowerIsMiddle)
+                if(lowerIsMiddle) {
+                    higher->disintegrateRanks(0, higher->header.count);
                     shiftDown<isLeaf>(parent, lower, higher, parentIndex, count);
-                else
+                    higher->integrateRanks(0, higher->header.count);
+                } else {
+                    lower->disintegrateRanks(lower->header.count-count, lower->header.count);
                     shiftUp<isLeaf>(parent, lower, higher, parentIndex, count);
+                }
                 return false;
             }
         }
@@ -469,6 +475,9 @@ struct BpTree {
         static bool redistribute3(Page* middleParent, Page* higherParent,
                                   Page* lower, Page* middle, Page* higher,
                                   OffsetType middleParentIndex, OffsetType higherParentIndex) {
+            lower->disintegrateRanks(0, lower->header.count);
+            higher->disintegrateRanks(0, higher->header.count); // TODO: Optimize ?
+            bool merged;
             NativeIntegerType count = lower->header.count+middle->header.count+higher->header.count;
             if(count <= capacity<isLeaf>()*2) {
                 count = count/2-higher->header.count;
@@ -502,7 +511,7 @@ struct BpTree {
                 count = lower->header.count+higher->header.count;
                 assert(lower->header.count == (count+1)/2);
                 assert(higher->header.count == count/2);
-                return true;
+                merged = true;
             } else {
                 count = count/3;
                 NativeIntegerType shiftLower = lower->header.count-count, shiftUpper = higher->header.count-count;
@@ -520,8 +529,11 @@ struct BpTree {
                     else if(shiftUpper > 0)
                         shiftDown<isLeaf>(higherParent, middle, higher, higherParentIndex, shiftUpper);
                 }
-                return false;
+                merged = false;
             }
+            lower->integrateRanks(0, lower->header.count);
+            higher->integrateRanks(0, higher->header.count);
+            return merged;
         }
 
         template<bool isLeaf>
@@ -541,9 +553,14 @@ struct BpTree {
 
         void debugPrint() {
             printf("\t");
-            for(OffsetType i = 0; i < header.count-1; ++i)
-                printf("%llu [%llu] ", getRank(i), getKey<false>(i));
-            printf("%llu\n", getRank(header.count-1));
+            KeyType prevKey = getKey<false>(0);
+            RankType prevRank = getRank(0);
+            for(OffsetType i = 0; i < header.count-1; ++i) {
+                printf("%llu %llu (%llu, %llu) [%llu] ", getRank(i), getPageRef(i), getRank(i)-prevRank, getKey<false>(i)-prevKey, getKey<false>(i));
+                prevKey = getKey<false>(i);
+                prevRank = getRank(i);
+            }
+            printf("%llu (%llu)\n", getRank(header.count-1), getRank(header.count-1)-prevRank);
         }
     };
 
@@ -680,9 +697,10 @@ struct BpTree {
             printf("Iterator %hhd\n", end);
             for(LayerType layer = 0; layer < end; ++layer) {
                 FrameType* frame = (*this)[layer];
-                printf("%llu %llu %d/%d\n", frame->pageRef, frame->rank, frame->index, frame->endIndex);
+                Page* page = getPage(frame->pageRef);
+                printf("%llu %llu/%d/%d/%d\n", frame->pageRef, frame->rank, frame->index, frame->endIndex, page->header.count);
                 if(layer > 0)
-                    getPage(frame->pageRef)->debugPrint();
+                    page->debugPrint();
             }
         }
     };
@@ -834,7 +852,7 @@ struct BpTree {
         } else {
             frame->pageRef = Storage::aquirePage();
             lowerOuter = getPage(frame->pageRef);
-            lowerOuter->template init<isLeaf>(data.layer);
+            lowerOuter->header.layer = data.layer;
             if(!isLeaf)
                 lowerOuter->setPageRef(0, iter[data.layer-1]->pageRef);
             if(frame->pageCount == 0) {
@@ -849,11 +867,11 @@ struct BpTree {
                     frame->higherInnerEndIndex = frame->elementsPerPage;
                     Page* higherInner = getPage(frame->higherInnerPageRef);
                     higherInner->header.count = frame->elementsPerPage;
-                    higherInner->template init<isLeaf>(data.layer);
+                    higherInner->header.layer = data.layer;
                 }
                 frame->higherOuterPageRef = Storage::aquirePage();
                 Page* higherOuter = getPage(frame->higherOuterPageRef);
-                higherOuter->template init<isLeaf>(data.layer);
+                higherOuter->header.layer = data.layer;
                 Page::distributeCount(lowerOuter, higherOuter, data.elementCount-(frame->pageCount-1)*frame->elementsPerPage);
                 frame->higherOuterEndIndex = higherOuter->header.count;
             }
@@ -874,9 +892,9 @@ struct BpTree {
              *lowerInner = getPage(frame->lowerInnerPageRef),
              *higherInner = getPage(frame->higherInnerPageRef),
              *higherOuter = getPage(frame->higherOuterPageRef);
-        lowerInner->template init<isLeaf>(data.layer);
-        higherInner->template init<isLeaf>(data.layer);
-        higherOuter->template init<isLeaf>(data.layer);
+        lowerInner->header.layer = data.layer;
+        higherInner->header.layer = data.layer;
+        higherOuter->header.layer = data.layer;
         Page::template insertOverflow<isLeaf>(frame, data.lowerInnerParent, data.higherOuterParent,
             lowerOuter, lowerInner, higherInner, higherOuter, data.lowerInnerParentIndex-1, data.higherOuterParentIndex-1);
         if(isLeaf)
@@ -942,21 +960,15 @@ struct BpTree {
         frame->endIndex = frame->elementsPerPage;
         Page* page = getPage(frame->pageRef);
         page->header.count = frame->endIndex;
-        page->template init<isLeaf>(data.layer);
+        page->header.layer = data.layer;
         return page;
     }
 
-    static void insertUpdateRanks(Page* page, InsertIteratorFrame* frame) {
+    static void insertUpdateRanks(InsertIteratorFrame* frame, Page* page) {
         if(rankBits == 0)
             return;
-        if(page->header.layer == 1)
-            for(OffsetType i = frame->rank; i < frame->endIndex; ++i)
-                page->setRank(i, getPage(page->getPageRef(i))->header.count);
-        else
-            for(OffsetType i = frame->rank; i < frame->endIndex; ++i) {
-                Page* child = getPage(page->getPageRef(i));
-                page->setRank(i, child->getRank(child->header.count-1));
-            }
+        for(OffsetType i = frame->rank; i < frame->endIndex; ++i)
+            page->setRank(i, getPage(page->getPageRef(i))->getElementCount());
         page->integrateRanks(frame->rank, page->header.count);
     }
 
@@ -987,26 +999,28 @@ struct BpTree {
                 break;
             }
         }
-        Page *page, *leafPage = getPage(iter[0]->pageRef);
+        Page* leafPage = getPage(iter[0]->pageRef);
         if(iter[0]->index < iter[0]->endIndex)
             aquireData(leafPage, iter[0]->index, iter[0]->endIndex);
+        if(iter[0]->pageCount == 0 && iter.end > 1)
+            insertUpdateRanks(iter[1], getPage(iter[1]->pageRef));
         while(iter[0]->pageCount > 0) {
+            data.layer = 0;
             leafPage = insertAdvance<true>(data, iter[0]);
             if(iter[0]->index < iter[0]->endIndex)
                 aquireData(leafPage, iter[0]->index, iter[0]->endIndex);
-            data.layer = 0;
             bool setKey = true;
             PageRefType leafPageRef = iter[0]->pageRef;
             while(data.layer < unmodifiedLayer) {
                 InsertIteratorFrame* frame = iter[++data.layer];
+                Page* page = getPage(frame->pageRef);
                 if(frame->index < frame->endIndex) {
-                    page = getPage(frame->pageRef);
                     if(setKey)
                         Page::template copyKey<false, true>(page, leafPage, frame->index-1, 0);
                     page->setPageRef(frame->index++, leafPageRef);
                     break;
                 }
-                insertUpdateRanks(page, frame);
+                insertUpdateRanks(frame, page);
                 page = insertAdvance<false>(data, frame);
                 if(frame->index > 0) {
                     Page::template copyKey<false, true>(page, leafPage, frame->index-1, 0);
@@ -1016,16 +1030,16 @@ struct BpTree {
                 leafPageRef = frame->pageRef;
             }
         }
-        for(data.layer = 1; data.layer < unmodifiedLayer; ++data.layer) {
+        for(data.layer = 1; data.layer < iter.end; ++data.layer) {
             InsertIteratorFrame* frame = iter[data.layer];
-            if(frame->pageCount) {
+            insertUpdateRanks(frame, getPage(frame->pageRef));
+            if(data.layer < unmodifiedLayer && frame->pageCount > 0) {
                 assert(frame->higherOuterPageRef && frame->higherOuterEndIndex == 0);
-                insertAdvance<false>(data, frame);
+                Page* page = insertAdvance<false>(data, frame);
+                insertUpdateRanks(frame, page);
                 InsertIteratorFrame* parentFrame = iter[data.layer+1];
-                Page* page = getPage(parentFrame->pageRef);
-                page->setPageRef(parentFrame->index++, frame->higherOuterPageRef);
+                getPage(parentFrame->pageRef)->setPageRef(parentFrame->index++, frame->higherOuterPageRef);
             }
-            insertUpdateRanks(getPage(frame->pageRef), frame);
         }
     }
 
@@ -1105,9 +1119,23 @@ struct BpTree {
                 Storage::releasePage(data.from[data.layer]->pageRef);
                 data.spareLowerInner = false;
                 data.eraseHigherInner = true;
-            }
+            } else
+                lowerInner->integrateRanks(0, lowerInner->header.count);
+        } else {
+            lowerInner->integrateRanks(0, lowerInner->header.count);
+            if(lowerInner != higherInner)
+                higherInner->integrateRanks(0, higherInner->header.count);
         }
         ++data.layer;
+        /* TODO: Update ranks in parents
+        if(data.spareLowerInner) {
+            IteratorFrame* lowerParent = data.from[data.layer];
+            getPage(lowerParent->pageRef)->setRank(lowerParent->index, lowerInner->getElementCount());
+        }
+        if(!data.eraseHigherInner && lowerInner != higherInner) {
+            IteratorFrame* higherParent = data.to[data.layer];
+            getPage(higherParent->pageRef)->setRank(higherParent->index, higherInner->getElementCount());
+        }*/
         return true;
     }
 
