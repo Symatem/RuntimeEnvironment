@@ -94,9 +94,10 @@ extern "C" {
 #define DO_NOT_INLINE __attribute__((noinline))
 #define tokenToString(x) #x
 #define macroToString(x) tokenToString(x)
-#define assert(condition) \
-    if(!(condition)) \
-        assertFailed("Assertion failed in " __FILE__ ":" macroToString(__LINE__));
+#define assert(condition) { \
+        if(!(condition)) \
+            assertFailed("Assertion failed in " __FILE__ ":" macroToString(__LINE__)); \
+    }
     void assertFailed(const char* str);
     NativeNaturalType strlen(const char* str) {
         const char* pos;

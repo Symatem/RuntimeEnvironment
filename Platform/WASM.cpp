@@ -21,9 +21,9 @@ extern "C" {
     }
 
     DO_NOT_INLINE NativeNaturalType getMemorySize() {
-        NativeNaturalType result;
-        asm("memory_size $0=");
-        return result;
+        asm("memory_size $push0=\n"
+            "\treturn $pop0");
+        __builtin_unreachable();
     }
 
     DO_NOT_INLINE void growMemory(NativeNaturalType delta) {
@@ -35,6 +35,7 @@ void Storage::resizeMemory(NativeNaturalType _pageCount) {
     assert(_pageCount < maxPageCount);
     NativeNaturalType size = getMemorySize(), pad = pointerToNatural(Storage::heapBegin);
     size = (size > pad) ? (size-pad)/4096 : 0;
+    // TODO: Page size is 0x10000
     if(_pageCount > size)
         growMemory(_pageCount-size);
     pageCount = _pageCount;
@@ -42,7 +43,7 @@ void Storage::resizeMemory(NativeNaturalType _pageCount) {
 
 struct Main {
     Main() {
-        Storage::heapBegin = reinterpret_cast<void*>(4096*10); // TODO
+        Storage::heapBegin = reinterpret_cast<void*>(getMemorySize());
         Storage::resizeMemory(Storage::minPageCount);
         Ontology::tryToFillPreDefined();
     }

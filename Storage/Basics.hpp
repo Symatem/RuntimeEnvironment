@@ -28,9 +28,9 @@ NativeNaturalType aquireSegmentFrom(const NativeNaturalType* src, NativeNaturalT
     if(dir == +1)
         srcOffset -= length;
     NativeNaturalType lower = srcOffset%architectureSize,
-                     index = srcOffset/architectureSize,
-                     firstPart = architectureSize-lower,
-                     result = src[index]>>lower;
+                      index = srcOffset/architectureSize,
+                      firstPart = architectureSize-lower,
+                      result = src[index]>>lower;
     if(dir == -1)
         srcOffset += length;
     if(firstPart < length)

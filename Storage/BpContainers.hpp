@@ -71,7 +71,6 @@ struct BpTreeSet : public BpTree<KeyType, VoidType, 0> {
 
 struct BpTreeBlob : public BpTree<VoidType, NativeNaturalType, 1> {
     typedef BpTree<VoidType, NativeNaturalType, 1> Super;
-
 };
 
 };

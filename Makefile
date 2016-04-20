@@ -9,7 +9,7 @@ wasm: $(BUILDDIR)/ $(BUILDDIR)/$(TARGET_NAME).wasm
 
 all: posix wasm
 
-test: $(BUILDDIR)/$(TARGET_NAME)
+test: posix
 	$(BUILDDIR)/$(TARGET_NAME) $(STDPATH)/Foundation/ -e $(STDPATH)/Tests/
 
 clear:
