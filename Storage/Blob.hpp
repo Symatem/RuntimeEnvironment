@@ -19,55 +19,221 @@ void modifiedBlob(Symbol symbol) {
 }
 
 struct Blob {
-    BpTreeMap<Symbol, NativeNaturalType>::Iterator<true> iter;
-    bool fragmented;
+    Symbol symbol;
     PageRefType pageRef;
-    NativeNaturalType offset;
+    NativeNaturalType address, offset, index;
+    Natural16 type;
     BpTreeBlob bpTree;
     BlobBucket* bucket;
-    NativeNaturalType index;
+    enum State {
+        Empty,
+        InBucket,
+        Fragmented
+    } state;
 
-    bool categorize(Symbol symbol) {
-        if(!blobs.find<Key>(iter, symbol))
-            return false;
-        NativeNaturalType address = iter.getValue();
-        PageRefType pageRef = address/bitsPerPage;
-        NativeNaturalType offset = address-pageRef*bitsPerPage;
+    Blob() {}
+
+    Blob(Symbol _symbol) {
+        symbol = _symbol;
+        BpTreeMap<Symbol, NativeNaturalType>::Iterator<true> iter;
+        if(!blobs.find<Key>(iter, symbol)) {
+            state = Empty;
+            return;
+        }
+        address = iter.getValue();
+        pageRef = address/bitsPerPage;
+        offset = address-pageRef*bitsPerPage;
         if(offset) {
-            fragmented = false;
+            state = InBucket;
             bucket = dereferencePage<BlobBucket>(pageRef);
             index = bucket->indexOfOffset(offset);
         } else {
-            fragmented = true;
+            state = Fragmented;
             bpTree.rootPageRef = pageRef;
-        }
-        return true;
-    }
-
-    NativeNaturalType allocate(NativeNaturalType size) {
-        NativeNaturalType type = BlobBucket::getBucketType(size);
-        if(type < blobBucketTypeCount) {
-            fragmented = false;
-            if(freeBlobBuckets[type].empty()) {
-                pageRef = aquirePage();
-                bucket = dereferencePage<BlobBucket>(pageRef);
-                bucket->init(type);
-                assert(freeBlobBuckets[type].insert(pageRef));
-            } else {
-                pageRef = freeBlobBuckets[type].pullOneOut<First>();
-                bucket = dereferencePage<BlobBucket>(pageRef);
-            }
-            index = bucket->allocateIndex(size, iter.getKey(), pageRef);
-            return pageRef*bitsPerPage+bucket->offsetOfIndex(index);
-        } else {
-            fragmented = true;
-            // TODO: Allocate tree
-            return bpTree.rootPageRef;
         }
     }
 
     NativeNaturalType getSize() {
-        return (fragmented) ? bpTree.getElementCount() : bucket->getSize(index);
+        switch(state) {
+            case Empty:
+                return 0;
+            case InBucket:
+                return bpTree.getElementCount();
+            case Fragmented:
+                return bucket->getSize(index);
+        }
+    }
+
+    template<NativeIntegerType dir>
+    static NativeIntegerType segmentInteroperation(NativeNaturalType dst, NativeNaturalType src, NativeNaturalType length) {
+        if(dir == 0)
+            return bitwiseCompare(reinterpret_cast<NativeNaturalType*>(heapBegin),
+                                  reinterpret_cast<const NativeNaturalType*>(heapBegin),
+                                  dst, src, length);
+        else {
+            bitwiseCopy<dir>(reinterpret_cast<NativeNaturalType*>(heapBegin),
+                             reinterpret_cast<const NativeNaturalType*>(heapBegin),
+                             dst, src, length);
+            return 0;
+        }
+    }
+
+    template<NativeIntegerType dir, typename IteratorType>
+    NativeNaturalType preInteroperation(IteratorType& iter, NativeNaturalType offset) {
+        if(dir == -1) {
+            if(state == Fragmented) {
+                if(iter[0]->index > 0)
+                    return iter[0]->index;
+                iter.template advance<-1>(1);
+                iter[0]->index = iter[0]->endIndex;
+                return iter[0]->index;
+            } else
+                return offset;
+        } else
+            return (state == Fragmented) ? iter[0]->endIndex-iter[0]->index : bucket->getSize(index)-offset;
+    }
+
+    template<typename IteratorType>
+    NativeNaturalType offsetOfInteroperation(IteratorType& iter, NativeNaturalType offset) {
+        return (state == Fragmented) ? iter[0]->pageRef*bitsPerPage+BpTreeBlob::Page::valueOffset+iter[0]->index : address+offset;
+    }
+
+    template<NativeIntegerType dir, typename IteratorType>
+    void postInteroperation(IteratorType& iter, NativeNaturalType& offset, NativeNaturalType intersection) {
+        if(dir == -1) {
+            if(state == Fragmented) {
+                assert(iter.template advance<-1>(0, intersection) == 0);
+            } else
+                offset -= intersection;
+        } else {
+            if(state == Fragmented) {
+                assert(iter.template advance<1>(0, intersection) == 0);
+            } else
+                offset += intersection;
+        }
+    }
+
+    template<NativeIntegerType dir>
+    NativeIntegerType interoperation(Blob& src, NativeNaturalType dstOffset, NativeNaturalType srcOffset, NativeNaturalType length) {
+        // TODO: Check out of bounds
+        NativeNaturalType dstSegment, srcSegment, intersection;
+        BpTreeBlob::Iterator<dir != 0> dstIter, srcIter;
+        if(state == Fragmented)
+            bpTree.find<Rank>(dstIter, dstOffset);
+        if(src.state == Fragmented)
+            src.bpTree.find<Rank>(srcIter, srcOffset);
+        if(dir == -1) {
+            dstOffset += length;
+            srcOffset += length;
+        }
+        while(length > 0) {
+            dstSegment = preInteroperation<dir>(dstIter, dstOffset);
+            srcSegment = src.preInteroperation<dir>(srcIter, srcOffset);
+            intersection = min(dstSegment, srcSegment, length);
+            NativeIntegerType result = segmentInteroperation<dir>(offsetOfInteroperation(dstIter, dstOffset),
+                                                                  src.offsetOfInteroperation(srcIter, srcOffset),
+                                                                  intersection);
+            if(result != 0)
+                return result;
+            postInteroperation<dir>(dstIter, dstOffset, intersection);
+            src.postInteroperation<dir>(srcIter, srcOffset, intersection);
+            length -= intersection;
+        }
+        return 0;
+    }
+
+    void allocateInBucket(NativeNaturalType size) {
+        assert(size > 0);
+        state = InBucket;
+        if(freeBlobBuckets[type].empty()) {
+            pageRef = aquirePage();
+            bucket = dereferencePage<BlobBucket>(pageRef);
+            bucket->init(type);
+            assert(freeBlobBuckets[type].insert(pageRef));
+        } else {
+            pageRef = freeBlobBuckets[type].pullOneOut<First>();
+            bucket = dereferencePage<BlobBucket>(pageRef);
+        }
+        index = bucket->allocateIndex(size, symbol, pageRef);
+        address = pageRef*bitsPerPage+bucket->offsetOfIndex(index);
+    }
+
+    void freeFromBucket() {
+        assert(state == InBucket);
+        bucket->freeIndex(index, pageRef);
+    }
+
+    void updateAddress(NativeNaturalType address) {
+        BpTreeMap<Symbol, NativeNaturalType>::Iterator<true> iter;
+        blobs.find<Key>(iter, symbol);
+        iter.setValue(address);
+    }
+
+    bool decreaseBlobSize(NativeNaturalType at, NativeNaturalType count) {
+        NativeNaturalType size = getSize(), end = at+count;
+        if(at >= end || end > size)
+            return false;
+        size -= count;
+        if(size == 0) {
+            if(state == Fragmented)
+                bpTree.erase();
+            else
+                freeFromBucket();
+            blobs.erase<Key>(symbol);
+        } else if(BlobBucket::isBucketAllocatable(size)) {
+            Blob dstBlob;
+            dstBlob.type = BlobBucket::getType(size);
+            if(state == Fragmented || type != dstBlob.type) {
+                dstBlob.allocateInBucket(size);
+                dstBlob.interoperation<1>(*this, 0, 0, at);
+                dstBlob.interoperation<1>(*this, at, end, size-at);
+                if(state == InBucket)
+                    freeFromBucket();
+                updateAddress(dstBlob.address);
+            } else
+                interoperation<-1>(*this, at, end, size-at);
+        } else {
+            BpTreeBlob::Iterator<true> from, to;
+            bpTree.find<Rank>(from, at);
+            bpTree.find<Rank>(to, at+count-1);
+            bpTree.erase(from, to);
+            updateAddress(bpTree.rootPageRef);
+        }
+        modifiedBlob(symbol);
+        return true;
+    }
+
+    bool increaseBlobSize(NativeNaturalType at, NativeNaturalType count) {
+        NativeNaturalType size = getSize();
+        if(size >= size+count || at > size)
+            return false;
+        size += count;
+        Blob dstBlob;
+        if(BlobBucket::isBucketAllocatable(size)) {
+            dstBlob.type = BlobBucket::getType(size);
+            if(state == Empty || type != dstBlob.type)
+                dstBlob.allocateInBucket(size);
+            else
+                interoperation<-1>(*this, at, at+count, size-count-at);
+        } else {
+            BpTreeBlob::Iterator<true> iter;
+            dstBlob.state = Fragmented;
+            dstBlob.bpTree = bpTree;
+            dstBlob.bpTree.find<Rank>(iter, at);
+            dstBlob.bpTree.insert(iter, count, nullptr);
+            dstBlob.address = dstBlob.bpTree.rootPageRef;
+        }
+        if(state == InBucket) {
+            dstBlob.interoperation<1>(*this, 0, 0, at);
+            dstBlob.interoperation<1>(*this, at, at+count, size-count-at);
+            freeFromBucket();
+        }
+        if(state == Empty)
+            blobs.insert(symbol, dstBlob.address);
+        else
+            updateAddress(dstBlob.address);
+        modifiedBlob(symbol);
+        return true;
     }
 };
 

@@ -6,9 +6,8 @@ RTE in C++11
 Symatem RTE C++ code base as opposed to the native code base which will be based on this one later on.
 
 Coding Restrictions:
-- No goto
-- No virtual/polymorphism/dynamic_cast
-- No new/delete, malloc/free => heapless (WIP)
-- No recursion/alloca, fixed stack size
-- No StdLibC++ => almost zero dependency (except from LibC)
+- No goto, dynamic_cast
+- No new/delete, malloc/free => heapless
+- No recursion/alloca => fixed stack size
+- No StdLibC++ => zero dependency (except from LibC for POSIX targets)
 - No exceptions

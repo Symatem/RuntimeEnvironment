@@ -52,33 +52,22 @@ struct VoidType {
     operator DataType() {
         return 0;
     }
-    template<typename DataType>
-    VoidType& operator+=(DataType) {
+    VoidType& operator+=(VoidType) {
         return *this;
     }
     VoidType operator-(VoidType) {
         return VoidType();
     }
+    bool operator>(VoidType) {
+        return false;
+    }
+    bool operator>=(VoidType) {
+        return false;
+    }
+    bool operator==(VoidType) {
+        return false;
+    }
 };
-bool operator>(VoidType, VoidType) {
-    return false;
-}
-bool operator==(VoidType, VoidType) {
-    return false;
-}
-template<typename DataType>
-bool operator>=(VoidType, DataType) {
-    return false;
-}
-template<typename DataType>
-VoidType operator-(VoidType, DataType) {
-    return VoidType();
-}
-template<typename DataType>
-VoidType operator-(DataType, VoidType) {
-    return VoidType();
-}
-
 
 template<class Type>
 struct sizeOfInBits {

@@ -31,8 +31,8 @@ struct BpTreeMap : public BpTree<KeyType, VoidType, sizeOfInBits<ValueType>::val
     }
 
     bool insert(KeyType key, ValueType value) {
-        Iterator<false> iter;
-        if(Super::find(iter, key))
+        Iterator<true> iter;
+        if(Super::template find<Key>(iter, key))
             return false;
         insert(iter, key, value);
         return true;

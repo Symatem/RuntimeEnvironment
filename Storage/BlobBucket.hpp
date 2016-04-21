@@ -135,10 +135,14 @@ struct BlobBucket {
         return symbol;
     }
 
-    static NativeNaturalType getBucketType(NativeNaturalType size) {
+    static Natural16 getType(NativeNaturalType size) {
         return binarySearch<NativeNaturalType>(blobBucketTypeCount, [&](NativeNaturalType index) {
             return blobBucketType[index] < size;
         });
+    }
+
+    static bool isBucketAllocatable(NativeNaturalType size) {
+        return size <= blobBucketType[blobBucketTypeCount-1];
     }
 };
 

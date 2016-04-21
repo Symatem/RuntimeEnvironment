@@ -736,11 +736,11 @@ struct BpTree {
                         return true;
                     case Key:
                         frame->index = binarySearch<OffsetType>(page->template keyCount<true>(), [&](OffsetType at) {
-                            return keyOrRank > page->template getKey<true>(at);
+                            return static_cast<KeyType>(keyOrRank) > page->template getKey<true>(at);
                         });
-                        return frame->index < page->header.count && page->template getKey<true>(frame->index) == keyOrRank;
+                        return frame->index < page->header.count && static_cast<KeyType>(keyOrRank) == page->template getKey<true>(frame->index);
                     case Rank:
-                        frame->index = keyOrRank-frame->rank;
+                        frame->index = static_cast<RankType>(keyOrRank)-frame->rank;
                         return frame->index < page->header.count;
                 }
 	        } else {
@@ -753,12 +753,12 @@ struct BpTree {
                         break;
                     case Key:
                         frame->index = binarySearch<OffsetType>(page->template keyCount<false>(), [&](OffsetType at) {
-                            return keyOrRank >= page->template getKey<false>(at);
+                            return static_cast<KeyType>(keyOrRank) >= page->template getKey<false>(at);
                         });
                         break;
                     case Rank:
                         frame->index = binarySearch<OffsetType>(page->template keyCount<false>(), [&](OffsetType at) {
-                            return keyOrRank-frame->rank >= page->getRank(at);
+                            return static_cast<RankType>(keyOrRank)-frame->rank >= page->getRank(at);
                         });
                         break;
                 }
@@ -1001,14 +1001,14 @@ struct BpTree {
             }
         }
         Page* leafPage = getPage(iter[0]->pageRef);
-        if(iter[0]->index < iter[0]->endIndex)
+        if(aquireData && iter[0]->index < iter[0]->endIndex)
             aquireData(leafPage, iter[0]->index, iter[0]->endIndex);
         if(iter[0]->pageCount == 0 && iter.end > 1)
             insertUpdateRanks(iter[1], getPage(iter[1]->pageRef));
         while(iter[0]->pageCount > 0) {
             data.layer = 0;
             leafPage = insertAdvance<true>(data, iter[0]);
-            if(iter[0]->index < iter[0]->endIndex)
+            if(aquireData && iter[0]->index < iter[0]->endIndex)
                 aquireData(leafPage, iter[0]->index, iter[0]->endIndex);
             bool setKey = true;
             PageRefType leafPageRef = iter[0]->pageRef;
