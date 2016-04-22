@@ -24,11 +24,11 @@ $(BUILDDIR)/$(TARGET_NAME): Platform/POSIX.cpp
 	$(CC) $(CPPOPTIONS) -o $(BUILDDIR)/$(TARGET_NAME) Platform/POSIX.cpp
 
 $(BUILDDIR)/$(TARGET_NAME).llvm: Platform/WASM.cpp
-	$(LLVM_BIN)/clang-3.9 $(CPPOPTIONS) -DWEB_ASSEMBLY -S -emit-llvm -o $(BUILDDIR)/$(TARGET_NAME).llvm Platform/WASM.cpp
+	$(LLVM_BIN)/clang-3.9 $(CPPOPTIONS) -DWEB_ASSEMBLY -O3 -S -emit-llvm -o $(BUILDDIR)/$(TARGET_NAME).llvm Platform/WASM.cpp
 
 $(BUILDDIR)/$(TARGET_NAME).asm: $(BUILDDIR)/$(TARGET_NAME).llvm
 	$(LLVM_BIN)/llc -march=wasm32 -filetype=asm -o $(BUILDDIR)/pre.asm $(BUILDDIR)/$(TARGET_NAME).llvm
-	perl -pe 's/\.weak/# \.weak/g;s/tableswitch/br_table/g;' $(BUILDDIR)/pre.asm > $(BUILDDIR)/$(TARGET_NAME).asm
+	perl -pe 's/\.weak/# \.weak/g;' $(BUILDDIR)/pre.asm > $(BUILDDIR)/$(TARGET_NAME).asm
 	rm $(BUILDDIR)/pre.asm
 
 $(BUILDDIR)/$(TARGET_NAME).wast: $(BUILDDIR)/$(TARGET_NAME).asm

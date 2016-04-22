@@ -489,14 +489,14 @@ Symbol createFromData(DataType src) {
 
 Symbol createFromSlice(Symbol src, NativeNaturalType srcOffset, NativeNaturalType length) {
     Symbol dst = Storage::createSymbol();
-    Storage::setBlobSize(dst, length);
+    Storage::increaseBlobSize(dst, 0, length);
     Storage::sliceBlob(dst, src, 0, srcOffset, length);
     return dst;
 }
 
 void stringToBlob(const char* src, NativeNaturalType length, Symbol dst) {
     link({dst, BlobTypeSymbol, TextSymbol});
-    Storage::setBlobSize(dst, length*8);
+    Storage::increaseBlobSize(dst, 0, length*8);
     for(NativeNaturalType i = 0; i < length; ++i)
         Storage::writeBlobAt<char>(dst, i, src[i]);
     Storage::modifiedBlob(dst);

@@ -137,7 +137,6 @@ void bitwiseCopy(NativeNaturalType* dst, const NativeNaturalType* src,
 
 const NativeNaturalType
       bitsPerPage = 1<<15,
-      mmapBucketSize = 1<<24,
       minPageCount = 1,
       maxPageCount = 2000*512;
 

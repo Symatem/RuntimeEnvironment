@@ -74,7 +74,7 @@ struct Deserialize {
                 if(nibbleCount == 0)
                     throwException("Empty raw data");
                 symbol = Storage::createSymbol();
-                Storage::setBlobSize(symbol, nibbleCount*4);
+                Storage::increaseBlobSize(symbol, 0, nibbleCount*4);
                 char nibble;
                 NativeNaturalType at = 0;
                 while(tokenBegin < pos) {

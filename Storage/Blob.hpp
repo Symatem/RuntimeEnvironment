@@ -80,7 +80,7 @@ struct Blob {
 
     template<NativeIntegerType dir, typename IteratorType>
     NativeNaturalType preInteroperation(IteratorType& iter, NativeNaturalType offset) {
-        if(dir == -1) {
+        if(dir == 1) {
             if(state == Fragmented) {
                 if(iter[0]->index > 0)
                     return iter[0]->index;
@@ -100,14 +100,14 @@ struct Blob {
 
     template<NativeIntegerType dir, typename IteratorType>
     void postInteroperation(IteratorType& iter, NativeNaturalType& offset, NativeNaturalType intersection) {
-        if(dir == -1) {
+        if(dir == 1) {
             if(state == Fragmented) {
-                assert(iter.template advance<-1>(0, intersection) == 0);
+                assert(iter.template advance<1>(0, intersection) == 0);
             } else
                 offset -= intersection;
         } else {
             if(state == Fragmented) {
-                assert(iter.template advance<1>(0, intersection) == 0);
+                assert(iter.template advance<-1>(0, intersection) == 0);
             } else
                 offset += intersection;
         }
@@ -122,7 +122,7 @@ struct Blob {
             bpTree.find<Rank>(dstIter, dstOffset);
         if(src.state == Fragmented)
             src.bpTree.find<Rank>(srcIter, srcOffset);
-        if(dir == -1) {
+        if(dir == 1) {
             dstOffset += length;
             srcOffset += length;
         }
@@ -140,6 +140,33 @@ struct Blob {
             length -= intersection;
         }
         return 0;
+    }
+
+    NativeIntegerType compare(Blob& other) {
+        if(symbol == other.symbol)
+            return 0;
+        NativeNaturalType size = getSize(), otherSize = other.getSize();
+        if(size < otherSize)
+            return -1;
+        if(size > otherSize)
+            return 1;
+        if(size == 0)
+            return 0;
+        return interoperation<0>(other, 0, 0, size);
+    }
+
+    bool sliceBlob(Blob& src, NativeNaturalType dstOffset, NativeNaturalType srcOffset, NativeNaturalType length) {
+        if(symbol == src.symbol && dstOffset == srcOffset)
+            return false;
+        if(dstOffset <= srcOffset) {
+            if(!interoperation<-1>(src, dstOffset, srcOffset, length))
+                return false;
+        } else {
+            if(!interoperation<1>(src, dstOffset, srcOffset, length))
+                return false;
+        }
+        modifiedBlob(symbol);
+        return true;
     }
 
     void allocateInBucket(NativeNaturalType size) {
@@ -234,6 +261,45 @@ struct Blob {
             updateAddress(dstBlob.address);
         modifiedBlob(symbol);
         return true;
+    }
+
+    void setSize(NativeNaturalType newSize) {
+        NativeNaturalType oldSize = getSize();
+        if(oldSize < newSize)
+            increaseBlobSize(oldSize, newSize-oldSize);
+        else if(oldSize > newSize)
+            decreaseBlobSize(newSize, oldSize-newSize);
+    }
+
+    void deepCopy(Blob& src) {
+        if(symbol == src.symbol)
+            return;
+        NativeNaturalType srcSize = src.getSize();
+        setSize(srcSize);
+        interoperation<1>(src, 0, 0, srcSize);
+        modifiedBlob(symbol);
+    }
+
+    template <typename DataType>
+    DataType readBlobAt(Symbol src, NativeNaturalType srcIndex) {
+        // TODO
+    }
+
+    template <typename DataType>
+    DataType readBlob(Symbol src) {
+        return readBlobAt<DataType>(src, 0);
+    }
+
+    template<typename DataType>
+    void writeBlobAt(Symbol dst, NativeNaturalType dstIndex, DataType src) {
+        // TODO
+    }
+
+    template<typename DataType>
+    void writeBlob(Symbol dst, DataType src) {
+        setSize(dst, sizeOfInBits<DataType>::value);
+        writeBlobAt(dst, 0, src);
+        modifiedBlob(dst);
     }
 };
 

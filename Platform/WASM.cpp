@@ -4,15 +4,15 @@ extern "C" {
 
     // TODO: EXPORT some functions to be used from the outside
 
-    NativeNaturalType memcpy(NativeNaturalType dst, NativeNaturalType src, NativeNaturalType len) {
+    NativeNaturalType memcpy(void* dst, void* src, NativeNaturalType len) {
         for(NativeNaturalType i = 0; i < len; ++i)
-            *reinterpret_cast<char*>(dst+i) = *reinterpret_cast<char*>(src+i);
+            reinterpret_cast<char*>(dst)[i] = reinterpret_cast<char*>(src)[i];
         return 0;
     }
 
-    NativeNaturalType memset(NativeNaturalType dst, NativeNaturalType value, NativeNaturalType len) {
+    NativeNaturalType memset(void* dst, NativeNaturalType value, NativeNaturalType len) {
         for(NativeNaturalType i = 0; i < len; ++i)
-            *reinterpret_cast<char*>(dst+i) = value;
+            reinterpret_cast<char*>(dst)[i] = value;
         return 0;
     }
 
@@ -21,9 +21,10 @@ extern "C" {
     }
 
     DO_NOT_INLINE NativeNaturalType getMemorySize() {
-        asm("memory_size $push0=\n"
-            "\treturn $pop0");
-        __builtin_unreachable();
+        volatile NativeNaturalType result;
+        // asm("memory_size $0=\n" : "=r"(result));
+        asm volatile("memory_size $push0=\n\treturn $pop0");
+        return result;
     }
 
     DO_NOT_INLINE void growMemory(NativeNaturalType delta) {
@@ -33,12 +34,13 @@ extern "C" {
 
 void Storage::resizeMemory(NativeNaturalType _pageCount) {
     assert(_pageCount < maxPageCount);
-    NativeNaturalType size = getMemorySize(), pad = pointerToNatural(Storage::heapBegin);
-    size = (size > pad) ? (size-pad)/4096 : 0;
-    // TODO: Page size is 0x10000
-    if(_pageCount > size)
-        growMemory(_pageCount-size);
     pageCount = _pageCount;
+    const NativeNaturalType bitsPerChunk = 2<<19;
+    NativeNaturalType _chunkCount = (pageCount*Storage::bitsPerPage+bitsPerChunk-1)/bitsPerChunk;
+    NativeNaturalType size = getMemorySize()*8, pad = pointerToNatural(Storage::heapBegin)*8;
+    NativeNaturalType chunkCount = (size > pad) ? (size-pad+bitsPerChunk-1)/bitsPerChunk : 0;
+    if(_chunkCount > chunkCount)
+        growMemory(_chunkCount-chunkCount);
 }
 
 struct Main {

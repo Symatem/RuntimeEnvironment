@@ -55,7 +55,7 @@ struct BlobVector {
 
     void clear() {
         if(symbol)
-            Storage::setBlobSize(symbol, 0);
+            Storage::decreaseBlobSize(symbol, 0, Storage::getBlobSize(symbol));
     }
 
     void insert(NativeNaturalType at, ElementType element) {

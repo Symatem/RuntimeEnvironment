@@ -69,7 +69,7 @@ Symbol createFromFile(const char* path) {
     Symbol dst = Storage::createSymbol();
     Ontology::link({dst, Ontology::BlobTypeSymbol, Ontology::TextSymbol});
     NativeNaturalType length = lseek(fd, 0, SEEK_END);
-    Storage::setBlobSize(dst, length*8);
+    Storage::increaseBlobSize(dst, 0, length*8);
     lseek(fd, 0, SEEK_SET);
     char buffer[64];
     NativeNaturalType dstIndex = 0;
@@ -153,7 +153,8 @@ void assertFailed(const char* str) {
 Integer32 file;
 
 NativeNaturalType bytesForPages(NativeNaturalType pageCount) {
-    return (pageCount*Storage::bitsPerPage+Storage::mmapBucketSize-1)/Storage::mmapBucketSize*Storage::mmapBucketSize/8;
+    const NativeNaturalType mmapChunkSize = 1<<24;
+    return (pageCount*Storage::bitsPerPage+mmapChunkSize-1)/mmapChunkSize*mmapChunkSize/8;
 }
 
 void Storage::resizeMemory(NativeNaturalType _pageCount) {
