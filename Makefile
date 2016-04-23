@@ -1,38 +1,29 @@
 CPPOPTIONS := -std=c++1z -fno-exceptions -fno-stack-protector -fno-use-cxa-atexit -fvisibility=hidden
+SOURCES := Storage/* Ontology/* Interpreter/*
 STDPATH := ../StandardLibrary
-BUILDDIR := build
-TARGET_NAME := SymatemRTE
 
-posix: $(BUILDDIR)/ $(BUILDDIR)/$(TARGET_NAME)
-
-wasm: $(BUILDDIR)/ $(BUILDDIR)/$(TARGET_NAME).wasm
-
-all: posix wasm
-
-test: posix
-	$(BUILDDIR)/$(TARGET_NAME) $(STDPATH)/Foundation/ -e $(STDPATH)/Tests/
+test: build/ build/SymatemHRL
+	build/SymatemHRL $(STDPATH)/Foundation/ -e $(STDPATH)/Tests/
 
 clear:
-	rm -f $(BUILDDIR)/*
+	rm -f build/*
 
-rebuild: clear all
+build/:
+	mkdir -p build
 
-$(BUILDDIR)/:
-	mkdir -p $(BUILDDIR)
+build/SymatemHRL: $(SOURCES) Platform/POSIX.hpp Platform/HRL.cpp
+	$(CC) $(CPPOPTIONS) -o build/SymatemHRL Platform/HRL.cpp
 
-$(BUILDDIR)/$(TARGET_NAME): Platform/POSIX.cpp
-	$(CC) $(CPPOPTIONS) -o $(BUILDDIR)/$(TARGET_NAME) Platform/POSIX.cpp
+build/WASM.llvm: $(SOURCES) Platform/WASM.cpp
+	$(LLVM_BIN)/clang-3.9 $(CPPOPTIONS) -DWEB_ASSEMBLY -O3 -S -emit-llvm -o build/WASM.llvm Platform/WASM.cpp
 
-$(BUILDDIR)/$(TARGET_NAME).llvm: Platform/WASM.cpp
-	$(LLVM_BIN)/clang-3.9 $(CPPOPTIONS) -DWEB_ASSEMBLY -O3 -S -emit-llvm -o $(BUILDDIR)/$(TARGET_NAME).llvm Platform/WASM.cpp
+build/WASM.asm: build/WASM.llvm
+	$(LLVM_BIN)/llc -march=wasm32 -filetype=asm -o build/pre.asm build/WASM.llvm
+	perl -pe 's/\.weak/# \.weak/g;' build/pre.asm > build/WASM.asm
+	rm build/pre.asm
 
-$(BUILDDIR)/$(TARGET_NAME).asm: $(BUILDDIR)/$(TARGET_NAME).llvm
-	$(LLVM_BIN)/llc -march=wasm32 -filetype=asm -o $(BUILDDIR)/pre.asm $(BUILDDIR)/$(TARGET_NAME).llvm
-	perl -pe 's/\.weak/# \.weak/g;' $(BUILDDIR)/pre.asm > $(BUILDDIR)/$(TARGET_NAME).asm
-	rm $(BUILDDIR)/pre.asm
+build/Symatem.wast: build/WASM.asm
+	$(BINARYEN_BIN)/s2wasm build/WASM.asm > build/Symatem.wast
 
-$(BUILDDIR)/$(TARGET_NAME).wast: $(BUILDDIR)/$(TARGET_NAME).asm
-	$(BINARYEN_BIN)/s2wasm $(BUILDDIR)/$(TARGET_NAME).asm > $(BUILDDIR)/$(TARGET_NAME).wast
-
-$(BUILDDIR)/$(TARGET_NAME).wasm: $(BUILDDIR)/$(TARGET_NAME).wast
-	$(PROTO_BIN)/sexpr-wasm -o $(BUILDDIR)/$(TARGET_NAME).wasm $(BUILDDIR)/$(TARGET_NAME).wast
+build/Symatem.wasm: build/Symatem.wast
+	$(PROTO_BIN)/sexpr-wasm -o build/Symatem.wasm build/Symatem.wast

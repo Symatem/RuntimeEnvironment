@@ -22,8 +22,7 @@ extern "C" {
 
     DO_NOT_INLINE NativeNaturalType getMemorySize() {
         volatile NativeNaturalType result;
-        // asm("memory_size $0=\n" : "=r"(result));
-        asm volatile("memory_size $push0=\n\treturn $pop0");
+        asm("memory_size $push0=\n\treturn $pop0");
         return result;
     }
 
