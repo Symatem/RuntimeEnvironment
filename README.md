@@ -9,5 +9,5 @@ Coding Restrictions:
 - No goto, dynamic_cast
 - No new/delete, malloc/free => heapless
 - No recursion/alloca => fixed stack size
-- No StdLibC++ => zero dependency (except from LibC for POSIX targets)
+- No StdLibC++ => core is zero dependency
 - No exceptions
