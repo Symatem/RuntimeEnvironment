@@ -156,6 +156,10 @@ PageType* dereferencePage(PageRefType pageRef) {
     return reinterpret_cast<PageType*>(reinterpret_cast<char*>(heapBegin)+bitsPerPage/8*pageRef);
 }
 
+PageRefType referenceOfPage(void* page) {
+    return (reinterpret_cast<NativeNaturalType>(page)-reinterpret_cast<NativeNaturalType>(heapBegin))*8/bitsPerPage;
+}
+
 PageRefType aquirePage() {
     assert(heapBegin);
     auto superPage = dereferencePage<SuperPage>(0);
