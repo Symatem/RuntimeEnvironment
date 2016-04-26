@@ -110,10 +110,10 @@ struct Thread {
             return false;
         Symbol parentFrame = Ontology::VoidSymbol;
         bool parentExists = Ontology::getUncertain(frame, Ontology::ParentSymbol, parentFrame);
-        if(parentFrame == Ontology::VoidSymbol)
+        if(!parentExists)
             setStatus(Ontology::DoneSymbol);
         setFrame(parentFrame, true);
-        return parentFrame != Ontology::VoidSymbol;
+        return parentExists;
     }
 
     Symbol getTargetSymbol() {

@@ -1,4 +1,4 @@
-#include "../Platform/CppDummy.hpp"
+#include "CppDummy.hpp"
 
 namespace Storage {
 

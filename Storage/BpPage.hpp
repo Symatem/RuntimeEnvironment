@@ -179,7 +179,7 @@ struct Page {
         srcPage->header.count -= n;
     }
 
-    static void distributeCount(Page* lower, Page* higher, NativeIntegerType n) {
+    static void distributeCount(Page* lower, Page* higher, OffsetType n) {
         lower->header.count = (n+1)/2;
         higher->header.count = n/2;
     }
@@ -200,16 +200,18 @@ struct Page {
                                Page* lowerInnerParent, Page* higherOuterParent,
                                Page* lowerOuter, Page* lowerInner, Page* higherInner, Page* higherOuter,
                                OffsetType lowerInnerParentIndex, OffsetType higherOuterParentIndex) {
-        bool insertKeyInParentNow;
-        NativeIntegerType shiftHigherInner = frame->index+frame->endIndex-lowerOuter->header.count,
-                          shiftHigherOuter = lowerOuter->header.count-frame->index, higherOuterEndIndex;
-        assert(shiftHigherInner > 0 && frame->endIndex <= capacity<isLeaf>()*2 && frame->index <= lowerOuter->header.count);
+        OffsetType shiftHigherInner = frame->index+frame->endIndex-lowerOuter->header.count,
+                   shiftHigherOuter = lowerOuter->header.count-frame->index;
+        assert(frame->index+frame->endIndex >= lowerOuter->header.count);
+        assert(lowerOuter->header.count >= frame->index);
+        assert(frame->endIndex <= capacity<isLeaf>()*2);
         lowerInner->header.count = higherInner->header.count = frame->elementsPerPage;
         distributeCount(lowerOuter, higherOuter, frame->endIndex);
         if(shiftHigherInner < lowerOuter->header.count) {
             shiftHigherInner = lowerOuter->header.count-shiftHigherInner;
             assert(shiftHigherInner < higherInner->header.count);
             frame->lowerInnerIndex = 0;
+            assert(shiftHigherOuter >= shiftHigherInner);
             shiftHigherOuter -= shiftHigherInner;
         } else {
             shiftHigherInner = 0;
@@ -262,7 +264,9 @@ struct Page {
     static bool erase2(Page* parent, Page* lower, Page* higher,
                        OffsetType parentIndex, OffsetType startInLower, OffsetType endInHigher) {
         assert(startInLower <= lower->header.count && endInHigher <= higher->header.count);
-        NativeIntegerType count = startInLower+higher->header.count-endInHigher;
+        NativeIntegerType count = startInLower;
+        count += higher->header.count;
+        count -= endInHigher;
         if(count <= capacity<isLeaf>()) {
             lower->header.count = count;
             if(count == 0)
@@ -280,13 +284,15 @@ struct Page {
         } else {
             assert(startInLower > 0);
             distributeCount(lower, higher, count);
-            count = startInLower-lower->header.count;
+            count = startInLower;
+            count -= lower->header.count;
             if(isLeaf) {
                 if(count <= 0) {
                     count *= -1;
                     copyLeafElements(lower, higher, startInLower, endInHigher, count);
                     copyLeafElements<-1>(higher, higher, 0, endInHigher+count, higher->header.count);
                 } else {
+                    assert(count > 0);
                     if(count < endInHigher)
                         copyLeafElements<-1>(higher, higher, count, endInHigher, higher->header.count);
                     else
@@ -383,7 +389,7 @@ struct Page {
 
     template<bool isLeaf, bool lowerIsMiddle>
     static bool redistribute2(Page* parent, Page* lower, Page* higher, OffsetType parentIndex) {
-        NativeIntegerType count = lower->header.count+higher->header.count;
+        OffsetType count = lower->header.count+higher->header.count;
         if(count <= capacity<isLeaf>()) {
             if(lowerIsMiddle)
                 evacuateUp<isLeaf>(parent, lower, higher, parentIndex);
@@ -406,7 +412,8 @@ struct Page {
                               OffsetType middleParentIndex, OffsetType higherParentIndex) {
         NativeIntegerType count = lower->header.count+middle->header.count+higher->header.count;
         if(count <= capacity<isLeaf>()*2) {
-            count = count/2-higher->header.count;
+            count /= 2;
+            count -= higher->header.count;
             if(count < 0) {
                 count *= -1;
                 evacuateDown<isLeaf>(middleParent, lower, middle, middleParentIndex);
@@ -439,8 +446,10 @@ struct Page {
             assert(higher->header.count == count/2);
             return true;
         } else {
-            count = count/3;
-            NativeIntegerType shiftLower = lower->header.count-count, shiftUpper = higher->header.count-count;
+            count /= 3;
+            NativeIntegerType shiftLower = lower->header.count, shiftUpper = higher->header.count;
+            shiftLower -= count;
+            shiftUpper -= count;
             if(shiftLower < 0) {
                 if(shiftUpper < 0)
                     shiftUp<isLeaf>(higherParent, middle, higher, higherParentIndex, -shiftUpper);

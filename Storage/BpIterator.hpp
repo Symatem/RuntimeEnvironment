@@ -77,7 +77,7 @@ struct Iterator {
                 frame->index -= stepsTaken;
             }
             steps -= stepsTaken;
-            bool keepRunning = false;
+            keepRunning = false;
             if(steps > 0)
                 while(++layer < end) {
                     frame = (*this)[layer];

@@ -367,6 +367,7 @@ struct BpTree {
             page->disintegrateRanks(index, page->header.count);
             page->setRank(index, data.rank[rankIndex]);
             page->integrateRanks(index, page->header.count);
+            data.rank[rankIndex] = 0;
         }
     }
 
@@ -402,7 +403,7 @@ struct BpTree {
     }
 
     template<bool isLeaf>
-    void eraseEmptyLayer(EraseData& data, Page* lowerInner) {
+    void eraseEmptyLayer(EraseData& data, Page*& lowerInner) {
         if(isLeaf) {
             if(lowerInner->header.count > 0)
                 return;
@@ -414,6 +415,7 @@ struct BpTree {
         Storage::releasePage(data.from[data.layer]->pageRef);
         data.spareLowerInner = false;
         data.eraseHigherInner = true;
+        lowerInner = nullptr;
     }
 
     template<bool isLeaf>
@@ -463,7 +465,7 @@ struct BpTree {
                 Storage::releasePage(data.iter[data.layer]->pageRef);
         }
         if(keepRunning && lowerInner->header.count < Page::template capacity<isLeaf>()/2) {
-            OffsetType lowerOuterParentIndex, higherOuterParentIndex, lowerInnerKeyParentIndex, higherOuterKeyParentIndex;
+            OffsetType lowerInnerKeyParentIndex, higherOuterKeyParentIndex;
             Page *lowerInnerKeyParent, *lowerOuter = eraseAdvance<isLeaf, -1>(data, lowerInnerKeyParentIndex, lowerInnerKeyParent),
                  *higherOuterKeyParent, *higherOuter = eraseAdvance<isLeaf, 1>(data, higherOuterKeyParentIndex, higherOuterKeyParent);
             if(rankBits && !isLeaf) {
@@ -484,15 +486,12 @@ struct BpTree {
                     eraseIntegrateRanks<isLeaf>(data, 0, lowerOuter);
                     eraseIntegrateRanks<isLeaf>(data, 1, higherOuter);
                 }
-            } else {
+            } else
                 eraseEmptyLayer<isLeaf>(data, lowerInner);
-                data.rank[0] = data.rank[1] = static_cast<RankType>(0);
-            }
         } else if(rankBits && !isLeaf) {
             Page* pages[] = {nullptr, nullptr};
             eraseUpdateRank<false, true>(data, 0, pages);
             eraseUpdateRank<false, true>(data, 1, pages);
-            data.rank[0] = data.rank[1] = static_cast<RankType>(0);
         }
         ++data.layer;
         if(!rankBits)

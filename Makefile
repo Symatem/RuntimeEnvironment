@@ -1,4 +1,4 @@
-CPPOPTIONS := -std=c++1z -fno-exceptions -fno-stack-protector -fno-use-cxa-atexit -fvisibility=hidden
+CPPOPTIONS := -std=c++1z -fno-exceptions -fno-stack-protector -fno-use-cxa-atexit -fvisibility=hidden -Wall
 SOURCES := Storage/* Ontology/* Interpreter/*
 STDPATH := ../StandardLibrary
 
@@ -11,11 +11,11 @@ clear:
 build/:
 	mkdir -p build
 
-build/SymatemHRL: $(SOURCES) Platform/POSIX.hpp Platform/HRL.cpp
-	$(CC) $(CPPOPTIONS) -o build/SymatemHRL Platform/HRL.cpp
+build/SymatemHRL: $(SOURCES) Targets/POSIX.hpp Targets/HRL.cpp
+	$(CC) $(CPPOPTIONS) -o build/SymatemHRL Targets/HRL.cpp
 
-build/WASM.llvm: $(SOURCES) Platform/WASM.cpp
-	$(LLVM_BIN)/clang-3.9 $(CPPOPTIONS) -DWEB_ASSEMBLY -O3 -S -emit-llvm -o build/WASM.llvm Platform/WASM.cpp
+build/WASM.llvm: $(SOURCES) Targets/WASM.cpp
+	$(LLVM_BIN)/clang-3.9 $(CPPOPTIONS) -DWEB_ASSEMBLY -O3 -S -emit-llvm -o build/WASM.llvm Targets/WASM.cpp
 
 build/WASM.asm: build/WASM.llvm
 	$(LLVM_BIN)/llc -march=wasm32 -filetype=asm -o build/pre.asm build/WASM.llvm
