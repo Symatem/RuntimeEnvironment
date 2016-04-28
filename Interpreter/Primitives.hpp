@@ -1,8 +1,8 @@
 #include "Deserialize.hpp"
 
-#define Procedure(Name) void Procedure##Name(Thread& thread)
+#define Primitive(Name) void Primitive##Name(Thread& thread)
 
-Procedure(Search) {
+Primitive(Search) {
     Ontology::Triple triple;
     NativeNaturalType modes[3] = {2, 2, 2}, varyingCount = 0;
     Symbol posNames[3] = {Ontology::EntitySymbol, Ontology::AttributeSymbol, Ontology::ValueSymbol};
@@ -36,16 +36,16 @@ Procedure(Search) {
     thread.popCallStack();
 }
 
-struct ProcedureLink {
+struct PrimitiveLink {
     static bool e(Thread& thread, Ontology::Triple triple) { return Ontology::link(triple); };
 };
 
-struct ProcedureUnlink {
+struct PrimitiveUnlink {
     static bool e(Thread& thread, Ontology::Triple triple) { return Ontology::unlink(triple); };
 };
 
 template<typename op>
-Procedure(Triple) {
+Primitive(Triple) {
     getSymbolByName(entity, Entity)
     getSymbolByName(attribute, Attribute)
     getSymbolByName(value, Value)
@@ -58,7 +58,7 @@ Procedure(Triple) {
     thread.popCallStack();
 }
 
-Procedure(Create) {
+Primitive(Create) {
     Symbol input, value;
     bool inputExists = Ontology::getUncertain(thread.block, Ontology::InputSymbol, input);
     if(inputExists)
@@ -75,7 +75,7 @@ Procedure(Create) {
     thread.popCallStack();
 }
 
-Procedure(Destroy) {
+Primitive(Destroy) {
     Ontology::BlobSet<false, Symbol> symbols;
     symbols.symbol = Storage::createSymbol();
     Ontology::link({thread.block, Ontology::HoldsSymbol, symbols.symbol});
@@ -89,13 +89,13 @@ Procedure(Destroy) {
     thread.popCallStack();
 }
 
-Procedure(Push) {
+Primitive(Push) {
     getSymbolByName(execute, Execute)
     thread.link({thread.frame, Ontology::ExecuteSymbol, execute});
     thread.setBlock(thread.getTargetSymbol());
 }
 
-Procedure(Pop) {
+Primitive(Pop) {
     getSymbolByName(count, Count)
     checkBlobType(count, Ontology::NaturalSymbol)
     auto countValue = thread.readBlob<NativeNaturalType>(count);
@@ -104,7 +104,7 @@ Procedure(Pop) {
     for(; countValue > 0 && thread.popCallStack(); --countValue);
 }
 
-Procedure(Branch) {
+Primitive(Branch) {
     getUncertainValueByName(input, Input, 1)
     getSymbolByName(branch, Branch)
     thread.popCallStack();
@@ -112,7 +112,7 @@ Procedure(Branch) {
         Ontology::setSolitary({thread.frame, Ontology::ExecuteSymbol, branch});
 }
 
-Procedure(Exception) {
+Primitive(Exception) {
     Symbol exception = thread.frame;
     if(Ontology::getUncertain(thread.block, Ontology::ExceptionSymbol, exception)) {
         Symbol currentFrame = exception;
@@ -134,7 +134,7 @@ Procedure(Exception) {
     thread.setStatus(Ontology::ExceptionSymbol);
 }
 
-Procedure(Serialize) {
+Primitive(Serialize) {
     getSymbolByName(input, Input)
     getSymbolByName(output, Output)
     Serialize serialize(thread, output);
@@ -142,11 +142,11 @@ Procedure(Serialize) {
     thread.popCallStack();
 }
 
-Procedure(Deserialize) {
+Primitive(Deserialize) {
     Deserialize{thread};
 }
 
-Procedure(CloneBlob) {
+Primitive(CloneBlob) {
     getSymbolByName(input, Input)
     getSymbolByName(output, Output)
     Storage::cloneBlob(output, input);
@@ -156,7 +156,7 @@ Procedure(CloneBlob) {
     thread.popCallStack();
 }
 
-Procedure(SliceBlob) {
+Primitive(SliceBlob) {
     getSymbolByName(input, Input)
     getSymbolByName(target, Target)
     getUncertainValueByName(count, Count, Storage::getBlobSize(input))
@@ -167,7 +167,7 @@ Procedure(SliceBlob) {
     thread.popCallStack();
 }
 
-Procedure(GetBlobSize) {
+Primitive(GetBlobSize) {
     getSymbolByName(input, Input)
     getSymbolByName(output, Output)
     Ontology::setSolitary({output, Ontology::BlobTypeSymbol, Ontology::NaturalSymbol});
@@ -175,20 +175,20 @@ Procedure(GetBlobSize) {
     thread.popCallStack();
 }
 
-struct ProcedureDecreaseBlobSize {
+struct PrimitiveDecreaseBlobSize {
     static bool e(Symbol target, NativeNaturalType at, NativeNaturalType count) {
         return Storage::decreaseBlobSize(target, at, count);
     };
 };
 
-struct ProcedureIncreaseBlobSize {
+struct PrimitiveIncreaseBlobSize {
     static bool e(Symbol target, NativeNaturalType at, NativeNaturalType count) {
         return Storage::increaseBlobSize(target, at, count);
     };
 };
 
 template<typename op>
-Procedure(ChangeBlobSize) {
+Primitive(ChangeBlobSize) {
     getSymbolByName(target, Target)
     getSymbolByName(at, At)
     getSymbolByName(count, Count)
@@ -200,7 +200,7 @@ Procedure(ChangeBlobSize) {
 }
 
 template<typename T>
-void ProcedureNumericCastTo(Thread& thread, Symbol type, Symbol output, Symbol input) {
+void PrimitiveNumericCastTo(Thread& thread, Symbol type, Symbol output, Symbol input) {
     switch(type) {
         case Ontology::NaturalSymbol:
             Storage::writeBlob(output, static_cast<T>(thread.readBlob<NativeNaturalType>(input)));
@@ -216,7 +216,7 @@ void ProcedureNumericCastTo(Thread& thread, Symbol type, Symbol output, Symbol i
     }
 }
 
-Procedure(NumericCast) {
+Primitive(NumericCast) {
     getSymbolByName(input, Input)
     getSymbolByName(to, To)
     getSymbolByName(output, Output)
@@ -226,13 +226,13 @@ Procedure(NumericCast) {
     Ontology::setSolitary({output, Ontology::BlobTypeSymbol, to});
     switch(to) {
         case Ontology::NaturalSymbol:
-            ProcedureNumericCastTo<NativeNaturalType>(thread, type, output, input);
+            PrimitiveNumericCastTo<NativeNaturalType>(thread, type, output, input);
             break;
         case Ontology::IntegerSymbol:
-            ProcedureNumericCastTo<NativeIntegerType>(thread, type, output, input);
+            PrimitiveNumericCastTo<NativeIntegerType>(thread, type, output, input);
             break;
         case Ontology::FloatSymbol:
-            ProcedureNumericCastTo<NativeFloatType>(thread, type, output, input);
+            PrimitiveNumericCastTo<NativeFloatType>(thread, type, output, input);
             break;
         default:
             thread.throwException("Invalid To Value");
@@ -240,7 +240,7 @@ Procedure(NumericCast) {
     thread.popCallStack();
 }
 
-Procedure(Equal) {
+Primitive(Equal) {
     Symbol type, firstSymbol;
     NativeNaturalType outputValue = 1;
     bool first = true;
@@ -269,14 +269,14 @@ Procedure(Equal) {
     thread.popCallStack();
 }
 
-struct ProcedureLessThan {
+struct PrimitiveLessThan {
     static bool n(NativeNaturalType i, NativeNaturalType c) { return i < c; };
     static bool i(NativeIntegerType i, NativeIntegerType c) { return i < c; };
     static bool f(NativeFloatType i, NativeFloatType c) { return i < c; };
     static bool s(Symbol i, Symbol c) { return Storage::compareBlobs(i, c) < 0; };
 };
 
-struct ProcedureLessEqual {
+struct PrimitiveLessEqual {
     static bool n(NativeNaturalType i, NativeNaturalType c) { return i <= c; };
     static bool i(NativeIntegerType i, NativeIntegerType c) { return i <= c; };
     static bool f(NativeFloatType i, NativeFloatType c) { return i <= c; };
@@ -284,7 +284,7 @@ struct ProcedureLessEqual {
 };
 
 template<typename op>
-Procedure(CompareLogic) {
+Primitive(CompareLogic) {
     getSymbolByName(input, Input)
     getSymbolByName(comparandum, Comparandum)
     getSymbolByName(output, Output)
@@ -313,12 +313,12 @@ Procedure(CompareLogic) {
     thread.popCallStack();
 }
 
-struct ProcedureBitShiftEmpty {
+struct PrimitiveBitShiftEmpty {
     static void d(NativeNaturalType& dst, NativeNaturalType count) { dst >>= count; };
     static void m(NativeNaturalType& dst, NativeNaturalType count) { dst <<= count; };
 };
 
-struct ProcedureBitShiftReplicate {
+struct PrimitiveBitShiftReplicate {
     static void d(NativeNaturalType& dst, NativeNaturalType count) {
         *reinterpret_cast<NativeIntegerType*>(&dst) >>= count;
     };
@@ -329,7 +329,7 @@ struct ProcedureBitShiftReplicate {
     };
 };
 
-struct ProcedureBitShiftBarrel {
+struct PrimitiveBitShiftBarrel {
     static void d(NativeNaturalType& dst, NativeNaturalType count) {
         NativeNaturalType aux = dst&BitMask<NativeNaturalType>::fillLSBs(count);
         dst >>= count;
@@ -343,7 +343,7 @@ struct ProcedureBitShiftBarrel {
 };
 
 template<typename op>
-Procedure(BitShift) {
+Primitive(BitShift) {
     getSymbolByName(input, Input)
     getSymbolByName(count, Count)
     getSymbolByName(output, Output)
@@ -365,7 +365,7 @@ Procedure(BitShift) {
     thread.popCallStack();
 }
 
-Procedure(BitwiseComplement) {
+Primitive(BitwiseComplement) {
     getSymbolByName(input, Input)
     getSymbolByName(output, Output)
     Ontology::setSolitary({output, Ontology::BlobTypeSymbol, Ontology::VoidSymbol});
@@ -373,20 +373,20 @@ Procedure(BitwiseComplement) {
     thread.popCallStack();
 }
 
-struct ProcedureBitwiseAnd {
+struct PrimitiveBitwiseAnd {
     static void n(NativeNaturalType& dst, NativeNaturalType src) { dst &= src; };
 };
 
-struct ProcedureBitwiseOr {
+struct PrimitiveBitwiseOr {
     static void n(NativeNaturalType& dst, NativeNaturalType src) { dst |= src; };
 };
 
-struct ProcedureBitwiseXor {
+struct PrimitiveBitwiseXor {
     static void n(NativeNaturalType& dst, NativeNaturalType src) { dst ^= src; };
 };
 
 template<typename op>
-Procedure(AssociativeCommutativeBitwise) {
+Primitive(AssociativeCommutativeBitwise) {
     NativeNaturalType outputValue;
     bool first = true;
     if(Ontology::query(9, {thread.block, Ontology::InputSymbol, Ontology::VoidSymbol}, [&](Ontology::Triple result) {
@@ -404,20 +404,20 @@ Procedure(AssociativeCommutativeBitwise) {
     thread.popCallStack();
 }
 
-struct ProcedureAdd {
+struct PrimitiveAdd {
     static void n(NativeNaturalType& dst, NativeNaturalType src) { dst += src; };
     static void i(NativeIntegerType& dst, NativeIntegerType src) { dst += src; };
     static void f(NativeFloatType& dst, NativeFloatType src) { dst += src; };
 };
 
-struct ProcedureMultiply {
+struct PrimitiveMultiply {
     static void n(NativeNaturalType& dst, NativeNaturalType src) { dst *= src; };
     static void i(NativeIntegerType& dst, NativeIntegerType src) { dst *= src; };
     static void f(NativeFloatType& dst, NativeFloatType src) { dst *= src; };
 };
 
 template<typename op>
-Procedure(AssociativeCommutativeArithmetic) {
+Primitive(AssociativeCommutativeArithmetic) {
     Symbol type;
     union {
         NativeNaturalType n;
@@ -466,7 +466,7 @@ Procedure(AssociativeCommutativeArithmetic) {
     thread.popCallStack();
 }
 
-Procedure(Subtract) {
+Primitive(Subtract) {
     getSymbolByName(minuend, Minuend)
     getSymbolByName(subtrahend, Subtrahend)
     getSymbolByName(output, Output)
@@ -491,7 +491,7 @@ Procedure(Subtract) {
     thread.popCallStack();
 }
 
-Procedure(Divide) {
+Primitive(Divide) {
     getSymbolByName(dividend, Dividend)
     getSymbolByName(divisor, Divisor)
     Symbol type = thread.getGuaranteed(dividend, Ontology::BlobTypeSymbol);
@@ -554,49 +554,49 @@ Procedure(Divide) {
     thread.popCallStack();
 }
 
-#define ProcedureEntry(Name) \
+#define PrimitiveEntry(Name) \
     case Ontology::Name##Symbol: \
-        Procedure##Name(thread); \
+        Primitive##Name(thread); \
         return true;
 
-#define ProcedureGroup(GroupName, Name) \
+#define PrimitiveGroup(GroupName, Name) \
     case Ontology::Name##Symbol: \
-        Procedure##GroupName<Procedure##Name>(thread); \
+        Primitive##GroupName<Primitive##Name>(thread); \
         return true;
 
-bool executePreDefinedProcedure(Thread& thread, Symbol procedure) {
-    switch(procedure) {
-        ProcedureEntry(Search)
-        ProcedureGroup(Triple, Link)
-        ProcedureGroup(Triple, Unlink)
-        ProcedureEntry(Create)
-        ProcedureEntry(Destroy)
-        ProcedureEntry(Push)
-        ProcedureEntry(Pop)
-        ProcedureEntry(Branch)
-        ProcedureEntry(Exception)
-        ProcedureEntry(Serialize)
-        ProcedureEntry(Deserialize)
-        ProcedureEntry(CloneBlob)
-        ProcedureEntry(SliceBlob)
-        ProcedureEntry(GetBlobSize)
-        ProcedureGroup(ChangeBlobSize, DecreaseBlobSize)
-        ProcedureGroup(ChangeBlobSize, IncreaseBlobSize)
-        ProcedureEntry(NumericCast)
-        ProcedureEntry(Equal)
-        ProcedureGroup(CompareLogic, LessThan)
-        ProcedureGroup(CompareLogic, LessEqual)
-        ProcedureGroup(BitShift, BitShiftEmpty)
-        ProcedureGroup(BitShift, BitShiftReplicate)
-        ProcedureGroup(BitShift, BitShiftBarrel)
-        ProcedureEntry(BitwiseComplement)
-        ProcedureGroup(AssociativeCommutativeBitwise, BitwiseAnd)
-        ProcedureGroup(AssociativeCommutativeBitwise, BitwiseOr)
-        ProcedureGroup(AssociativeCommutativeBitwise, BitwiseXor)
-        ProcedureGroup(AssociativeCommutativeArithmetic, Add)
-        ProcedureGroup(AssociativeCommutativeArithmetic, Multiply)
-        ProcedureEntry(Subtract)
-        ProcedureEntry(Divide)
+bool executePrimitive(Thread& thread, Symbol Primitive) {
+    switch(Primitive) {
+        PrimitiveEntry(Search)
+        PrimitiveGroup(Triple, Link)
+        PrimitiveGroup(Triple, Unlink)
+        PrimitiveEntry(Create)
+        PrimitiveEntry(Destroy)
+        PrimitiveEntry(Push)
+        PrimitiveEntry(Pop)
+        PrimitiveEntry(Branch)
+        PrimitiveEntry(Exception)
+        PrimitiveEntry(Serialize)
+        PrimitiveEntry(Deserialize)
+        PrimitiveEntry(CloneBlob)
+        PrimitiveEntry(SliceBlob)
+        PrimitiveEntry(GetBlobSize)
+        PrimitiveGroup(ChangeBlobSize, DecreaseBlobSize)
+        PrimitiveGroup(ChangeBlobSize, IncreaseBlobSize)
+        PrimitiveEntry(NumericCast)
+        PrimitiveEntry(Equal)
+        PrimitiveGroup(CompareLogic, LessThan)
+        PrimitiveGroup(CompareLogic, LessEqual)
+        PrimitiveGroup(BitShift, BitShiftEmpty)
+        PrimitiveGroup(BitShift, BitShiftReplicate)
+        PrimitiveGroup(BitShift, BitShiftBarrel)
+        PrimitiveEntry(BitwiseComplement)
+        PrimitiveGroup(AssociativeCommutativeBitwise, BitwiseAnd)
+        PrimitiveGroup(AssociativeCommutativeBitwise, BitwiseOr)
+        PrimitiveGroup(AssociativeCommutativeBitwise, BitwiseXor)
+        PrimitiveGroup(AssociativeCommutativeArithmetic, Add)
+        PrimitiveGroup(AssociativeCommutativeArithmetic, Multiply)
+        PrimitiveEntry(Subtract)
+        PrimitiveEntry(Divide)
     }
     return false;
 }

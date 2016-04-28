@@ -29,12 +29,7 @@ struct Page {
     template<typename DataType, NativeNaturalType offset>
     DataType get(OffsetType src) const {
         static_assert(offset%8 == 0);
-        DataType result;
-        Storage::bitwiseCopy<-1>(reinterpret_cast<NativeNaturalType*>(&result),
-                                 reinterpret_cast<const NativeNaturalType*>(this),
-                                 0, offset+src*sizeOfInBits<DataType>::value, sizeOfInBits<DataType>::value);
-        return result;
-        // return *reinterpret_cast<const DataType*>(reinterpret_cast<const char*>(this)+offset/8); // TODO
+        return *reinterpret_cast<const DataType*>(reinterpret_cast<const char*>(this)+(offset+src*sizeOfInBits<DataType>::value)/8);
     }
 
     template<bool isLeaf>
@@ -53,10 +48,7 @@ struct Page {
     template<typename DataType, NativeNaturalType offset>
     void set(OffsetType dst, DataType content) {
         static_assert(offset%8 == 0);
-        Storage::bitwiseCopy<-1>(reinterpret_cast<NativeNaturalType*>(this),
-                                 reinterpret_cast<const NativeNaturalType*>(&content),
-                                 offset+dst*sizeOfInBits<DataType>::value, 0, sizeOfInBits<DataType>::value);
-        // *reinterpret_cast<DataType*>(reinterpret_cast<char*>(this)+offset/8) = content; // TODO
+        *reinterpret_cast<DataType*>(reinterpret_cast<char*>(this)+(offset+dst*sizeOfInBits<DataType>::value)/8) = content;
     }
 
     template<bool isLeaf>
@@ -267,7 +259,7 @@ struct Page {
         NativeIntegerType count = startInLower;
         count += higher->header.count;
         count -= endInHigher;
-        if(count <= capacity<isLeaf>()) {
+        if(static_cast<OffsetType>(count) <= capacity<isLeaf>()) {
             lower->header.count = count;
             if(count == 0)
                 return true;
@@ -292,8 +284,7 @@ struct Page {
                     copyLeafElements(lower, higher, startInLower, endInHigher, count);
                     copyLeafElements<-1>(higher, higher, 0, endInHigher+count, higher->header.count);
                 } else {
-                    assert(count > 0);
-                    if(count < endInHigher)
+                    if(static_cast<OffsetType>(count) < endInHigher)
                         copyLeafElements<-1>(higher, higher, count, endInHigher, higher->header.count);
                     else
                         copyLeafElements<1>(higher, higher, count, endInHigher, higher->header.count);
@@ -316,7 +307,7 @@ struct Page {
                         copyBranchElements<false, 1>(higher, higher, count, 0, higher->header.count);
                         swapKeyInParent(parent, higher, lower, parentIndex, count-1, lower->header.count-1);
                     } else {
-                        if(count < endInHigher)
+                        if(static_cast<OffsetType>(count) < endInHigher)
                             copyBranchElements<true, -1>(higher, higher, count, endInHigher, higher->header.count);
                         else
                             copyBranchElements<true, 1>(higher, higher, count, endInHigher, higher->header.count);
@@ -411,14 +402,14 @@ struct Page {
                               Page* lower, Page* middle, Page* higher,
                               OffsetType middleParentIndex, OffsetType higherParentIndex) {
         NativeIntegerType count = lower->header.count+middle->header.count+higher->header.count;
-        if(count <= capacity<isLeaf>()*2) {
+        if(static_cast<OffsetType>(count) <= capacity<isLeaf>()*2) {
             count /= 2;
             count -= higher->header.count;
             if(count < 0) {
                 count *= -1;
                 evacuateDown<isLeaf>(middleParent, lower, middle, middleParentIndex);
                 shiftDown<isLeaf>(higherParent, lower, higher, higherParentIndex, count);
-            } else if(count <= middle->header.count) {
+            } else if(static_cast<OffsetType>(count) <= middle->header.count) {
                 if(count > 0)
                     shiftUp<isLeaf>(higherParent, middle, higher, higherParentIndex, count);
                 evacuateDown<isLeaf>(middleParent, lower, middle, middleParentIndex);
@@ -442,8 +433,8 @@ struct Page {
                 copyKey<false, false>(higherParent, lower, higherParentIndex, lower->header.count-1);
             }
             count = lower->header.count+higher->header.count;
-            assert(lower->header.count == (count+1)/2);
-            assert(higher->header.count == count/2);
+            assert(lower->header.count == static_cast<OffsetType>((count+1)/2));
+            assert(higher->header.count == static_cast<OffsetType>(count/2));
             return true;
         } else {
             count /= 3;

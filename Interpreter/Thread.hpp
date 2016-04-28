@@ -1,7 +1,7 @@
 #include "../Ontology/Triple.hpp"
 
 struct Thread;
-bool executePreDefinedProcedure(Thread& thread, Symbol procedure);
+bool executePrimitive(Thread& thread, Symbol procedure);
 
 struct Thread {
     bool valueCountIs(Symbol entity, Symbol attribute, NativeNaturalType size) {
@@ -174,11 +174,11 @@ struct Thread {
             Ontology::setSolitary({parentFrame, Ontology::ExecuteSymbol, next});
             if(Ontology::getUncertain(execute, Ontology::CatchSymbol, catcher))
                 link({frame, Ontology::CatchSymbol, catcher});
-            if(!executePreDefinedProcedure(*this, procedure))
+            if(!executePrimitive(*this, procedure))
                 link({frame, Ontology::ExecuteSymbol, getGuaranteed(procedure, Ontology::ExecuteSymbol)});
         } else {
             assert(task != Ontology::VoidSymbol && frame != Ontology::VoidSymbol);
-            executePreDefinedProcedure(*this, Ontology::ExceptionSymbol);
+            executePrimitive(*this, Ontology::ExceptionSymbol);
         }
         return true;
     }

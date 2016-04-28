@@ -1,4 +1,4 @@
-#include "../Interpreter/Procedures.hpp"
+#include "../Interpreter/Primitives.hpp"
 #include <sys/stat.h>
 #include <sys/mman.h>
 #include <unistd.h>
@@ -98,7 +98,6 @@ void loadStorage(const Integer8* path) {
     Storage::heapBegin = MMAP_FUNC(nullptr, bytesForPages(Storage::maxPageCount), PROT_NONE, MAP_FILE|MAP_SHARED, file, 0);
     assert(Storage::heapBegin != MAP_FAILED);
     Storage::resizeMemory(Storage::pageCount);
-    Ontology::tryToFillPreDefined();
 }
 
 void unloadStorage() {

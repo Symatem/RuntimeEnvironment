@@ -33,6 +33,12 @@ struct BpTree {
         return (rootPageRef == 0);
     }
 
+    LayerType getLayerCount() {
+        if(empty())
+            return 0;
+        return getPage(rootPageRef)->header.layer+1;
+    }
+
     RankType getElementCount() {
         static_assert(rankBits);
         if(empty())
@@ -262,6 +268,7 @@ struct BpTree {
 
     typedef Closure<void(Page*, OffsetType, OffsetType)> AquireData;
     void insert(Iterator<true>& _iter, NativeNaturalType n, AquireData aquireData) {
+        // TODO: Find insertion bug of key/value (ranks seem to be good for now)
         assert(n > 0);
         InsertData data = {0, n};
         Iterator<true, InsertIteratorFrame> iter;
@@ -329,7 +336,6 @@ struct BpTree {
                 getPage(parentFrame->pageRef)->setPageRef(parentFrame->index++, frame->higherOuterPageRef);
             }
         }
-        // TODO: Test update ranks up to root
         if(rankBits)
             for(data.layer = unmodifiedLayer; data.layer < iter.end; ++data.layer) {
                 InsertIteratorFrame* frame = iter[unmodifiedLayer];

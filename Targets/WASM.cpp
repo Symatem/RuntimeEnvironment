@@ -1,4 +1,4 @@
-#include "../Interpreter/Procedures.hpp"
+#include "../Interpreter/Primitives.hpp"
 
 extern "C" {
 
@@ -23,7 +23,7 @@ extern "C" {
     DO_NOT_INLINE NativeNaturalType getMemorySize() {
         volatile NativeNaturalType result;
         asm("memory_size $push0=\n\treturn $pop0");
-        return result;
+        return result = 0;
     }
 
     DO_NOT_INLINE void growMemory(NativeNaturalType delta) {

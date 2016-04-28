@@ -157,7 +157,7 @@ PageType* dereferencePage(PageRefType pageRef) {
 }
 
 PageRefType referenceOfPage(void* page) {
-    return (reinterpret_cast<NativeNaturalType>(page)-reinterpret_cast<NativeNaturalType>(heapBegin))*8/bitsPerPage;
+    return (reinterpret_cast<Natural64>(page)-reinterpret_cast<Natural64>(heapBegin))*8/bitsPerPage;
 }
 
 PageRefType aquirePage() {

@@ -94,6 +94,7 @@ extern "C" {
         return pos-str;
     }
     Integer32 atexit(void (*func)()) {
+        func = 0;
         return 1;
     }
     void __cxa_pure_virtual(void) {}
@@ -120,7 +121,9 @@ namespace __cxxabiv1 {
     DummyTypeInfo(__pointer_to_member_type_info, __pbase_type_info)
 }
 
-void operator delete(void* ptr) noexcept {}
+void operator delete(void* ptr) noexcept {
+    ptr = 0;
+}
 inline void* operator new(unsigned long, void* ptr) noexcept {
     return ptr;
 }

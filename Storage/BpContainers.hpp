@@ -25,6 +25,7 @@ struct BpTreeMap : public BpTree<KeyType, VoidType, sizeOfInBits<ValueType>::val
 
     void insert(Iterator<true>& iter, KeyType key, ValueType value) {
         Super::insert(iter, 1, [&](typename Super::Page* page, typename Super::OffsetType index, typename Super::OffsetType endIndex) {
+            assert(index+1 == endIndex);
             page->template setKey<true>(index, key);
             page->template set<ValueType, Super::Page::valueOffset>(index, value);
         });
@@ -56,6 +57,7 @@ struct BpTreeSet : public BpTree<KeyType, VoidType, 0> {
 
     void insert(SuperIterator& iter, KeyType key) {
         Super::insert(iter, 1, [&](typename Super::Page* page, typename Super::OffsetType index, typename Super::OffsetType endIndex) {
+            assert(index+1 == endIndex);
             page->template setKey<true>(index, key);
         });
     }
