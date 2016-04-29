@@ -268,7 +268,6 @@ struct BpTree {
 
     typedef Closure<void(Page*, OffsetType, OffsetType)> AquireData;
     void insert(Iterator<true>& _iter, NativeNaturalType n, AquireData aquireData) {
-        // TODO: Find insertion bug of key/value (ranks seem to be good for now)
         assert(n > 0);
         InsertData data = {0, n};
         Iterator<true, InsertIteratorFrame> iter;
@@ -317,7 +316,7 @@ struct BpTree {
                 }
                 insertIntegrateRanks(frame, page);
                 page = insertAdvance<false>(data, frame);
-                if(frame->index > 0) {
+                if(setKey && frame->index > 0) {
                     Page::template copyKey<false, true>(page, leafPage, frame->index-1, 0);
                     setKey = false;
                 }
