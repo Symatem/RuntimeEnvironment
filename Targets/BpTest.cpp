@@ -24,52 +24,63 @@ struct TreeType : public Storage::BpTree<NativeNaturalType, NativeNaturalType, 6
         Super::insert(origIter, n, aquireData);
     }
 };
+
 TreeType tree;
+TreeType::Iterator<true> iterA, iterB;
+NativeNaturalType elementCount, sectionCount, sectionElementCount, sectionIndex, permutationIndex, elementKey;
+const NativeNaturalType* permutation;
 
 template<bool insert>
-bool testUsingPermutation(const NativeNaturalType permutation[], NativeNaturalType sectionCount, NativeNaturalType elementCount) {
-    TreeType::Iterator<true> iter, iterB;
+void testUsingPermutation() {
     assert(sectionCount <= elementCount);
-    const NativeNaturalType sectionSize = elementCount/sectionCount;
-    NativeNaturalType counter = (insert) ? 0 : elementCount;
 
-    for(NativeNaturalType s = 0; s < sectionCount; ++s) {
-        NativeNaturalType p = permutation[s], key = sectionSize*p,
-                          size = (p < sectionCount-1) ? sectionSize : elementCount-(sectionCount-1)*sectionSize;
-        tree.find<Storage::Key>(iter, key);
-        printf("%04llu [%010llu, %010llu] %3.2f%% %hhd\n", p, key, key+size, 100.0*s/sectionCount, tree.getLayerCount());
+    Natural8* flagField = reinterpret_cast<Natural8*>(alloca(sectionCount));
+    for(NativeNaturalType sectionIndex = 0; sectionIndex < sectionCount; ++sectionIndex)
+        flagField[sectionIndex] = !insert;
+
+    NativeNaturalType sectionElementCountMin = elementCount/sectionCount,
+                      sectionElementCountMax = elementCount-(sectionCount-1)*sectionElementCountMin;
+    for(NativeNaturalType sectionIndex = 0; sectionIndex < sectionCount; ++sectionIndex) {
+        permutationIndex = permutation[sectionIndex];
+        elementKey = sectionElementCountMin*permutationIndex;
+        sectionElementCount = (permutationIndex < sectionCount-1) ? sectionElementCountMin : sectionElementCountMax;
+        tree.find<Storage::Key>(iterA, elementKey);
+        flagField[permutationIndex] = insert;
+
+        printf("[%010llu, %010llu] %04llu %3.2f%% %hhd\n", elementKey, elementKey+sectionElementCount, permutationIndex, 100.0*sectionIndex/sectionCount, tree.getLayerCount());
 
         if(insert) {
-            tree.insert(iter, size, [&](TreeType::Page* page, TreeType::OffsetType index, TreeType::OffsetType endIndex) {
+            tree.insert(iterA, sectionElementCount, [&](TreeType::Page* page, TreeType::OffsetType index, TreeType::OffsetType endIndex) {
                 for(; index < endIndex; ++index) {
-                    page->template setKey<true>(index, key);
-                    page->template set<NativeNaturalType, TreeType::Page::valueOffset>(index, key);
-                    ++key;
+                    page->template setKey<true>(index, elementKey);
+                    page->template set<NativeNaturalType, TreeType::Page::valueOffset>(index, elementKey);
+                    ++elementKey;
                 }
             });
-            counter += size;
         } else {
-            tree.find<Storage::Key>(iterB, key+size-1);
-            tree.erase(iter, iterB);
-            counter -= size;
+            tree.find<Storage::Key>(iterB, elementKey+sectionElementCount-1);
+            tree.erase(iterA, iterB);
         }
-        assert(tree.getElementCount() == counter);
-    }
 
-    if(insert) {
-        NativeNaturalType key = 0;
-        tree.find<Storage::First>(iter);
-        do {
-            if(key != iter.getKey() || key != iter.getValue() || key != iter.getRank()) {
-                printf("GLOBAL ERROR: %lld %lld %lld %lld (%llu)\n", key, iter.getKey(), iter.getValue(), iter.getRank(), tree.rootPageRef);
-                return false;
+        NativeNaturalType elementRank = 0;
+        for(NativeNaturalType sectionToCheck = 0; sectionToCheck < sectionCount; ++sectionToCheck) {
+            elementKey = sectionElementCountMin*sectionToCheck;
+            sectionElementCount = (sectionToCheck < sectionCount-1) ? sectionElementCountMin : sectionElementCountMax;
+            tree.find<Storage::Key>(iterA, elementKey);
+            if(!flagField[sectionToCheck])
+                continue;
+            printf("[%010llu, %010llu]\n", elementKey, elementKey+sectionElementCount);
+            for(NativeNaturalType endKey = elementKey+sectionElementCount; elementKey < endKey; ++elementKey) {
+                if(elementKey != iterA.getKey() || elementKey != iterA.getValue() || elementRank != iterA.getRank()) {
+                    printf("ERROR: %lld:%lld:%lld %lld:%lld\n", elementKey, iterA.getKey(), iterA.getValue(), elementRank, iterA.getRank());
+                    exit(1);
+                }
+                iterA.advance();
+                ++elementRank;
             }
-            iter.advance();
-        } while(++key < elementCount);
-    } else
-        assert(tree.empty());
-    printf("[%010llu, %010llu] 100%%\n", 0ULL, elementCount);
-    return true;
+        }
+        assert(tree.getElementCount() == elementRank);
+    }
 }
 
 Integer32 main(Integer32 argc, Integer8** argv) {
@@ -80,15 +91,20 @@ Integer32 main(Integer32 argc, Integer8** argv) {
     loadStorage(argv[1]);
     tree.init();
 
-    NativeNaturalType elementCount = 1024*1024*100;
+    elementCount = 1024*1024;
     const NativeNaturalType insertPermutation[] = {
         0
     };
-    testUsingPermutation<true>(insertPermutation, sizeof(insertPermutation)/sizeof(NativeNaturalType), elementCount);
+    permutation = insertPermutation;
+    sectionCount = sizeof(insertPermutation)/sizeof(NativeNaturalType);
+    testUsingPermutation<true>();
+
     const NativeNaturalType erasePermutation[] = {
         0
     };
-    testUsingPermutation<false>(erasePermutation, sizeof(erasePermutation)/sizeof(NativeNaturalType), elementCount);
+    permutation = erasePermutation;
+    sectionCount = sizeof(erasePermutation)/sizeof(NativeNaturalType);
+    testUsingPermutation<false>();
 
     unloadStorage();
     return 0;
