@@ -253,8 +253,9 @@ struct Page {
     }
 
     template<bool isLeaf>
-    static bool erase2(Page* parent, Page* lower, Page* higher,
-                       OffsetType parentIndex, OffsetType startInLower, OffsetType endInHigher) {
+    static bool erase2(Page* lowerParent, Page* higherParent, Page* lower, Page* higher,
+                       OffsetType lowerParentIndex, OffsetType higherParentIndex,
+                       OffsetType startInLower, OffsetType endInHigher) {
         assert(startInLower <= lower->header.count && endInHigher <= higher->header.count);
         NativeIntegerType count = startInLower;
         count += higher->header.count;
@@ -263,12 +264,17 @@ struct Page {
             lower->header.count = count;
             if(count == 0)
                 return true;
+            // TODO: Optimize startInLower == 0: Move pageRef instead of elements
             if(isLeaf)
                 copyLeafElements(lower, higher, startInLower, endInHigher, higher->header.count-endInHigher);
-            else if(startInLower == 0)
+            else if(startInLower == 0 && endInHigher == 0) {
+                copyKey<true, false>(lowerParent, higherParent, lowerParentIndex, higherParentIndex);
+                copyBranchElements<false, -1>(lower, higher, 0, 0, higher->header.count);
+            } else if(startInLower == 0) {
+                copyKey<true, false>(lowerParent, higher, lowerParentIndex, endInHigher-1);
                 copyBranchElements<false, -1>(lower, higher, 0, endInHigher, lower->header.count);
-            else if(endInHigher == 0) {
-                copyKey<true, false>(lower, parent, startInLower-1, parentIndex);
+            } else if(endInHigher == 0) {
+                copyKey<true, false>(lower, higherParent, startInLower-1, higherParentIndex);
                 copyBranchElements<false, -1>(lower, higher, startInLower, 0, higher->header.count);
             } else
                 copyBranchElements<true, -1>(lower, higher, startInLower, endInHigher, higher->header.count-endInHigher);
@@ -290,28 +296,30 @@ struct Page {
                         copyLeafElements<1>(higher, higher, count, endInHigher, higher->header.count);
                     copyLeafElements(higher, lower, 0, lower->header.count, count);
                 }
-                copyKey<false, true>(parent, higher, parentIndex, 0);
+                copyKey<false, true>(higherParent, higher, higherParentIndex, 0);
             } else {
                 if(count <= 0) {
                     count *= -1;
-                    if(endInHigher == 0 && count > 0) {
+                    if(endInHigher+count == 0)
+                        copyKey<false, false>(lower, higherParent, startInLower-1, higherParentIndex);
+                    else if(endInHigher == 0 && count > 0) {
                         copyBranchElements<false>(lower, higher, startInLower, 0, count);
-                        swapKeyInParent(parent, lower, higher, parentIndex, startInLower-1, count-1);
+                        swapKeyInParent(higherParent, lower, higher, higherParentIndex, startInLower-1, count-1);
                     } else {
                         copyBranchElements<true>(lower, higher, startInLower, endInHigher, count);
-                        copyKey<false, false>(parent, higher, parentIndex, endInHigher+count-1);
+                        copyKey<false, false>(higherParent, higher, higherParentIndex, endInHigher+count-1);
                     }
                     copyBranchElements<false, -1>(higher, higher, 0, endInHigher+count, higher->header.count);
                 } else {
                     if(endInHigher == 0) {
                         copyBranchElements<false, 1>(higher, higher, count, 0, higher->header.count);
-                        swapKeyInParent(parent, higher, lower, parentIndex, count-1, lower->header.count-1);
+                        swapKeyInParent(higherParent, higher, lower, higherParentIndex, count-1, lower->header.count-1);
                     } else {
                         if(static_cast<OffsetType>(count) < endInHigher)
                             copyBranchElements<true, -1>(higher, higher, count, endInHigher, higher->header.count);
                         else
                             copyBranchElements<true, 1>(higher, higher, count, endInHigher, higher->header.count);
-                        copyKey<false, false>(parent, lower, parentIndex, lower->header.count-1);
+                        copyKey<false, false>(higherParent, lower, higherParentIndex, lower->header.count-1);
                     }
                     copyBranchElements<false>(higher, lower, 0, lower->header.count, count);
                 }
