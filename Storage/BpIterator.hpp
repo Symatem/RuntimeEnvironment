@@ -7,13 +7,18 @@ struct Iterator {
         return &stack[layer];
     }
 
-    FrameType* getParentFrame(LayerType layer) {
+    bool getParentFrame(LayerType layer, Page*& parent, OffsetType& parentIndex) {
         while(++layer < end) {
             FrameType* frame = (*this)[layer];
-            if(frame->index > 0)
-                return frame;
+            if(frame->index > 0) {
+                parent = getPage(frame->pageRef);
+                parentIndex = frame->index-1;
+                return true;
+            }
         }
-        return nullptr;
+        parent = nullptr;
+        parentIndex = 0;
+        return false;
     }
 
     bool isValid() {
@@ -120,17 +125,6 @@ struct Iterator {
         static_assert(keyBits && enableCopyOnWrite);
         FrameType* frame = (*this)[0];
         getPage(frame->pageRef)->template setKey<true>(frame->index, key);
-    }
-
-    void debugPrint() {
-        printf("Iterator %hhd\n", end);
-        for(LayerType layer = 0; layer < end; ++layer) {
-            FrameType* frame = (*this)[layer];
-            Page* page = getPage(frame->pageRef);
-            printf("%llu %llu/%d/%d/%d\n", frame->pageRef, frame->rank, frame->index, frame->endIndex, page->header.count);
-            if(layer > 0)
-                page->debugPrint();
-        }
     }
 };
 

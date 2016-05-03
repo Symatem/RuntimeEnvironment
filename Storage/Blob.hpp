@@ -102,7 +102,7 @@ struct Blob {
     void postInteroperation(IteratorType& iter, NativeNaturalType& offset, NativeNaturalType intersection) {
         if(dir == 1) {
             if(state == Fragmented) {
-                assert(iter.template advance<1>(0, intersection) == 0);
+                assert(iter.template advance<+1>(0, intersection) == 0);
             } else
                 offset -= intersection;
         } else {
@@ -113,7 +113,7 @@ struct Blob {
         }
     }
 
-    template<NativeIntegerType dir>
+    template<NativeIntegerType dir = -1>
     NativeIntegerType interoperation(Blob& src, NativeNaturalType dstOffset, NativeNaturalType srcOffset, NativeNaturalType length) {
         // TODO: Check out of bounds
         NativeNaturalType dstSegment, srcSegment, intersection;
@@ -162,7 +162,7 @@ struct Blob {
             if(!interoperation<-1>(src, dstOffset, srcOffset, length))
                 return false;
         } else {
-            if(!interoperation<1>(src, dstOffset, srcOffset, length))
+            if(!interoperation<+1>(src, dstOffset, srcOffset, length))
                 return false;
         }
         modifiedBlob(symbol);
@@ -212,8 +212,8 @@ struct Blob {
             dstBlob.type = BlobBucket::getType(size);
             if(state == Fragmented || type != dstBlob.type) {
                 dstBlob.allocateInBucket(size);
-                dstBlob.interoperation<1>(*this, 0, 0, at);
-                dstBlob.interoperation<1>(*this, at, end, size-at);
+                dstBlob.interoperation(*this, 0, 0, at);
+                dstBlob.interoperation(*this, at, end, size-at);
                 if(state == InBucket)
                     freeFromBucket();
                 updateAddress(dstBlob.address);
@@ -241,7 +241,7 @@ struct Blob {
             if(state == Empty || type != dstBlob.type)
                 dstBlob.allocateInBucket(size);
             else
-                interoperation<-1>(*this, at, at+count, size-count-at);
+                interoperation<1>(*this, at+count, at, size-count-at);
         } else {
             BpTreeBlob::Iterator<true> iter;
             dstBlob.state = Fragmented;
@@ -250,9 +250,9 @@ struct Blob {
             dstBlob.bpTree.insert(iter, count, nullptr);
             dstBlob.address = dstBlob.bpTree.rootPageRef;
         }
-        if(state == InBucket) {
-            dstBlob.interoperation<1>(*this, 0, 0, at);
-            dstBlob.interoperation<1>(*this, at, at+count, size-count-at);
+        if(state == InBucket && type != dstBlob.type) {
+            dstBlob.interoperation(*this, 0, 0, at);
+            dstBlob.interoperation(*this, at, at+count, size-count-at);
             freeFromBucket();
         }
         if(state == Empty)
@@ -276,7 +276,7 @@ struct Blob {
             return;
         NativeNaturalType srcSize = src.getSize();
         setSize(srcSize);
-        interoperation<1>(src, 0, 0, srcSize);
+        interoperation(src, 0, 0, srcSize);
         modifiedBlob(symbol);
     }
 

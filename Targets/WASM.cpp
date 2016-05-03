@@ -1,5 +1,7 @@
 #include "../Interpreter/Primitives.hpp"
 
+const NativeNaturalType bitsPerChunk = 2<<19;
+
 extern "C" {
 
     // TODO: EXPORT some functions to be used from the outside
@@ -17,35 +19,24 @@ extern "C" {
     }
 
     void assertFailed(const char* str) {
-        asm("unreachable");
+        __builtin_unreachable();
     }
 
-    DO_NOT_INLINE NativeNaturalType getMemorySize() {
-        volatile NativeNaturalType result;
-        asm("memory_size $push0=\n\treturn $pop0");
-        return result = 0;
-    }
-
-    DO_NOT_INLINE void growMemory(NativeNaturalType delta) {
-        asm("grow_memory $discard=, $0");
-    }
+    struct Main {
+        Main() {
+            Storage::heapBegin = reinterpret_cast<void*>(__builtin_wasm_current_memory()*bitsPerChunk/8);
+            Storage::resizeMemory(Storage::minPageCount);
+            Ontology::tryToFillPreDefined();
+        }
+    } startUp;
 };
 
 void Storage::resizeMemory(NativeNaturalType _pageCount) {
     assert(_pageCount < maxPageCount);
     pageCount = _pageCount;
-    const NativeNaturalType bitsPerChunk = 2<<19;
     NativeNaturalType _chunkCount = (pageCount*Storage::bitsPerPage+bitsPerChunk-1)/bitsPerChunk;
-    NativeNaturalType size = getMemorySize()*8, pad = pointerToNatural(Storage::heapBegin)*8;
+    NativeNaturalType size = __builtin_wasm_current_memory()*bitsPerChunk, pad = pointerToNatural(Storage::heapBegin)*8;
     NativeNaturalType chunkCount = (size > pad) ? (size-pad+bitsPerChunk-1)/bitsPerChunk : 0;
     if(_chunkCount > chunkCount)
-        growMemory(_chunkCount-chunkCount);
+        __builtin_wasm_grow_memory(_chunkCount-chunkCount);
 }
-
-struct Main {
-    Main() {
-        Storage::heapBegin = reinterpret_cast<void*>(getMemorySize());
-        Storage::resizeMemory(Storage::minPageCount);
-        Ontology::tryToFillPreDefined();
-    }
-} startUp;
