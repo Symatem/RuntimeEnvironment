@@ -355,35 +355,13 @@ struct BpTree {
         RankType rank[4];
     };
 
-    template<bool firstHalf, bool secondHalf>
-    static void eraseUpdateRank(EraseData& data, NativeNaturalType rankIndex, Page* pages[2]) {
+    static void eraseUpdateRank(EraseData& data, NativeNaturalType rankIndex, Page* candidate) {
         if(!data.rank[rankIndex])
             return;
         Page* page = data.outerParent[rankIndex];
         OffsetType index = data.outerParentIndex[rankIndex];
-        if(firstHalf)
-            for(NativeNaturalType i = 0; i < 2; ++i)
-                if(pages[i] == page) {
-                    page->setRank(index, data.rank[rankIndex]);
-                    data.rank[rankIndex] = 0;
-                    return;
-                }
-        if(secondHalf) {
-            page->disintegrateRanks(index, page->header.count);
+        if(candidate == page)
             page->setRank(index, data.rank[rankIndex]);
-            page->integrateRanks(index, page->header.count);
-            data.rank[rankIndex] = 0;
-        }
-    }
-
-    template<bool isLeaf>
-    static void eraseIntegrateRanks(EraseData& data, NativeNaturalType rankIndex, Page* page) {
-        if(page) {
-            if(!isLeaf)
-                page->integrateRanks(0, page->header.count);
-            data.rank[rankIndex] = page->getIntegratedRank();
-        } else
-            data.rank[rankIndex] = static_cast<RankType>(0);
     }
 
     template<bool isLeaf, NativeIntegerType dir>
@@ -393,10 +371,11 @@ struct BpTree {
         if(data.iter.template advance<dir>(data.layer+1) == 0) {
             ((dir == -1) ? data.from : data.iter).getParentFrame(data.layer, parent, parentIndex);
             Page* page = getPage(data.iter[data.layer]->pageRef);
-            if(!isLeaf) {
+            if(rankBits && !isLeaf) {
                 page->disintegrateRanks(0, page->header.count);
                 if(data.rank[rankIndex] && page == data.outerParent[rankIndex])
                     page->setRank(data.outerParentIndex[rankIndex], data.rank[rankIndex]);
+                eraseUpdateRank(data, rankIndex, page);
             }
             data.outerParent[rankIndex] = getPage(data.iter[data.layer+1]->pageRef);
             data.outerParentIndex[rankIndex] = data.iter[data.layer+1]->index;
@@ -432,9 +411,8 @@ struct BpTree {
             lowerInner->disintegrateRanks(0, lowerInner->header.count);
             if(lowerInner != higherInner)
                 higherInner->disintegrateRanks(0, higherInner->header.count);
-            Page* pages[] = {lowerInner, higherInner};
-            eraseUpdateRank<true, false>(data, 0, pages);
-            eraseUpdateRank<true, false>(data, 1, pages);
+            eraseUpdateRank(data, 0, lowerInner);
+            eraseUpdateRank(data, 1, higherInner);
             if(data.rank[2])
                 lowerInner->setRank(data.from[data.layer]->index, data.rank[2]);
             if(data.rank[3])
@@ -468,15 +446,13 @@ struct BpTree {
                   data.iter[data.layer]->pageRef != data.from[data.layer]->pageRef)
                 Storage::releasePage(data.iter[data.layer]->pageRef);
         }
+        OffsetType lowerInnerKeyParentIndex, higherOuterKeyParentIndex;
+        Page *lowerInnerKeyParent, *higherOuterKeyParent, *lowerOuter = nullptr, *higherOuter = nullptr;
+        if((rankBits && !isLeaf) || (keepRunning && lowerInner->header.count < Page::template capacity<isLeaf>()/2)) { // TODO: Optimize
+            lowerOuter = eraseAdvance<isLeaf, -1>(data, lowerInnerKeyParent, lowerInnerKeyParentIndex);
+            higherOuter = eraseAdvance<isLeaf, 1>(data, higherOuterKeyParent, higherOuterKeyParentIndex);
+        }
         if(keepRunning && lowerInner->header.count < Page::template capacity<isLeaf>()/2) {
-            OffsetType lowerInnerKeyParentIndex, higherOuterKeyParentIndex;
-            Page *lowerInnerKeyParent, *lowerOuter = eraseAdvance<isLeaf, -1>(data, lowerInnerKeyParent, lowerInnerKeyParentIndex),
-                 *higherOuterKeyParent, *higherOuter = eraseAdvance<isLeaf, 1>(data, higherOuterKeyParent, higherOuterKeyParentIndex);
-            if(rankBits && !isLeaf) {
-                Page* pages[] = {lowerOuter, higherOuter};
-                eraseUpdateRank<true, true>(data, 0, pages);
-                eraseUpdateRank<true, true>(data, 1, pages);
-            }
             if(lowerOuter || higherOuter) {
                 if(Page::template redistribute<isLeaf>(lowerInnerKeyParent, higherOuterKeyParent,
                                                        lowerOuter, lowerInner, higherOuter,
@@ -486,22 +462,22 @@ struct BpTree {
                     data.eraseHigherInner = true;
                     lowerInner = nullptr;
                 }
-                if(rankBits) {
-                    eraseIntegrateRanks<isLeaf>(data, 0, lowerOuter);
-                    eraseIntegrateRanks<isLeaf>(data, 1, higherOuter);
-                }
             } else
                 eraseEmptyLayer<isLeaf>(data, lowerInner);
-        } else if(rankBits && !isLeaf) {
-            Page* pages[] = {nullptr, nullptr};
-            eraseUpdateRank<false, true>(data, 0, pages);
-            eraseUpdateRank<false, true>(data, 1, pages);
         }
         ++data.layer;
         if(!rankBits)
             return keepRunning;
-        eraseIntegrateRanks<isLeaf>(data, 2, lowerInner);
-        eraseIntegrateRanks<isLeaf>(data, 3, higherInner);
+        Page* pages[] = {lowerOuter, higherOuter, lowerInner, higherInner};
+        for(NativeNaturalType rankIndex = 0; rankIndex < 4; ++rankIndex) {
+            Page* page = pages[rankIndex];
+            if(page) {
+                if(!isLeaf)
+                    page->integrateRanks(0, page->header.count);
+                data.rank[rankIndex] = page->getIntegratedRank();
+            } else
+                data.rank[rankIndex] = static_cast<RankType>(0);
+        }
         return data.layer < data.from.end;
     }
 

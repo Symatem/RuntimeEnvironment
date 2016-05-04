@@ -268,13 +268,13 @@ struct Page {
             if(isLeaf)
                 copyLeafElements(lower, higher, startInLower, endInHigher, higher->header.count-endInHigher);
             else if(startInLower == 0 && endInHigher == 0) {
-                copyKey<true, false>(lowerParent, higherParent, lowerParentIndex, higherParentIndex);
+                copyKey<false, false>(lowerParent, higherParent, lowerParentIndex, higherParentIndex);
                 copyBranchElements<false, -1>(lower, higher, 0, 0, higher->header.count);
             } else if(startInLower == 0) {
-                copyKey<true, false>(lowerParent, higher, lowerParentIndex, endInHigher-1);
+                copyKey<false, false>(lowerParent, higher, lowerParentIndex, endInHigher-1);
                 copyBranchElements<false, -1>(lower, higher, 0, endInHigher, lower->header.count);
             } else if(endInHigher == 0) {
-                copyKey<true, false>(lower, higherParent, startInLower-1, higherParentIndex);
+                copyKey<false, false>(lower, higherParent, startInLower-1, higherParentIndex);
                 copyBranchElements<false, -1>(lower, higher, startInLower, 0, higher->header.count);
             } else
                 copyBranchElements<true, -1>(lower, higher, startInLower, endInHigher, higher->header.count-endInHigher);
@@ -356,7 +356,7 @@ struct Page {
 
     template<bool isLeaf>
     static void shiftDown(Page* parent, Page* lower, Page* higher, OffsetType parentIndex, OffsetType count) {
-        assert(count > 0 && lower->header.count+count <= capacity<isLeaf>());
+        assert(count > 0 && count < higher->header.count && lower->header.count+count <= capacity<isLeaf>());
         if(isLeaf) {
             copyLeafElements(lower, higher, lower->header.count, 0, count);
             shiftCounts(lower, higher, count);
@@ -372,7 +372,7 @@ struct Page {
 
     template<bool isLeaf>
     static void shiftUp(Page* parent, Page* lower, Page* higher, OffsetType parentIndex, OffsetType count) {
-        assert(count > 0 && higher->header.count+count <= capacity<isLeaf>());
+        assert(count > 0 && count < lower->header.count && higher->header.count+count <= capacity<isLeaf>());
         if(isLeaf) {
             copyLeafElements<+1>(higher, higher, count, 0, higher->header.count);
             shiftCounts(higher, lower, count);
@@ -417,10 +417,13 @@ struct Page {
                 count *= -1;
                 evacuateDown<isLeaf>(middleParent, lower, middle, middleParentIndex);
                 shiftDown<isLeaf>(higherParent, lower, higher, higherParentIndex, count);
-            } else if(static_cast<OffsetType>(count) <= middle->header.count) {
+            } else if(static_cast<OffsetType>(count) < middle->header.count) {
                 if(count > 0)
                     shiftUp<isLeaf>(higherParent, middle, higher, higherParentIndex, count);
                 evacuateDown<isLeaf>(middleParent, lower, middle, middleParentIndex);
+            } else if(static_cast<OffsetType>(count) == middle->header.count) {
+                evacuateUp<isLeaf>(higherParent, middle, higher, higherParentIndex);
+                copyKey<false, false>(higherParent, middleParent, higherParentIndex, middleParentIndex);
             } else if(isLeaf) {
                 copyLeafElements<+1>(higher, higher, count, 0, higher->header.count);
                 higher->header.count += count;
