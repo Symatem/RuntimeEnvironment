@@ -115,7 +115,9 @@ struct Blob {
 
     template<NativeIntegerType dir = -1>
     NativeIntegerType interoperation(Blob& src, NativeNaturalType dstOffset, NativeNaturalType srcOffset, NativeNaturalType length) {
-        // TODO: Check out of bounds
+        NativeNaturalType dstEndOffset = dstOffset+length, srcEndOffset = srcOffset+length;
+        assert(dstOffset < dstEndOffset && dstEndOffset <= getSize());
+        assert(srcOffset < srcEndOffset && srcEndOffset <= getSize());
         NativeNaturalType dstSegment, srcSegment, intersection;
         BpTreeBlob::Iterator<dir != 0> dstIter, srcIter;
         if(state == Fragmented)
@@ -123,8 +125,8 @@ struct Blob {
         if(src.state == Fragmented)
             src.bpTree.find<Rank>(srcIter, srcOffset);
         if(dir == 1) {
-            dstOffset += length;
-            srcOffset += length;
+            dstOffset = dstEndOffset;
+            srcOffset = srcEndOffset;
         }
         while(length > 0) {
             dstSegment = preInteroperation<dir>(dstIter, dstOffset);

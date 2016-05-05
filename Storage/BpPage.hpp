@@ -264,14 +264,15 @@ struct Page {
             lower->header.count = count;
             if(count == 0)
                 return true;
-            // TODO: Optimize startInLower == 0: Move pageRef instead of elements
             if(isLeaf)
                 copyLeafElements(lower, higher, startInLower, endInHigher, higher->header.count-endInHigher);
             else if(startInLower == 0 && endInHigher == 0) {
-                copyKey<false, false>(lowerParent, higherParent, lowerParentIndex, higherParentIndex);
+                if(lowerParent)
+                    copyKey<false, false>(lowerParent, higherParent, lowerParentIndex, higherParentIndex);
                 copyBranchElements<false, -1>(lower, higher, 0, 0, higher->header.count);
             } else if(startInLower == 0) {
-                copyKey<false, false>(lowerParent, higher, lowerParentIndex, endInHigher-1);
+                if(lowerParent)
+                    copyKey<false, false>(lowerParent, higher, lowerParentIndex, endInHigher-1);
                 copyBranchElements<false, -1>(lower, higher, 0, endInHigher, lower->header.count);
             } else if(endInHigher == 0) {
                 copyKey<false, false>(lower, higherParent, startInLower-1, higherParentIndex);
@@ -330,7 +331,7 @@ struct Page {
 
     template<bool isLeaf>
     static void evacuateDown(Page* parent, Page* lower, Page* higher, OffsetType parentIndex) {
-        assert(lower->header.count+higher->header.count <= capacity<isLeaf>());
+        assert(higher->header.count > 0 && lower->header.count+higher->header.count <= capacity<isLeaf>());
         if(isLeaf)
             copyLeafElements(lower, higher, lower->header.count, 0, higher->header.count);
         else {
@@ -342,7 +343,7 @@ struct Page {
 
     template<bool isLeaf>
     static void evacuateUp(Page* parent, Page* lower, Page* higher, OffsetType parentIndex) {
-        assert(lower->header.count+higher->header.count <= capacity<isLeaf>());
+        assert(lower->header.count > 0 && lower->header.count+higher->header.count <= capacity<isLeaf>());
         if(isLeaf) {
             copyLeafElements<+1>(higher, higher, lower->header.count, 0, higher->header.count);
             copyLeafElements(higher, lower, 0, 0, lower->header.count);
