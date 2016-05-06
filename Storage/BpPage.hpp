@@ -332,10 +332,13 @@ struct Page {
     template<bool isLeaf>
     static void evacuateDown(Page* parent, Page* lower, Page* higher, OffsetType parentIndex) {
         assert(higher->header.count > 0 && lower->header.count+higher->header.count <= capacity<isLeaf>());
-        if(isLeaf)
+        if(isLeaf) {
             copyLeafElements(lower, higher, lower->header.count, 0, higher->header.count);
-        else {
+            copyKey<false, true>(parent, higher, parentIndex, 0);
+        } else {
             copyKey<false, false>(lower, parent, lower->header.count-1, parentIndex);
+            if(higher->header.count >= 2)
+                copyKey<false, false>(parent, higher, parentIndex, higher->header.count-2);
             copyBranchElements<false>(lower, higher, lower->header.count, 0, higher->header.count);
         }
         lower->header.count += higher->header.count;
