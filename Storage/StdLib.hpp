@@ -1,5 +1,6 @@
 #include <setjmp.h> // TODO: Replace setjmp/longjmp
 #include <stdlib.h> // TODO: Remove malloc and free
+#include <stdio.h> // TODO: Debugging
 
 template<bool _value>
 struct BoolConstant {
@@ -30,7 +31,9 @@ typedef long long unsigned Natural64;
 typedef long long int Integer64;
 typedef double Float64;
 
-#ifdef WEB_ASSEMBLY
+// TODO: No 32bit mode to maintain binary compatibility
+// TODO: 32Bit mode crashes
+#ifdef BIT_MODE_32
 typedef Natural32 NativeNaturalType;
 typedef Integer32 NativeIntegerType;
 typedef Float32 NativeFloatType;
@@ -177,51 +180,6 @@ IndexType binarySearch(IndexType end, Closure<bool(IndexType)> compare) {
             end = mid;
     }
     return begin;
-}
-
-template<typename DataType>
-struct BitMask {
-    const static NativeNaturalType bits = sizeOfInBits<DataType>::value;
-    const static DataType empty = 0, one = 1, full = ~empty;
-    constexpr static DataType fillLSBs(NativeNaturalType len) {
-        return (len == bits) ? full : (one<<len)-one;
-    }
-    constexpr static DataType fillMSBs(NativeNaturalType len) {
-        return (len == 0) ? empty : ~((one<<(bits-len))-one);
-    }
-    constexpr static NativeNaturalType clz(DataType value);
-    constexpr static NativeNaturalType ctz(DataType value);
-    constexpr static NativeNaturalType ceilLog2(DataType value) {
-        return bits-clz(value);
-    }
-};
-
-template<>
-constexpr NativeNaturalType BitMask<Natural32>::clz(Natural32 value) {
-    return __builtin_clzl(value);
-}
-
-template<>
-constexpr NativeNaturalType BitMask<Natural32>::ctz(Natural32 value) {
-    return __builtin_ctzl(value);
-}
-
-template<>
-constexpr NativeNaturalType BitMask<Natural64>::clz(Natural64 value) {
-    return __builtin_clzll(value);
-}
-
-template<>
-constexpr NativeNaturalType BitMask<Natural64>::ctz(Natural64 value) {
-    return __builtin_ctzll(value);
-}
-
-constexpr NativeNaturalType architecturePadding(NativeNaturalType bits) {
-    return (bits+architectureSize-1)/architectureSize*architectureSize;
-}
-
-NativeNaturalType pointerToNatural(void* ptr) {
-    return reinterpret_cast<long unsigned>(ptr);
 }
 
 template<typename T>

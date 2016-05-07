@@ -2,6 +2,7 @@
 
 namespace Storage {
 
+// TODO: Redistribution if there are many almost empty buckets of the same type
 // TODO: Test BlobBuckets
 const NativeNaturalType blobBucketTypeCount = 15, blobBucketType[blobBucketTypeCount] =
     {8, 16, 32, 64, 192, 320, 640, 1152, 2112, 3328, 6016, 7552, 10112, 15232, 30641};
