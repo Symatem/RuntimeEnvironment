@@ -142,11 +142,12 @@ struct Page {
                                       keyOffset+dstIndex*keyBits,
                                       keyOffset+srcIndex*keyBits,
                                       n*keyBits);
-        Storage::bitwiseCopy<dir>(reinterpret_cast<NativeNaturalType*>(dstPage),
-                                  reinterpret_cast<const NativeNaturalType*>(srcPage),
-                                  valueOffset+dstIndex*valueBits,
-                                  valueOffset+srcIndex*valueBits,
-                                  n*valueBits);
+        if(valueBits > 0)
+            Storage::bitwiseCopy<dir>(reinterpret_cast<NativeNaturalType*>(dstPage),
+                                      reinterpret_cast<const NativeNaturalType*>(srcPage),
+                                      valueOffset+dstIndex*valueBits,
+                                      valueOffset+srcIndex*valueBits,
+                                      n*valueBits);
     }
 
     template<bool dstIsLeaf, bool srcIsLeaf>

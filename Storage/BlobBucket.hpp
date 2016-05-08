@@ -3,7 +3,6 @@
 namespace Storage {
 
 // TODO: Redistribution if there are many almost empty buckets of the same type
-// TODO: Test BlobBuckets
 const NativeNaturalType blobBucketTypeCount = 15, blobBucketType[blobBucketTypeCount] =
     {8, 16, 32, 64, 192, 320, 640, 1152, 2112, 3328, 6016, 7552, 10112, 15232, 30641};
 // blobBucketTypeCount = 12, {8, 16, 32, 64, 192, 320, 640, 1152, 3328, 7552, 15232, 30641};
@@ -16,19 +15,19 @@ struct BlobBucketHeader : public BasePage {
 struct BlobBucket {
     BlobBucketHeader header;
 
-    NativeNaturalType getDataBits() const {
-        return blobBucketType[header.type];
-    }
-
     NativeNaturalType getSizeBits() const {
         return BitMask<NativeNaturalType>::ceilLog2(getDataBits());
     }
 
-    NativeNaturalType getDataOffset() const {
-        return architecturePadding(sizeOfInBits<BlobBucketHeader>::value);
+    NativeNaturalType getDataBits() const {
+        return blobBucketType[header.type];
     }
 
     NativeNaturalType getSizeOffset() const {
+        return architecturePadding(sizeOfInBits<BlobBucketHeader>::value);
+    }
+
+    NativeNaturalType getDataOffset() const {
         return getSymbolOffset()-getDataBits()*getMaxCount();
     }
 
@@ -45,11 +44,11 @@ struct BlobBucket {
     }
 
     NativeNaturalType getMaxCount() const {
-        return (bitsPerPage-getDataOffset())/(getSizeBits()+architectureSize+getDataBits());
+        return (bitsPerPage-getSizeOffset())/(getSizeBits()+architectureSize+getDataBits());
     }
 
     NativeNaturalType getPadding() const {
-        return bitsPerPage-getDataOffset()-(getSizeBits()+architectureSize+getDataBits())*getMaxCount();
+        return bitsPerPage-getSizeOffset()-(getSizeBits()+architectureSize+getDataBits())*getMaxCount();
     }
 
     bool isEmpty() const {
@@ -57,7 +56,7 @@ struct BlobBucket {
     }
 
     bool isFull() const {
-        return header.count == getMaxCount()-1;
+        return header.count == getMaxCount();
     }
 
     void generateStats(struct Stats& stats) {
@@ -96,6 +95,7 @@ struct BlobBucket {
     }
 
     NativeNaturalType allocateIndex(NativeNaturalType size, Symbol symbol, PageRefType pageRef) {
+        assert(size > 0 && header.count < getMaxCount());
         ++header.count;
         NativeNaturalType index = header.freeIndex;
         header.freeIndex = getSymbol(header.freeIndex);
@@ -115,7 +115,7 @@ struct BlobBucket {
     }
 
     NativeNaturalType getSize(NativeNaturalType index) const {
-        NativeNaturalType size;
+        NativeNaturalType size = 0;
         Storage::bitwiseCopy<-1>(reinterpret_cast<NativeNaturalType*>(&size),
                                  reinterpret_cast<const NativeNaturalType*>(this),
                                  0, getSizeOffset()+index*getSizeBits(), getSizeBits());

@@ -15,9 +15,8 @@ struct Serialize {
     void puts(const char* src) {
         NativeNaturalType at = Storage::getBlobSize(symbol), length = strlen(src)*8;
         Storage::increaseBlobSize(symbol, at, length);
-        Storage::bitwiseCopy(reinterpret_cast<NativeNaturalType*>(Storage::heapBegin),
-                             reinterpret_cast<const NativeNaturalType*>(src),
-                             Storage::accessBlobData(symbol)+at, 0, length);
+        for(NativeNaturalType i = 0; i < strlen(src); ++i)
+            Storage::writeBlobAt<char>(symbol, at/8+i, src[i]);
     }
 
     template<typename NumberType>

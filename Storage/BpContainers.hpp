@@ -45,13 +45,14 @@ struct BpTreeSet : public BpTree<KeyType, VoidType, 0> {
     typedef BpTree<KeyType, VoidType, 0> Super;
     typedef typename Super::template Iterator<true> SuperIterator;
 
-    template<FindMode mode>
-    KeyType pullOneOut() {
+    template<FindMode mode, bool erase>
+    KeyType getOne() {
         static_assert(mode == First || mode == Last);
         SuperIterator iter;
         Super::template find<mode>(iter);
         KeyType key = iter.getKey();
-        Super::erase(iter);
+        if(erase)
+            Super::erase(iter);
         return key;
     }
 

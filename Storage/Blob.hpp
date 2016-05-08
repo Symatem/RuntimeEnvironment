@@ -8,7 +8,7 @@ Symbol symbolCount = 0;
 
 Symbol createSymbol() {
     /*if(freeSymbols.elementCount)
-        return freeSymbols.pullOneOut<First>();
+        return freeSymbols.getOne<First, true>();
     else */
         return symbolCount++;
 }
@@ -102,12 +102,12 @@ struct Blob {
     void postInteroperation(IteratorType& iter, NativeNaturalType& offset, NativeNaturalType intersection) {
         if(dir == 1) {
             if(state == Fragmented) {
-                assert(iter.template advance<+1>(0, intersection) == 0);
+                assert(iter.template advance<-1>(0, intersection) == 0);
             } else
                 offset -= intersection;
         } else {
             if(state == Fragmented) {
-                assert(iter.template advance<-1>(0, intersection) == 0);
+                assert(iter.template advance<+1>(0, intersection) == 0);
             } else
                 offset += intersection;
         }
@@ -116,8 +116,9 @@ struct Blob {
     template<NativeIntegerType dir = -1>
     NativeIntegerType interoperation(Blob& src, NativeNaturalType dstOffset, NativeNaturalType srcOffset, NativeNaturalType length) {
         NativeNaturalType dstEndOffset = dstOffset+length, srcEndOffset = srcOffset+length;
-        assert(dstOffset < dstEndOffset && dstEndOffset <= getSize());
-        assert(srcOffset < srcEndOffset && srcEndOffset <= getSize());
+        if(dstOffset >= dstEndOffset || dstEndOffset > getSize() ||
+           srcOffset >= srcEndOffset || srcEndOffset > src.getSize())
+            return 0;
         NativeNaturalType dstSegment, srcSegment, intersection;
         BpTreeBlob::Iterator<dir != 0> dstIter, srcIter;
         if(state == Fragmented)
@@ -157,7 +158,7 @@ struct Blob {
         return interoperation<0>(other, 0, 0, size);
     }
 
-    bool sliceBlob(Blob& src, NativeNaturalType dstOffset, NativeNaturalType srcOffset, NativeNaturalType length) {
+    bool slice(Blob& src, NativeNaturalType dstOffset, NativeNaturalType srcOffset, NativeNaturalType length) {
         if(symbol == src.symbol && dstOffset == srcOffset)
             return false;
         if(dstOffset <= srcOffset) {
@@ -179,7 +180,7 @@ struct Blob {
             bucket->init(type);
             assert(freeBlobBuckets[type].insert(pageRef));
         } else {
-            pageRef = freeBlobBuckets[type].pullOneOut<First>();
+            pageRef = freeBlobBuckets[type].getOne<First, false>();
             bucket = dereferencePage<BlobBucket>(pageRef);
         }
         index = bucket->allocateIndex(size, symbol, pageRef);
@@ -197,32 +198,30 @@ struct Blob {
         iter.setValue(address);
     }
 
-    bool decreaseBlobSize(NativeNaturalType at, NativeNaturalType count) {
+    bool decreaseSize(NativeNaturalType at, NativeNaturalType count) {
         NativeNaturalType size = getSize(), end = at+count;
         if(at >= end || end > size)
             return false;
         size -= count;
+        Blob srcBlob = *this;
         if(size == 0) {
-            if(state == Fragmented)
-                bpTree.erase();
-            else
-                freeFromBucket();
+            state = Empty;
             blobs.erase<Key>(symbol);
-            type = Empty;
         } else if(BlobBucket::isBucketAllocatable(size)) {
-            Blob dstBlob;
-            dstBlob.type = BlobBucket::getType(size);
-            if(state == Fragmented || type != dstBlob.type) {
-                dstBlob.state = InBucket;
-                dstBlob.allocateInBucket(size);
-                dstBlob.interoperation(*this, 0, 0, at);
-                dstBlob.interoperation(*this, at, end, size-at);
+            type = BlobBucket::getType(size);
+            srcBlob.type = BlobBucket::getType(size+count);
+            if(srcBlob.state == Fragmented || type != srcBlob.type) {
+                state = InBucket;
+                allocateInBucket(size);
+                interoperation(srcBlob, 0, 0, at);
+                interoperation(srcBlob, at, end, size-at);
                 if(state == InBucket)
-                    freeFromBucket();
-                updateAddress(dstBlob.address);
-            } else
+                    srcBlob.freeFromBucket();
+                updateAddress(address);
+            } else {
                 interoperation<-1>(*this, at, end, size-at);
-            *this = dstBlob;
+                bucket->setSize(index, size);
+            }
         } else {
             BpTreeBlob::Iterator<true> from, to;
             bpTree.find<Rank>(from, at);
@@ -230,41 +229,58 @@ struct Blob {
             bpTree.erase(from, to);
             updateAddress(bpTree.rootPageRef);
         }
+        if(srcBlob.state == InBucket && !(state == InBucket && type == srcBlob.type))
+            freeFromBucket();
+        if(srcBlob.state == Fragmented && srcBlob.state != Fragmented)
+            bpTree.erase();
         modifiedBlob(symbol);
         return true;
     }
 
-    bool increaseBlobSize(NativeNaturalType at, NativeNaturalType count) {
+    bool increaseSize(NativeNaturalType at, NativeNaturalType count) {
         NativeNaturalType size = getSize();
         if(size >= size+count || at > size)
             return false;
+        Blob srcBlob = *this;
         size += count;
-        Blob dstBlob;
         if(BlobBucket::isBucketAllocatable(size)) {
-            dstBlob.state = InBucket;
-            dstBlob.type = BlobBucket::getType(size);
-            if(state == Empty || type != dstBlob.type) {
-                dstBlob.allocateInBucket(size);
-                updateAddress(dstBlob.address);
-            } else
+            state = InBucket;
+            type = BlobBucket::getType(size);
+            srcBlob.type = BlobBucket::getType(size-count);
+            if(srcBlob.state == Empty || type != srcBlob.type)
+                allocateInBucket(size);
+            else {
                 interoperation<1>(*this, at+count, at, size-count-at);
+                bucket->setSize(index, size);
+            }
         } else {
             BpTreeBlob::Iterator<true> iter;
-            dstBlob.state = Fragmented;
-            dstBlob.bpTree = bpTree;
-            dstBlob.bpTree.find<Rank>(iter, at);
-            dstBlob.bpTree.insert(iter, count, nullptr);
-            dstBlob.address = dstBlob.bpTree.rootPageRef;
-            updateAddress(dstBlob.address);
+            state = Fragmented;
+            if(srcBlob.state == Fragmented) {
+                bpTree.find<Rank>(iter, at);
+                bpTree.insert(iter, count, nullptr);
+            } else {
+                bpTree.rootPageRef = 0;
+                bpTree.find<First>(iter);
+                bpTree.insert(iter, size, nullptr);
+            }
+            address = bpTree.rootPageRef;
         }
-        if(state == InBucket && type != dstBlob.type) {
-            dstBlob.interoperation(*this, 0, 0, at);
-            dstBlob.interoperation(*this, at, at+count, size-count-at);
-            freeFromBucket();
+        switch(srcBlob.state) {
+            case Empty:
+                blobs.insert(symbol, address);
+                break;
+            case InBucket:
+                if(state != InBucket || type != srcBlob.type) {
+                    interoperation(srcBlob, 0, 0, at);
+                    interoperation(srcBlob, at+count, at, size-count-at);
+                    srcBlob.freeFromBucket();
+                } else
+                    break;
+            case Fragmented:
+                updateAddress(address);
+                break;
         }
-        if(state == Empty)
-            blobs.insert(symbol, dstBlob.address);
-        *this = dstBlob;
         modifiedBlob(symbol);
         return true;
     }
@@ -272,9 +288,9 @@ struct Blob {
     void setSize(NativeNaturalType newSize) {
         NativeNaturalType oldSize = getSize();
         if(oldSize < newSize)
-            increaseBlobSize(oldSize, newSize-oldSize);
+            increaseSize(oldSize, newSize-oldSize);
         else if(oldSize > newSize)
-            decreaseBlobSize(newSize, oldSize-newSize);
+            decreaseSize(newSize, oldSize-newSize);
     }
 
     void deepCopy(Blob& src) {
@@ -287,18 +303,16 @@ struct Blob {
     }
 
     template<bool swap, typename DataType>
-    void extrnalOperate(NativeNaturalType index, DataType& data) {
+    void externalOperate(NativeNaturalType index, DataType& data) {
         assert((index+1)*sizeOfInBits<DataType>::value <= getSize());
         switch(state) {
             case Empty:
                 assert(false);
-            case InBucket: {
-                DataType* ptr = dereferenceBits<DataType>(address)+index;
-                if(swap)
-                    *ptr = data;
-                else
-                    data = *ptr;
-            } break;
+            case InBucket:
+                bitwiseCopySwap<swap>(reinterpret_cast<NativeNaturalType*>(&data),
+                                      reinterpret_cast<NativeNaturalType*>(heapBegin),
+                                      0, address, sizeOfInBits<DataType>::value);
+            break;
             case Fragmented: {
                 BpTreeBlob::Iterator<false> iter;
                 bpTree.find<Rank>(iter, index*sizeOfInBits<DataType>::value);
@@ -319,30 +333,6 @@ struct Blob {
                                           0, offsetOfInteroperation(iter, 0), sizeOfInBits<DataType>::value);
             } break;
         }
-    }
-
-    template<typename DataType>
-    DataType readBlobAt(NativeNaturalType index) {
-        DataType dst;
-        extrnalOperate<false, DataType>(index, dst);
-        return dst;
-    }
-
-    template<typename DataType>
-    void writeBlobAt(NativeNaturalType index, DataType src) {
-        extrnalOperate<true, DataType>(index, src);
-    }
-
-    template<typename DataType>
-    DataType readBlob() {
-        return readBlobAt<DataType>(0);
-    }
-
-    template<typename DataType>
-    void writeBlob(DataType src) {
-        setSize(sizeOfInBits<DataType>::value);
-        writeBlobAt(0, src);
-        modifiedBlob(symbol);
     }
 };
 
@@ -488,10 +478,6 @@ bool increaseBlobSize(Symbol symbol, NativeNaturalType at, NativeNaturalType cou
 
 void releaseSymbol(Symbol symbol) {
     setBlobSize(symbol, 0);
-    /*if(symbol == symbolCount-1)
-        --symbolCount;
-    else
-        freeSymbols.insert(symbol);*/
 }
 
 };
