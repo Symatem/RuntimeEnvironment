@@ -106,13 +106,13 @@ struct BlobSet : public BlobVector<guarded, Pair<KeyType, ValueType>> {
 
     NativeNaturalType find(KeyType key) const {
         return binarySearch<NativeNaturalType>(Super::size(), [&](NativeNaturalType at) {
-            return key > this->readElementAt(at);
+            return key > Super::readElementAt(at);
         });
     }
 
     bool find(KeyType key, NativeNaturalType& at) const {
         at = find(key);
-        return (at < Super::size() && this->readElementAt(at) == key);
+        return (at < Super::size() && Super::readElementAt(at) == key);
     }
 
     bool insertElement(ElementType element) {
@@ -140,7 +140,7 @@ struct BlobIndex : public BlobSet<guarded, Symbol> {
 
     NativeNaturalType find(Symbol key) const {
         return binarySearch<NativeNaturalType>(Super::size(), [&](NativeNaturalType at) {
-            return Storage::compareBlobs(key, this->readElementAt(at)) < 0;
+            return Storage::compareBlobs(key, Super::readElementAt(at)) < 0;
         });
     }
 
@@ -148,14 +148,14 @@ struct BlobIndex : public BlobSet<guarded, Symbol> {
         at = find(element);
         if(at == Super::size())
             return false;
-        return (Storage::compareBlobs(element, this->readElementAt(at)) == 0);
+        return (Storage::compareBlobs(element, Super::readElementAt(at)) == 0);
     }
 
     void insertElement(Symbol& element) {
         NativeNaturalType at;
         if(find(element, at)) {
             Ontology::unlink(element);
-            element = this->readElementAt(at);
+            element = Super::readElementAt(at);
         } else
             Super::insert(at, element);
     }

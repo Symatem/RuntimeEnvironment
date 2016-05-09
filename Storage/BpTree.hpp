@@ -293,18 +293,17 @@ struct BpTree {
                 break;
             }
         }
+        PageRefType pageRef;
         Page* leafPage = getPage(iter[0]->pageRef);
         if(aquireData && iter[0]->index < iter[0]->endIndex)
             aquireData(leafPage, iter[0]->index, iter[0]->endIndex);
-        if(rankBits && iter[0]->pageCount == 0 && iter.end > 1)
-            insertIntegrateRanks(iter[1], getPage(iter[1]->pageRef));
         while(iter[0]->pageCount > 0) {
             data.layer = 0;
             leafPage = insertAdvance<true>(data, iter[0]);
             if(aquireData && iter[0]->index < iter[0]->endIndex)
                 aquireData(leafPage, iter[0]->index, iter[0]->endIndex);
             bool setKey = true;
-            PageRefType pageRef = iter[0]->pageRef;
+            pageRef = iter[0]->pageRef;
             while(data.layer < unmodifiedLayer) {
                 InsertIteratorFrame* frame = iter[++data.layer];
                 Page* page = getPage(frame->pageRef);
@@ -324,7 +323,7 @@ struct BpTree {
                 pageRef = frame->pageRef;
             }
         }
-        PageRefType pageRef = 0;
+        pageRef = 0;
         for(data.layer = 1; data.layer < unmodifiedLayer; ++data.layer) {
             InsertIteratorFrame* frame = iter[data.layer];
             Page* page = getPage(frame->pageRef);

@@ -5,7 +5,7 @@ namespace Storage {
 // TODO: Redistribution if there are many almost empty buckets of the same type
 const NativeNaturalType blobBucketTypeCount = 15, blobBucketType[blobBucketTypeCount] =
     {8, 16, 32, 64, 192, 320, 640, 1152, 2112, 3328, 6016, 7552, 10112, 15232, 30641};
-// blobBucketTypeCount = 12, {8, 16, 32, 64, 192, 320, 640, 1152, 3328, 7552, 15232, 30641};
+// blobBucketTypeCount = 11, {8, 16, 32, 64, 192, 320, 640, 1152, 3328, 7552, 15232};
 BpTreeSet<PageRefType> fullBlobBuckets, freeBlobBuckets[blobBucketTypeCount];
 
 struct BlobBucketHeader : public BasePage {
@@ -79,6 +79,7 @@ struct BlobBucket {
     }
 
     void freeIndex(NativeNaturalType index, PageRefType pageRef) {
+        assert(getSize(index) > 0);
         if(isFull()) {
             assert(fullBlobBuckets.erase<Key>(pageRef));
             assert(freeBlobBuckets[header.type].insert(pageRef));
