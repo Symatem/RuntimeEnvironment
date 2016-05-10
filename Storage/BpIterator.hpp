@@ -138,6 +138,7 @@ bool find(Iterator<enableCopyOnWrite>& iter,
         iter.end = 0;
         return false;
     }
+    bool result;
     Page* page = getPage<enableCopyOnWrite>(rootPageRef);
     LayerType layer = page->header.layer;
     iter.end = layer+1;
@@ -145,26 +146,31 @@ bool find(Iterator<enableCopyOnWrite>& iter,
     frame->rank = 0;
     frame->pageRef = rootPageRef;
     while(true) {
-        if(pageTouchCallback)
-            pageTouchCallback(page);
         frame->endIndex = page->header.count;
         if(layer == 0) {
             switch(mode) {
                 case First:
                     frame->index = 0;
-                    return true;
+                    result = true;
+                    break;
                 case Last:
                     frame->index = frame->endIndex-1;
-                    return true;
+                    result = true;
+                    break;
                 case Key:
                     frame->index = binarySearch<OffsetType>(page->template keyCount<true>(), [&](OffsetType at) {
                         return static_cast<KeyType>(keyOrRank) > page->template getKey<true>(at);
                     });
-                    return frame->index < page->header.count && static_cast<KeyType>(keyOrRank) == page->template getKey<true>(frame->index);
+                    result = frame->index < page->header.count && static_cast<KeyType>(keyOrRank) == page->template getKey<true>(frame->index);
+                    break;
                 case Rank:
                     frame->index = static_cast<RankType>(keyOrRank)-frame->rank;
-                    return frame->index < page->header.count;
+                    result = frame->index < page->header.count;
+                    break;
             }
+            if(pageTouchCallback)
+                pageTouchCallback(page);
+            return result;
         } else {
             switch(mode) {
                 case First:

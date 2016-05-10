@@ -79,14 +79,14 @@ struct Blob {
     }
 
     template<NativeIntegerType dir, typename IteratorType>
-    NativeNaturalType preInteroperation(IteratorType& iter, NativeNaturalType offset) {
+    NativeNaturalType getSegmentSize(IteratorType& iter, NativeNaturalType offset) {
         if(dir == 1) {
             if(state == Fragmented) {
                 if(iter[0]->index > 0)
                     return iter[0]->index;
                 iter.template advance<-1>(1);
                 iter[0]->index = iter[0]->endIndex;
-                return iter[0]->index;
+                return iter[0]->endIndex;
             } else
                 return offset;
         } else
@@ -94,58 +94,64 @@ struct Blob {
     }
 
     template<typename IteratorType>
-    NativeNaturalType offsetOfInteroperation(IteratorType& iter, NativeNaturalType offset) {
+    NativeNaturalType addressOfInteroperation(IteratorType& iter, NativeNaturalType offset) {
         return (state == Fragmented) ? iter[0]->pageRef*bitsPerPage+BpTreeBlob::Page::valueOffset+iter[0]->index : address+offset;
     }
 
     template<NativeIntegerType dir, typename IteratorType>
-    void postInteroperation(IteratorType& iter, NativeNaturalType& offset, NativeNaturalType intersection) {
+    void advanceBySegmentSize(IteratorType& iter, NativeNaturalType& offset, NativeNaturalType intersection) {
         if(dir == 1) {
-            if(state == Fragmented) {
-                assert(iter.template advance<-1>(0, intersection) == 0);
-            } else
+            if(state == Fragmented)
+                iter.template advance<-1>(0, intersection);
+            else
                 offset -= intersection;
         } else {
-            if(state == Fragmented) {
-                assert(iter.template advance<+1>(0, intersection) == 0);
-            } else
+            if(state == Fragmented)
+                iter.template advance<+1>(0, intersection);
+            else
                 offset += intersection;
         }
     }
 
     template<NativeIntegerType dir = -1>
-    NativeIntegerType interoperation(Blob& src, NativeNaturalType dstOffset, NativeNaturalType srcOffset, NativeNaturalType length) {
+    NativeIntegerType interoperation(Blob src, NativeNaturalType dstOffset, NativeNaturalType srcOffset, NativeNaturalType length) {
         NativeNaturalType dstEndOffset = dstOffset+length, srcEndOffset = srcOffset+length;
         if(dstOffset >= dstEndOffset || dstEndOffset > getSize() ||
            srcOffset >= srcEndOffset || srcEndOffset > src.getSize())
             return 0;
-        NativeNaturalType dstSegment, srcSegment, intersection;
-        BpTreeBlob::Iterator<dir != 0> dstIter, srcIter;
-        if(state == Fragmented)
-            bpTree.find<Rank>(dstIter, dstOffset);
-        if(src.state == Fragmented)
-            src.bpTree.find<Rank>(srcIter, srcOffset);
+        NativeNaturalType segment[2], intersection, result;
+        BpTreeBlob::Iterator<dir != 0> iter[2];
         if(dir == 1) {
             dstOffset = dstEndOffset;
             srcOffset = srcEndOffset;
         }
-        while(length > 0) {
-            dstSegment = preInteroperation<dir>(dstIter, dstOffset);
-            srcSegment = src.preInteroperation<dir>(srcIter, srcOffset);
-            intersection = min(dstSegment, srcSegment, length);
-            NativeIntegerType result = segmentInteroperation<dir>(offsetOfInteroperation(dstIter, dstOffset),
-                                                                  src.offsetOfInteroperation(srcIter, srcOffset),
-                                                                  intersection);
-            if(result != 0)
-                return result;
-            postInteroperation<dir>(dstIter, dstOffset, intersection);
-            src.postInteroperation<dir>(srcIter, srcOffset, intersection);
+        if(state == Fragmented)
+            bpTree.find<Rank>(iter[0], dstOffset);
+        if(src.state == Fragmented)
+            src.bpTree.find<Rank>(iter[1], srcOffset);
+        while(true) {
+            segment[0] = getSegmentSize<dir>(iter[0], dstOffset);
+            segment[1] = src.getSegmentSize<dir>(iter[1], srcOffset);
+            intersection = min(segment[0], segment[1], length);
+            if(dir == 1) {
+                advanceBySegmentSize<1>(iter[0], dstOffset, intersection);
+                src.advanceBySegmentSize<1>(iter[1], srcOffset, intersection);
+            }
+            result = segmentInteroperation<dir>(addressOfInteroperation(iter[0], dstOffset),
+                                                src.addressOfInteroperation(iter[1], srcOffset),
+                                                intersection);
             length -= intersection;
+            if(length == 0 || result != 0)
+                break;
+            if(dir != 1) {
+                advanceBySegmentSize<-1>(iter[0], dstOffset, intersection);
+                src.advanceBySegmentSize<-1>(iter[1], srcOffset, intersection);
+            }
         }
-        return 0;
+        return (dir == 0) ? result : 1;
     }
 
-    NativeIntegerType compare(Blob& other) {
+    NativeIntegerType compare(Blob other) {
         if(symbol == other.symbol)
             return 0;
         NativeNaturalType size = getSize(), otherSize = other.getSize();
@@ -158,7 +164,7 @@ struct Blob {
         return interoperation<0>(other, 0, 0, size);
     }
 
-    bool slice(Blob& src, NativeNaturalType dstOffset, NativeNaturalType srcOffset, NativeNaturalType length) {
+    bool slice(Blob src, NativeNaturalType dstOffset, NativeNaturalType srcOffset, NativeNaturalType length) {
         if(symbol == src.symbol && dstOffset == srcOffset)
             return false;
         if(dstOffset <= srcOffset) {
@@ -215,8 +221,6 @@ struct Blob {
                 allocateInBucket(size);
                 interoperation(srcBlob, 0, 0, at);
                 interoperation(srcBlob, at, end, size-at);
-                if(state == InBucket)
-                    srcBlob.freeFromBucket();
                 updateAddress(address);
             } else {
                 interoperation<-1>(*this, at, end, size-at);
@@ -227,13 +231,15 @@ struct Blob {
             bpTree.find<Rank>(from, at);
             bpTree.find<Rank>(to, at+count-1);
             bpTree.erase(from, to);
-            updateAddress(bpTree.rootPageRef);
+            address = bpTree.rootPageRef*bitsPerPage;
+            updateAddress(address);
         }
         if(srcBlob.state == InBucket && !(state == InBucket && type == srcBlob.type))
-            freeFromBucket();
+            srcBlob.freeFromBucket();
         if(srcBlob.state == Fragmented && srcBlob.state != Fragmented)
             bpTree.erase();
         modifiedBlob(symbol);
+        assert(size == getSize());
         return true;
     }
 
@@ -250,8 +256,8 @@ struct Blob {
             if(srcBlob.state == Empty || type != srcBlob.type)
                 allocateInBucket(size);
             else {
-                interoperation<1>(*this, at+count, at, size-count-at);
                 bucket->setSize(index, size);
+                interoperation<1>(*this, at+count, at, size-count-at);
             }
         } else {
             BpTreeBlob::Iterator<true> iter;
@@ -264,7 +270,7 @@ struct Blob {
                 bpTree.find<First>(iter);
                 bpTree.insert(iter, size, nullptr);
             }
-            address = bpTree.rootPageRef;
+            address = bpTree.rootPageRef*bitsPerPage;
         }
         switch(srcBlob.state) {
             case Empty:
@@ -282,6 +288,7 @@ struct Blob {
                 break;
         }
         modifiedBlob(symbol);
+        assert(size == getSize());
         return true;
     }
 
@@ -293,7 +300,7 @@ struct Blob {
             decreaseSize(newSize, oldSize-newSize);
     }
 
-    void deepCopy(Blob& src) {
+    void deepCopy(Blob src) {
         if(symbol == src.symbol)
             return;
         NativeNaturalType srcSize = src.getSize();
@@ -311,7 +318,8 @@ struct Blob {
             case InBucket:
                 bitwiseCopySwap<swap>(reinterpret_cast<NativeNaturalType*>(&data),
                                       reinterpret_cast<NativeNaturalType*>(heapBegin),
-                                      0, address, sizeOfInBits<DataType>::value);
+                                      0, address+index*sizeOfInBits<DataType>::value,
+                                      sizeOfInBits<DataType>::value);
             break;
             case Fragmented: {
                 BpTreeBlob::Iterator<false> iter;
@@ -320,17 +328,17 @@ struct Blob {
                 if(segment < sizeOfInBits<DataType>::value) {
                     bitwiseCopySwap<swap>(reinterpret_cast<NativeNaturalType*>(&data),
                                           reinterpret_cast<NativeNaturalType*>(heapBegin),
-                                          0, offsetOfInteroperation(iter, 0), segment);
+                                          0, addressOfInteroperation(iter, 0), segment);
                     assert(iter.template advance<1>(0, segment) == 0);
                     NativeNaturalType rest = sizeOfInBits<DataType>::value-segment;
                     assert(rest <= iter[0]->endIndex-iter[0]->index);
                     bitwiseCopySwap<swap>(reinterpret_cast<NativeNaturalType*>(&data),
                                           reinterpret_cast<NativeNaturalType*>(heapBegin),
-                                          segment, offsetOfInteroperation(iter, 0), rest);
+                                          segment, addressOfInteroperation(iter, 0), rest);
                 } else
                     bitwiseCopySwap<swap>(reinterpret_cast<NativeNaturalType*>(&data),
                                           reinterpret_cast<NativeNaturalType*>(heapBegin),
-                                          0, offsetOfInteroperation(iter, 0), sizeOfInBits<DataType>::value);
+                                          0, addressOfInteroperation(iter, 0), sizeOfInBits<DataType>::value);
             } break;
         }
     }

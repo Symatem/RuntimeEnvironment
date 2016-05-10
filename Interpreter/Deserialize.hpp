@@ -73,9 +73,11 @@ struct Deserialize {
                 NativeNaturalType nibbleCount = pos-tokenBegin;
                 if(nibbleCount == 0)
                     throwException("Empty raw data");
+                if(nibbleCount%2 == 1)
+                    throwException("Count of nibbles must be even");
                 symbol = Storage::createSymbol();
                 Storage::increaseBlobSize(symbol, 0, nibbleCount*4);
-                char nibble;
+                Natural8 nibble, byte;
                 NativeNaturalType at = 0;
                 while(tokenBegin < pos) {
                     src = Storage::readBlobAt<char>(input, tokenBegin);
@@ -86,9 +88,11 @@ struct Deserialize {
                     else
                         throwException("Non hex characters");
                     if(at%2 == 0)
-                        Storage::writeBlobAt<char>(symbol, at/2, nibble);
-                    else
-                        Storage::writeBlobAt<char>(symbol, at/2, Storage::readBlobAt<char>(symbol, at/2)|(nibble<<4));
+                        byte = nibble;
+                    else {
+                        Storage::writeBlobAt<Natural8>(symbol, at/2, byte|(nibble<<4));
+                        byte = 0;
+                    }
                     ++at;
                     ++tokenBegin;
                 }
