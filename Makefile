@@ -1,5 +1,5 @@
 CPPOPTIONS := -std=c++1z -fno-exceptions -fno-stack-protector -fno-use-cxa-atexit -fvisibility=hidden -Wall
-SOURCES := Storage/* Ontology/* Interpreter/*
+SOURCES := Storage/* Ontology/* Interpreter/* Targets/POSIX.hpp
 STDPATH := ../StandardLibrary
 
 test: build/ build/SymatemHRL
@@ -11,19 +11,19 @@ clear:
 build/:
 	mkdir -p build
 
-build/BpTest: $(SOURCES) Targets/POSIX.hpp Targets/BpTest.cpp
+build/BpTest: $(SOURCES) Targets/BpTest.cpp
 	$(CC) $(CPPOPTIONS) -o $@ Targets/BpTest.cpp
 
-build/SymatemHRL: $(SOURCES) Targets/POSIX.hpp Targets/HRL.cpp
+build/SymatemHRL: $(SOURCES) Targets/HRL.cpp
 	$(CC) $(CPPOPTIONS) -o $@ Targets/HRL.cpp
 
-build/WASM.llvm: $(SOURCES) Targets/WASM.cpp
-	$(LLVM_BIN)/clang-3.9 $(CPPOPTIONS) -DWEB_ASSEMBLY -O3 -S -emit-llvm -o $@ Targets/WASM.cpp
+build/WASM.bc: $(SOURCES) Targets/WASM.cpp
+	$(LLVM_BIN)/clang $(CPPOPTIONS) -O3 -c -emit-llvm -o $@ Targets/WASM.cpp
 
-build/WASM.asm: build/WASM.llvm
-	$(LLVM_BIN)/llc -march=wasm32 -filetype=asm -o build/pre.asm build/WASM.llvm
-	perl -pe 's/\.weak/# \.weak/g;' build/pre.asm > $@
-	rm build/pre.asm
+build/WASM.asm: build/WASM.bc
+	$(LLVM_BIN)/llc -march=wasm32 -filetype=asm -o build/WASM.pre_asm build/WASM.bc
+	perl -pe 's/\.weak/# \.weak/g;' build/WASM.pre_asm > $@
+	rm build/WASM.pre_asm
 
 build/Symatem.wast: build/WASM.asm
 	$(BINARYEN_BIN)/s2wasm build/WASM.asm > $@

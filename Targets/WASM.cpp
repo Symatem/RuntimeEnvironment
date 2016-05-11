@@ -24,7 +24,7 @@ extern "C" {
 
     struct Main {
         Main() {
-            Storage::heapBegin = reinterpret_cast<void*>(__builtin_wasm_current_memory()*bitsPerChunk/8);
+            Storage::superPage = reinterpret_cast<Storage::SuperPage*>(__builtin_wasm_current_memory()*bitsPerChunk/8);
             Storage::resizeMemory(Storage::minPageCount);
             Ontology::tryToFillPreDefined();
         }
@@ -35,7 +35,7 @@ void Storage::resizeMemory(NativeNaturalType _pageCount) {
     assert(_pageCount < maxPageCount);
     pageCount = _pageCount;
     NativeNaturalType _chunkCount = (pageCount*Storage::bitsPerPage+bitsPerChunk-1)/bitsPerChunk;
-    NativeNaturalType size = __builtin_wasm_current_memory()*bitsPerChunk, pad = pointerToNatural(Storage::heapBegin)*8;
+    NativeNaturalType size = __builtin_wasm_current_memory()*bitsPerChunk, pad = pointerToNatural(Storage::superPage)*8;
     NativeNaturalType chunkCount = (size > pad) ? (size-pad+bitsPerChunk-1)/bitsPerChunk : 0;
     if(_chunkCount > chunkCount)
         __builtin_wasm_grow_memory(_chunkCount-chunkCount);

@@ -1,5 +1,5 @@
 #include <setjmp.h> // TODO: Replace setjmp/longjmp
-#include <stdlib.h> // TODO: Remove malloc and free
+#include <signal.h> // TODO: Debugging
 #include <stdio.h> // TODO: Debugging
 
 template<bool _value>
@@ -11,11 +11,11 @@ struct isSame : public BoolConstant<false> {};
 template<typename type>
 struct isSame<type, type> : public BoolConstant<true> {};
 
-template<bool B, class T, class F>
+template<bool B, typename T, typename F>
 struct conditional {
     typedef F type;
 };
-template<class T, class F>
+template<typename T, typename F>
 struct conditional<true, T, F> {
     typedef T type;
 };
@@ -30,22 +30,16 @@ typedef float Float32;
 typedef long long unsigned Natural64;
 typedef long long int Integer64;
 typedef double Float64;
+// typedef unsigned __int128 Natural128;
+// typedef __int128 Integer128;
+// typedef long double Float128;
 
-// TODO: No 32bit mode to maintain binary compatibility
-// TODO: 32Bit mode crashes
-#ifdef BIT_MODE_32
-typedef Natural32 NativeNaturalType;
-typedef Integer32 NativeIntegerType;
-typedef Float32 NativeFloatType;
-#else
-typedef Natural64 NativeNaturalType;
-typedef Integer64 NativeIntegerType;
-typedef Float64 NativeFloatType;
-#endif
-
+const Natural8 architectureSize = sizeof(void*)*8;
+typedef conditional<architectureSize == 32, Natural32, Natural64>::type NativeNaturalType;
+typedef conditional<architectureSize == 32, Integer32, Integer64>::type NativeIntegerType;
+typedef conditional<architectureSize == 32, Float32, Float64>::type NativeFloatType;
 typedef NativeNaturalType PageRefType;
 typedef NativeNaturalType Symbol;
-const NativeNaturalType architectureSize = sizeof(NativeNaturalType)*8;
 
 struct VoidType {
     VoidType() {}
@@ -72,7 +66,7 @@ struct VoidType {
     }
 };
 
-template<class Type>
+template<typename Type>
 struct sizeOfInBits {
     static constexpr NativeNaturalType value = sizeof(Type)*8;
 };

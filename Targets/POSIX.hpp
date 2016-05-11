@@ -2,6 +2,7 @@
 #include <sys/stat.h>
 #include <sys/mman.h>
 #include <unistd.h>
+#include <stdlib.h>
 #include <dirent.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -35,20 +36,21 @@ void printStats() {
     printf("      Vacant:      %10llu bits\n", Storage::bitsPerPage-sizeOfInBits<Storage::SuperPage>::value);
 
     resetStats(stats);
-    Storage::fullBlobBuckets.generateStats(stats, [&](Storage::BpTreeSet<PageRefType>::Iterator<false>& iter) {
+    auto superPage = Storage::dereferencePage<Storage::SuperPage>(0);
+    superPage->fullBlobBuckets.generateStats(stats, [&](Storage::BpTreeSet<PageRefType>::Iterator<false>& iter) {
         Storage::dereferencePage<Storage::BlobBucket>(iter.getKey())->generateStats(stats);
     });
     for(NativeNaturalType i = 0; i < Storage::blobBucketTypeCount; ++i)
-        Storage::freeBlobBuckets[i].generateStats(stats, [&](Storage::BpTreeSet<PageRefType>::Iterator<false>& iter) {
+        superPage->freeBlobBuckets[i].generateStats(stats, [&](Storage::BpTreeSet<PageRefType>::Iterator<false>& iter) {
             Storage::dereferencePage<Storage::BlobBucket>(iter.getKey())->generateStats(stats);
         });
     printf("  Blob Buckets:    %10llu\n", stats.elementCount); // TODO elementCount is both, B+Tree and Blobs
     printStatsPartial(stats);
 
     resetStats(stats);
-    Storage::blobs.generateStats(stats);
-    printf("  Symbols:         %10llu\n", Storage::symbolCount);
-    printf("    Recyclable:    %10llu\n", Storage::symbolCount-stats.elementCount);
+    superPage->blobs.generateStats(stats);
+    printf("  Symbols:         %10llu\n", superPage->symbolCount);
+    printf("    Recyclable:    %10llu\n", superPage->symbolCount-stats.elementCount);
     printf("    Used:          %10llu\n", stats.elementCount);
     printf("      Meta:        %10llu\n", stats.elementCount-Ontology::symbols.size());
     printf("      User:        %10llu\n", Ontology::symbols.size());
@@ -80,13 +82,13 @@ NativeNaturalType bytesForPages(NativeNaturalType pageCount) {
 
 void Storage::resizeMemory(NativeNaturalType _pageCount) {
     if(pageCount)
-        munmap(heapBegin, bytesForPages(pageCount));
+        munmap(superPage, bytesForPages(pageCount));
     assert(_pageCount < maxPageCount);
     pageCount = _pageCount;
     assert(ftruncate(file, bytesForPages(pageCount)) == 0);
-    assert(MMAP_FUNC(heapBegin, bytesForPages(pageCount),
+    assert(MMAP_FUNC(superPage, bytesForPages(pageCount),
                      PROT_READ|PROT_WRITE, MAP_FIXED|MAP_FILE|MAP_SHARED,
-                     file, 0) == heapBegin);
+                     file, 0) == superPage);
 }
 
 void loadStorage(const Integer8* path) {
@@ -95,14 +97,14 @@ void loadStorage(const Integer8* path) {
     Storage::pageCount = lseek(file, 0, SEEK_END)/(Storage::bitsPerPage/8);
     if(Storage::pageCount < Storage::minPageCount)
         Storage::pageCount = Storage::minPageCount;
-    Storage::heapBegin = MMAP_FUNC(nullptr, bytesForPages(Storage::maxPageCount), PROT_NONE, MAP_FILE|MAP_SHARED, file, 0);
-    assert(Storage::heapBegin != MAP_FAILED);
+    Storage::superPage = reinterpret_cast<Storage::SuperPage*>(MMAP_FUNC(nullptr, bytesForPages(Storage::maxPageCount), PROT_NONE, MAP_FILE|MAP_SHARED, file, 0));
+    assert(Storage::superPage != MAP_FAILED);
     Storage::resizeMemory(Storage::pageCount);
 }
 
 void unloadStorage() {
     if(Storage::pageCount)
-        munmap(Storage::heapBegin, bytesForPages(Storage::pageCount));
+        munmap(Storage::superPage, bytesForPages(Storage::pageCount));
     assert(ftruncate(file, bytesForPages(Storage::pageCount)) == 0);
     assert(close(file) == 0);
 }

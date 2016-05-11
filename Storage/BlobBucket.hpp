@@ -1,12 +1,6 @@
-#include "BpContainers.hpp"
+#include "SuperPage.hpp"
 
 namespace Storage {
-
-// TODO: Redistribution if there are many almost empty buckets of the same type
-const NativeNaturalType blobBucketTypeCount = 15, blobBucketType[blobBucketTypeCount] =
-    {8, 16, 32, 64, 192, 320, 640, 1152, 2112, 3328, 6016, 7552, 10112, 15232, 30641};
-// blobBucketTypeCount = 11, {8, 16, 32, 64, 192, 320, 640, 1152, 3328, 7552, 15232};
-BpTreeSet<PageRefType> fullBlobBuckets, freeBlobBuckets[blobBucketTypeCount];
 
 struct BlobBucketHeader : public BasePage {
     Natural16 type, count, freeIndex;
@@ -81,12 +75,12 @@ struct BlobBucket {
     void freeIndex(NativeNaturalType index, PageRefType pageRef) {
         assert(getSize(index) > 0);
         if(isFull()) {
-            assert(fullBlobBuckets.erase<Key>(pageRef));
-            assert(freeBlobBuckets[header.type].insert(pageRef));
+            assert(superPage->fullBlobBuckets.erase<Key>(pageRef));
+            assert(superPage->freeBlobBuckets[header.type].insert(pageRef));
         }
         --header.count;
         if(isEmpty()) {
-            assert(freeBlobBuckets[header.type].erase<Key>(pageRef));
+            assert(superPage->freeBlobBuckets[header.type].erase<Key>(pageRef));
             releasePage(pageRef);
         } else {
             setSize(index, 0);
@@ -103,8 +97,8 @@ struct BlobBucket {
         setSize(index, size);
         setSymbol(index, symbol);
         if(isFull()) {
-            assert(fullBlobBuckets.insert(pageRef));
-            assert(freeBlobBuckets[header.type].erase<Key>(pageRef));
+            assert(superPage->fullBlobBuckets.insert(pageRef));
+            assert(superPage->freeBlobBuckets[header.type].erase<Key>(pageRef));
         }
         return index;
     }

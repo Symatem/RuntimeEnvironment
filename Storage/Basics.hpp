@@ -47,27 +47,6 @@ NativeNaturalType pointerToNatural(void* ptr) {
     return reinterpret_cast<long unsigned>(ptr);
 }
 
-struct Stats {
-    NativeNaturalType elementCount,
-                      uninhabitable,
-                      totalMetaData,
-                      totalPayload,
-                      inhabitedMetaData,
-                      inhabitedPayload;
-};
-
-struct BasePage {
-    NativeNaturalType transaction;
-};
-
-struct FreePage : public BasePage {
-    PageRefType next;
-};
-
-struct SuperPage : public BasePage {
-    PageRefType freePage;
-};
-
 template<NativeIntegerType dir>
 NativeNaturalType aquireSegmentFrom(const NativeNaturalType* src, NativeNaturalType& srcOffset, NativeNaturalType length) {
     if(dir == +1)
@@ -202,65 +181,29 @@ const NativeNaturalType
       minPageCount = 1,
       maxPageCount = 2000*512;
 
-void* heapBegin;
-PageRefType pageCount;
+struct Stats {
+    NativeNaturalType elementCount,
+                      uninhabitable,
+                      totalMetaData,
+                      totalPayload,
+                      inhabitedMetaData,
+                      inhabitedPayload;
+};
+
+struct BasePage {
+    NativeNaturalType transaction;
+};
 
 void resizeMemory(NativeNaturalType pageCount);
 
+// TODO: Remove
 template<typename DataType = NativeNaturalType>
-DataType* dereferenceBits(Symbol address) {
-    return reinterpret_cast<DataType*>(reinterpret_cast<char*>(heapBegin)+address/8);
-}
+DataType* dereferenceBits(Symbol address);
 
 template<typename PageType>
-PageType* dereferencePage(PageRefType pageRef) {
-    assert(pageRef < pageCount);
-    return reinterpret_cast<PageType*>(reinterpret_cast<char*>(heapBegin)+bitsPerPage/8*pageRef);
-}
-
-PageRefType referenceOfPage(void* page) {
-    PageRefType pageRef = (reinterpret_cast<Natural64>(page)-reinterpret_cast<Natural64>(heapBegin))*8/bitsPerPage;
-    assert(pageRef < pageCount);
-    return pageRef;
-}
-
-PageRefType aquirePage() {
-    assert(heapBegin);
-    auto superPage = dereferencePage<SuperPage>(0);
-    if(superPage->freePage) {
-        PageRefType pageRef = superPage->freePage;
-        auto freePage = dereferencePage<FreePage>(pageRef);
-        superPage->freePage = freePage->next;
-        return pageRef;
-    } else {
-        resizeMemory(pageCount+1);
-        return pageCount-1;
-    }
-}
-
-void releasePage(PageRefType pageRef) {
-    assert(heapBegin);
-    if(pageRef == pageCount-1)
-        resizeMemory(pageCount-1);
-    else {
-        auto superPage = dereferencePage<SuperPage>(0);
-        auto freePage = dereferencePage<FreePage>(pageRef);
-        freePage->next = superPage->freePage;
-        superPage->freePage = pageRef;
-    }
-}
-
-NativeNaturalType countFreePages() {
-    auto superPage = dereferencePage<SuperPage>(0);
-    if(!superPage->freePage)
-        return 0;
-    NativeNaturalType count = 1;
-    auto freePage = dereferencePage<FreePage>(superPage->freePage);
-    while(freePage->next) {
-        freePage = dereferencePage<FreePage>(freePage->next);
-        ++count;
-    }
-    return count;
-}
+PageType* dereferencePage(PageRefType pageRef);
+PageRefType referenceOfPage(void* page);
+PageRefType aquirePage();
+void releasePage(PageRefType pageRef);
 
 };

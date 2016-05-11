@@ -514,7 +514,7 @@ void tryToFillPreDefined() {
     blobIndex.symbol = preDefinedSymbolsEnd+1;
     if(!symbols.empty())
         return;
-    Storage::symbolCount = preDefinedSymbolsEnd+2;
+    Storage::superPage->symbolCount = preDefinedSymbolsEnd+2;
     for(Symbol symbol = 0; symbol < preDefinedSymbolsEnd; ++symbol) {
         const char* str = PreDefinedSymbols[symbol];
         stringToBlob(str, strlen(str), symbol);

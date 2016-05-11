@@ -1,16 +1,14 @@
 #include "BlobBucket.hpp"
+#include <stdlib.h> // TODO: Remove
 
 namespace Storage {
 
-BpTreeMap<Symbol, NativeNaturalType> blobs;
-// BpTreeSet<Symbol> freeSymbols; // TODO: Fix scrutinizeExistence
-Symbol symbolCount = 0;
-
 Symbol createSymbol() {
-    /*if(freeSymbols.elementCount)
-        return freeSymbols.getOne<First, true>();
+    /* TODO: Fix scrutinizeExistence
+    if(freeSymbols.elementCount)
+        return superPage->freeSymbols.getOne<First, true>();
     else */
-        return symbolCount++;
+        return superPage->symbolCount++;
 }
 
 void modifiedBlob(Symbol symbol) {
@@ -18,10 +16,12 @@ void modifiedBlob(Symbol symbol) {
     // blobIndex.eraseElement(symbol);
 }
 
+#if 0 // TODO: Debugging
+
 struct Blob {
     Symbol symbol;
     PageRefType pageRef;
-    NativeNaturalType address, offset, index;
+    NativeNaturalType address, offsetInBucket, indexInBucket;
     Natural16 type;
     BpTreeBlob bpTree;
     BlobBucket* bucket;
@@ -36,17 +36,17 @@ struct Blob {
     Blob(Symbol _symbol) {
         symbol = _symbol;
         BpTreeMap<Symbol, NativeNaturalType>::Iterator<true> iter;
-        if(!blobs.find<Key>(iter, symbol)) {
+        if(!superPage->blobs.find<Key>(iter, symbol)) {
             state = Empty;
             return;
         }
         address = iter.getValue();
         pageRef = address/bitsPerPage;
-        offset = address-pageRef*bitsPerPage;
-        if(offset) {
+        offsetInBucket = address-pageRef*bitsPerPage;
+        if(offsetInBucket > 0) {
             state = InBucket;
             bucket = dereferencePage<BlobBucket>(pageRef);
-            index = bucket->indexOfOffset(offset);
+            indexInBucket = bucket->indexOfOffset(offsetInBucket);
         } else {
             state = Fragmented;
             bpTree.rootPageRef = pageRef;
@@ -58,7 +58,7 @@ struct Blob {
             case Empty:
                 return 0;
             case InBucket:
-                return bucket->getSize(index);
+                return bucket->getSize(indexInBucket);
             case Fragmented:
                 return bpTree.getElementCount();
         }
@@ -67,12 +67,12 @@ struct Blob {
     template<NativeIntegerType dir>
     static NativeIntegerType segmentInteroperation(NativeNaturalType dst, NativeNaturalType src, NativeNaturalType length) {
         if(dir == 0)
-            return bitwiseCompare(reinterpret_cast<NativeNaturalType*>(heapBegin),
-                                  reinterpret_cast<const NativeNaturalType*>(heapBegin),
+            return bitwiseCompare(reinterpret_cast<NativeNaturalType*>(superPage),
+                                  reinterpret_cast<const NativeNaturalType*>(superPage),
                                   dst, src, length);
         else {
-            bitwiseCopy<dir>(reinterpret_cast<NativeNaturalType*>(heapBegin),
-                             reinterpret_cast<const NativeNaturalType*>(heapBegin),
+            bitwiseCopy<dir>(reinterpret_cast<NativeNaturalType*>(superPage),
+                             reinterpret_cast<const NativeNaturalType*>(superPage),
                              dst, src, length);
             return 0;
         }
@@ -81,7 +81,7 @@ struct Blob {
     template<NativeIntegerType dir, typename IteratorType>
     NativeNaturalType getSegmentSize(IteratorType& iter, NativeNaturalType offset) {
         if(dir == 1) {
-            if(state == Fragmented) {
+            if(state == Fragmented) { // TODO: Rethink
                 if(iter[0]->index > 0)
                     return iter[0]->index;
                 iter.template advance<-1>(1);
@@ -90,7 +90,7 @@ struct Blob {
             } else
                 return offset;
         } else
-            return (state == Fragmented) ? iter[0]->endIndex-iter[0]->index : bucket->getSize(index)-offset;
+            return (state == Fragmented) ? iter[0]->endIndex-iter[0]->index : bucket->getSize(indexInBucket)-offset;
     }
 
     template<typename IteratorType>
@@ -180,27 +180,28 @@ struct Blob {
 
     void allocateInBucket(NativeNaturalType size) {
         assert(size > 0);
-        if(freeBlobBuckets[type].empty()) {
+        if(superPage->freeBlobBuckets[type].empty()) {
             pageRef = aquirePage();
             bucket = dereferencePage<BlobBucket>(pageRef);
             bucket->init(type);
-            assert(freeBlobBuckets[type].insert(pageRef));
+            assert(superPage->freeBlobBuckets[type].insert(pageRef));
         } else {
-            pageRef = freeBlobBuckets[type].getOne<First, false>();
+            pageRef = superPage->freeBlobBuckets[type].getOne<First, false>();
             bucket = dereferencePage<BlobBucket>(pageRef);
         }
-        index = bucket->allocateIndex(size, symbol, pageRef);
-        address = pageRef*bitsPerPage+bucket->offsetOfIndex(index);
+        indexInBucket = bucket->allocateIndex(size, symbol, pageRef);
+        offsetInBucket = bucket->offsetOfIndex(indexInBucket);
+        address = pageRef*bitsPerPage+offsetInBucket;
     }
 
     void freeFromBucket() {
         assert(state == InBucket);
-        bucket->freeIndex(index, pageRef);
+        bucket->freeIndex(indexInBucket, pageRef);
     }
 
     void updateAddress(NativeNaturalType address) {
         BpTreeMap<Symbol, NativeNaturalType>::Iterator<true> iter;
-        blobs.find<Key>(iter, symbol);
+        superPage->blobs.find<Key>(iter, symbol);
         iter.setValue(address);
     }
 
@@ -212,7 +213,7 @@ struct Blob {
         Blob srcBlob = *this;
         if(size == 0) {
             state = Empty;
-            blobs.erase<Key>(symbol);
+            superPage->blobs.erase<Key>(symbol);
         } else if(BlobBucket::isBucketAllocatable(size)) {
             type = BlobBucket::getType(size);
             srcBlob.type = BlobBucket::getType(size+count);
@@ -224,7 +225,7 @@ struct Blob {
                 updateAddress(address);
             } else {
                 interoperation<-1>(*this, at, end, size-at);
-                bucket->setSize(index, size);
+                bucket->setSize(indexInBucket, size);
             }
         } else {
             BpTreeBlob::Iterator<true> from, to;
@@ -256,7 +257,7 @@ struct Blob {
             if(srcBlob.state == Empty || type != srcBlob.type)
                 allocateInBucket(size);
             else {
-                bucket->setSize(index, size);
+                bucket->setSize(indexInBucket, size);
                 interoperation<1>(*this, at+count, at, size-count-at);
             }
         } else {
@@ -274,7 +275,7 @@ struct Blob {
         }
         switch(srcBlob.state) {
             case Empty:
-                blobs.insert(symbol, address);
+                superPage->blobs.insert(symbol, address);
                 break;
             case InBucket:
                 if(state != InBucket || type != srcBlob.type) {
@@ -312,47 +313,106 @@ struct Blob {
     template<bool swap, typename DataType>
     void externalOperate(NativeNaturalType index, DataType& data) {
         assert((index+1)*sizeOfInBits<DataType>::value <= getSize());
-        switch(state) {
-            case Empty:
-                assert(false);
-            case InBucket:
+        if(state == InBucket) {
+            bitwiseCopySwap<swap>(reinterpret_cast<NativeNaturalType*>(&data),
+                                  reinterpret_cast<NativeNaturalType*>(superPage),
+                                  0, address+index*sizeOfInBits<DataType>::value,
+                                  sizeOfInBits<DataType>::value);
+        } else {
+            BpTreeBlob::Iterator<false> iter;
+            bpTree.find<Rank>(iter, index*sizeOfInBits<DataType>::value);
+            NativeNaturalType segment = iter[0]->endIndex-iter[0]->index;
+            if(segment < sizeOfInBits<DataType>::value) {
                 bitwiseCopySwap<swap>(reinterpret_cast<NativeNaturalType*>(&data),
-                                      reinterpret_cast<NativeNaturalType*>(heapBegin),
-                                      0, address+index*sizeOfInBits<DataType>::value,
-                                      sizeOfInBits<DataType>::value);
-            break;
-            case Fragmented: {
-                BpTreeBlob::Iterator<false> iter;
-                bpTree.find<Rank>(iter, index*sizeOfInBits<DataType>::value);
-                NativeNaturalType segment = iter[0]->endIndex-iter[0]->index;
-                if(segment < sizeOfInBits<DataType>::value) {
-                    bitwiseCopySwap<swap>(reinterpret_cast<NativeNaturalType*>(&data),
-                                          reinterpret_cast<NativeNaturalType*>(heapBegin),
-                                          0, addressOfInteroperation(iter, 0), segment);
-                    assert(iter.template advance<1>(0, segment) == 0);
-                    NativeNaturalType rest = sizeOfInBits<DataType>::value-segment;
-                    assert(rest <= iter[0]->endIndex-iter[0]->index);
-                    bitwiseCopySwap<swap>(reinterpret_cast<NativeNaturalType*>(&data),
-                                          reinterpret_cast<NativeNaturalType*>(heapBegin),
-                                          segment, addressOfInteroperation(iter, 0), rest);
-                } else
-                    bitwiseCopySwap<swap>(reinterpret_cast<NativeNaturalType*>(&data),
-                                          reinterpret_cast<NativeNaturalType*>(heapBegin),
-                                          0, addressOfInteroperation(iter, 0), sizeOfInBits<DataType>::value);
-            } break;
+                                      reinterpret_cast<NativeNaturalType*>(superPage),
+                                      0, addressOfInteroperation(iter, 0), segment);
+                assert(iter.template advance<1>(0, segment) == 0);
+                NativeNaturalType rest = sizeOfInBits<DataType>::value-segment;
+                assert(rest <= iter[0]->endIndex-iter[0]->index);
+                bitwiseCopySwap<swap>(reinterpret_cast<NativeNaturalType*>(&data),
+                                      reinterpret_cast<NativeNaturalType*>(superPage),
+                                      segment, addressOfInteroperation(iter, 0), rest);
+            } else
+                bitwiseCopySwap<swap>(reinterpret_cast<NativeNaturalType*>(&data),
+                                      reinterpret_cast<NativeNaturalType*>(superPage),
+                                      0, addressOfInteroperation(iter, 0), sizeOfInBits<DataType>::value);
         }
     }
 };
 
+NativeNaturalType getBlobSize(Symbol symbol) {
+    return Blob(symbol).getSize();
+}
+
+void setBlobSize(Symbol symbol, NativeNaturalType size) {
+    Blob(symbol).setSize(size);
+}
+
+template<typename DataType>
+DataType readBlobAt(Symbol srcSymbol, NativeNaturalType srcIndex) {
+    DataType dst;
+    Blob(srcSymbol).externalOperate<false, DataType>(srcIndex, dst);
+    return dst;
+}
+
+template<typename DataType>
+void writeBlobAt(Symbol dstSymbol, NativeNaturalType dstIndex, DataType src) {
+    Blob(dstSymbol).externalOperate<true, DataType>(dstIndex, src);
+}
+
+template<typename DataType>
+DataType readBlob(Symbol srcSymbol) {
+    return readBlobAt<DataType>(srcSymbol, 0);
+}
+
+template<typename DataType>
+void writeBlob(Symbol dstSymbol, DataType src) {
+    Blob dstBlob(dstSymbol);
+    dstBlob.setSize(sizeOfInBits<DataType>::value);
+    dstBlob.externalOperate<true, DataType>(0, src);
+    modifiedBlob(dstSymbol);
+}
+
+NativeIntegerType compareBlobs(Symbol aSymbol, Symbol bSymbol) {
+    return Blob(aSymbol).compare(Blob(bSymbol));
+}
+
+bool sliceBlob(Symbol dstSymbol, Symbol srcSymbol, NativeNaturalType dstOffset, NativeNaturalType srcOffset, NativeNaturalType length) {
+    return Blob(dstSymbol).slice(Blob(srcSymbol), dstOffset, srcOffset, length);
+}
+
+void cloneBlob(Symbol dstSymbol, Symbol srcSymbol) {
+    Blob(dstSymbol).deepCopy(Blob(srcSymbol));
+}
+
+bool decreaseBlobSize(Symbol symbol, NativeNaturalType at, NativeNaturalType count) {
+    return Blob(symbol).decreaseSize(at, count);
+}
+
+bool increaseBlobSize(Symbol symbol, NativeNaturalType at, NativeNaturalType count) {
+    return Blob(symbol).increaseSize(at, count);
+}
+
+void releaseSymbol(Symbol symbol) {
+    Blob(symbol).setSize(0);
+    /* TODO: Fix scrutinizeExistence
+    if(symbol == superPage->symbolCount-1)
+        --superPage->symbolCount;
+    else
+        superPage->freeSymbols.insert(symbol); */
+}
+
+#else
+
 NativeNaturalType accessBlobData(Symbol symbol) {
     BpTreeMap<Symbol, NativeNaturalType>::Iterator<false> iter;
-    assert(blobs.find<Key>(iter, symbol));
+    assert(superPage->blobs.find<Key>(iter, symbol));
     return iter.getValue();
 }
 
 NativeNaturalType getBlobSize(Symbol symbol) {
     BpTreeMap<Symbol, NativeNaturalType>::Iterator<false> iter;
-    if(!blobs.find<Key>(iter, symbol))
+    if(!superPage->blobs.find<Key>(iter, symbol))
         return 0;
     return *dereferenceBits(iter.getValue()-architectureSize);
 }
@@ -360,7 +420,7 @@ NativeNaturalType getBlobSize(Symbol symbol) {
 void setBlobSize(Symbol symbol, NativeNaturalType size, NativeNaturalType preserve = 0) {
     BpTreeMap<Symbol, NativeNaturalType>::Iterator<true> iter;
     NativeNaturalType oldBlob, oldBlobSize;
-    if(blobs.find<Key>(iter, symbol)) {
+    if(superPage->blobs.find<Key>(iter, symbol)) {
         oldBlob = iter.getValue();
         oldBlobSize = getBlobSize(symbol);
     } else
@@ -371,22 +431,22 @@ void setBlobSize(Symbol symbol, NativeNaturalType size, NativeNaturalType preser
     if(size > 0) {
         newBlob = pointerToNatural(malloc((size+2*architectureSize-1)/architectureSize*architectureSize))+sizeof(NativeNaturalType);
         *reinterpret_cast<NativeNaturalType*>(newBlob+size/architectureSize*sizeof(NativeNaturalType)) = 0;
-        newBlob = (newBlob-pointerToNatural(heapBegin))*8;
+        newBlob = (newBlob-pointerToNatural(superPage))*8;
     }
     if(!oldBlob) {
         if(size == 0)
             return;
-        blobs.insert(iter, symbol, newBlob);
-        assert(blobs.find<Key>(iter, symbol));
+        superPage->blobs.insert(iter, symbol, newBlob);
+        assert(superPage->blobs.find<Key>(iter, symbol));
     } else if(oldBlobSize > 0) {
         NativeNaturalType length = min(oldBlobSize, size, preserve);
         if(length > 0)
-            bitwiseCopy<-1>(reinterpret_cast<NativeNaturalType*>(heapBegin),
-                            reinterpret_cast<const NativeNaturalType*>(heapBegin),
+            bitwiseCopy<-1>(reinterpret_cast<NativeNaturalType*>(superPage),
+                            reinterpret_cast<const NativeNaturalType*>(superPage),
                             newBlob, oldBlob, length);
         free(dereferenceBits(oldBlob-architectureSize));
         if(size == 0) {
-            blobs.erase(iter);
+            superPage->blobs.erase(iter);
             return;
         }
     }
@@ -430,8 +490,8 @@ NativeIntegerType compareBlobs(Symbol a, Symbol b) {
         return 1;
     if(sizeA == 0)
         return 0;
-    return bitwiseCompare(reinterpret_cast<const NativeNaturalType*>(heapBegin),
-                          reinterpret_cast<const NativeNaturalType*>(heapBegin),
+    return bitwiseCompare(reinterpret_cast<const NativeNaturalType*>(superPage),
+                          reinterpret_cast<const NativeNaturalType*>(superPage),
                           accessBlobData(a), accessBlobData(b), sizeA);
 }
 
@@ -444,8 +504,8 @@ bool sliceBlob(Symbol dst, Symbol src, NativeNaturalType dstOffset, NativeNatura
     end = srcOffset+length;
     if(end <= srcOffset || end > srcSize)
         return false;
-    bitwiseCopy(reinterpret_cast<NativeNaturalType*>(heapBegin),
-                reinterpret_cast<const NativeNaturalType*>(heapBegin),
+    bitwiseCopy(reinterpret_cast<NativeNaturalType*>(superPage),
+                reinterpret_cast<const NativeNaturalType*>(superPage),
                 accessBlobData(dst)+dstOffset, accessBlobData(src)+srcOffset, length);
     modifiedBlob(dst);
     return true;
@@ -487,5 +547,7 @@ bool increaseBlobSize(Symbol symbol, NativeNaturalType at, NativeNaturalType cou
 void releaseSymbol(Symbol symbol) {
     setBlobSize(symbol, 0);
 }
+
+#endif
 
 };
