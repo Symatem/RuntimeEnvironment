@@ -12,10 +12,10 @@ build/:
 	mkdir -p build
 
 build/BpTest: $(SOURCES) Targets/BpTest.cpp
-	$(CC) $(CPPOPTIONS) -o $@ Targets/BpTest.cpp
+	$(COMPILER) $(CPPOPTIONS) -o $@ Targets/BpTest.cpp
 
 build/SymatemHRL: $(SOURCES) Targets/HRL.cpp
-	$(CC) $(CPPOPTIONS) -o $@ Targets/HRL.cpp
+	$(COMPILER) $(CPPOPTIONS) -o $@ Targets/HRL.cpp
 
 build/WASM.bc: $(SOURCES) Targets/WASM.cpp
 	$(LLVM_BIN)/clang $(CPPOPTIONS) -O3 -c -emit-llvm -o $@ Targets/WASM.cpp
