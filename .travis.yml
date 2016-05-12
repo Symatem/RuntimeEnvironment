@@ -1,9 +1,11 @@
 language: cpp
-compiler:
-- clang
-- gcc
+matrix:
+  include:
+    - os: linux
+      env: COMPILER=clang-3.9
+    - os: linux
+      env: COMPILER=gcc-6
+    - os: osx
+      osx_image: xcode7.3
+      env: COMPILER=clang
 script: make test
-os:
-- osx
-- linux
-osx_image: xcode7.2
