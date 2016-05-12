@@ -1,11 +1,21 @@
 language: cpp
+script: make test
 matrix:
   include:
     - os: linux
-      env: COMPILER=clang-3.9
+      compiler: gcc6
+      addons:
+        apt:
+          sources: ['ubuntu-toolchain-r-test']
+          packages: ['g++-6']
+      env: CC=gcc-6 CXX=g++-6
     - os: linux
-      env: COMPILER=gcc-6
+      compiler: clang39
+      addons:
+        apt:
+          sources: ['ubuntu-toolchain-r-test', 'llvm-toolchain-precise']
+          packages: ['clang-3.9']
+      env: CC=clang-3.9 CXX=clang++-3.9
     - os: osx
       osx_image: xcode7.3
-      env: COMPILER=clang
-script: make test
+      compiler: clang
