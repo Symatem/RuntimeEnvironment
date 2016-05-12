@@ -1,20 +1,20 @@
-language: cpp
+language: generic
 script: make test
 matrix:
   include:
     - os: linux
-      compiler: gcc6
+      compiler: gcc-6
       addons:
         apt:
           sources: ['ubuntu-toolchain-r-test']
-          packages: ['g++-6']
+          packages: ['gcc-6']
       env: CC=gcc-6 CXX=g++-6
     - os: linux
-      compiler: clang39
+      compiler: clang-3.9
       addons:
         apt:
           sources: ['ubuntu-toolchain-r-test', 'llvm-toolchain-precise']
-          packages: ['clang-3.9']
+          packages: ['llvm-3.9']
       env: CC=clang-3.9 CXX=clang++-3.9
     - os: osx
       osx_image: xcode7.3
