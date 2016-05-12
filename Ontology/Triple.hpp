@@ -472,7 +472,8 @@ void scrutinizeExistence(Symbol symbol) {
 
 template<typename DataType>
 Symbol createFromData(DataType src) {
-    Symbol blobType;
+    static_assert(sizeOfInBits<DataType>::value == architectureSize);
+    Symbol blobType = VoidSymbol;
     if(isSame<DataType, NativeNaturalType>::value)
         blobType = NaturalSymbol;
     else if(isSame<DataType, NativeIntegerType>::value)
@@ -521,7 +522,7 @@ void tryToFillPreDefined() {
         link({RunTimeEnvironmentSymbol, HoldsSymbol, symbol});
         blobIndex.insertElement(symbol);
     }
-    Symbol ArchitectureSize = createFromData(architectureSize);
+    Symbol ArchitectureSize = createFromData<NativeNaturalType>(architectureSize);
     link({RunTimeEnvironmentSymbol, HoldsSymbol, ArchitectureSize});
     link({RunTimeEnvironmentSymbol, ArchitectureSizeSymbol, ArchitectureSize});
 }

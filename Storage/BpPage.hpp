@@ -240,11 +240,13 @@ struct Page {
     }
 
     template<bool isLeaf>
-    static void erase1(Page* lower, OffsetType start, OffsetType end) {
+    static void erase1(Page* lowerParent, Page* lower, OffsetType lowerParentIndex, OffsetType start, OffsetType end) {
         assert(start < end && end <= lower->header.count);
         if(isLeaf)
             copyLeafElements<-1>(lower, lower, start, end, lower->header.count-end);
         else {
+            if(lowerParent && start == 0 && end != lower->header.count)
+                copyKey<false, false>(lowerParent, lower, lowerParentIndex, end-1);
             if(start > 0)
                 copyBranchElements<true, -1>(lower, lower, start, end, lower->header.count-end);
             else if(end < lower->header.count)

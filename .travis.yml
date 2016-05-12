@@ -5,5 +5,5 @@ compiler:
 script: make test
 os:
 - osx
-# - linux
+- linux
 osx_image: xcode7.2

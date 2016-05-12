@@ -344,7 +344,7 @@ struct BpTree {
         }
         if(rankBits)
             for(data.layer = unmodifiedLayer; data.layer < iter.end; ++data.layer) {
-                InsertIteratorFrame* frame = iter[unmodifiedLayer];
+                InsertIteratorFrame* frame = iter[data.layer];
                 frame->rank = frame->index;
                 frame->endIndex = frame->index+1;
                 Page* page = getPage(frame->pageRef);
@@ -407,10 +407,10 @@ struct BpTree {
 
     template<bool isLeaf>
     bool eraseLayer(EraseData& data) {
-        OffsetType lowerInnerIndex = data.from[data.layer]->index+data.spareLowerInner,
-                   higherInnerIndex = data.to[data.layer]->index+data.eraseHigherInner;
-        Page *lowerInner = getPage(data.from[data.layer]->pageRef),
-             *higherInner = getPage(data.to[data.layer]->pageRef);
+        OffsetType lowerInnerIndex = data.from[data.layer]->index+data.spareLowerInner, lowerInnerParentIndex,
+                   higherInnerIndex = data.to[data.layer]->index+data.eraseHigherInner, higherInnerParentIndex;
+        Page *lowerInner = getPage(data.from[data.layer]->pageRef), *lowerInnerParent,
+             *higherInner = getPage(data.to[data.layer]->pageRef), *higherInnerParent;
         bool keepRunning = true, ranksFromBelow = rankBits && !isLeaf;
         if(ranksFromBelow) {
             lowerInner->disintegrateRanks(0, lowerInner->header.count);
@@ -425,10 +425,12 @@ struct BpTree {
         }
         data.spareLowerInner = true;
         data.eraseHigherInner = false;
+        data.from.getParentFrame(data.layer, lowerInnerParent, lowerInnerParentIndex);
+        data.to.getParentFrame(data.layer, higherInnerParent, higherInnerParentIndex);
         if(lowerInner == higherInner) {
             higherInner = nullptr;
             if(lowerInnerIndex < higherInnerIndex) {
-                Page::template erase1<isLeaf>(lowerInner, lowerInnerIndex, higherInnerIndex);
+                Page::template erase1<isLeaf>(lowerInnerParent, lowerInner, lowerInnerParentIndex, lowerInnerIndex, higherInnerIndex);
                 if(data.layer == data.from.end-1) {
                     eraseEmptyLayer<isLeaf>(data, lowerInner);
                     keepRunning = false;
@@ -436,10 +438,6 @@ struct BpTree {
             } else
                 keepRunning = false;
         } else {
-            Page *lowerInnerParent, *higherInnerParent;
-            OffsetType lowerInnerParentIndex, higherInnerParentIndex;
-            data.from.getParentFrame(data.layer, lowerInnerParent, lowerInnerParentIndex);
-            data.to.getParentFrame(data.layer, higherInnerParent, higherInnerParentIndex);
             if(Page::template erase2<isLeaf>(lowerInnerParent, higherInnerParent, lowerInner, higherInner,
                                              lowerInnerParentIndex, higherInnerParentIndex, lowerInnerIndex, higherInnerIndex)) {
                 Storage::releasePage(data.to[data.layer]->pageRef);
