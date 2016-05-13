@@ -177,21 +177,21 @@ IndexType binarySearch(IndexType end, Closure<bool(IndexType)> compare) {
 }
 
 template<typename T>
-T min(T a, T b) {
+constexpr T min(T a, T b) {
     return (a < b) ? a : b;
 }
 
 template<typename T, typename... Args>
-T min(T c, Args... args) {
+constexpr T min(T c, Args... args) {
     return min(c, min(args...));
 }
 
 template<typename T>
-T max(T a, T b) {
+constexpr T max(T a, T b) {
     return (a > b) ? a : b;
 }
 
 template<typename T, typename... Args>
-T max(T c, Args... args) {
+constexpr T max(T c, Args... args) {
     return max(c, max(args...));
 }

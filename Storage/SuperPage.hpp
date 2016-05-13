@@ -32,7 +32,7 @@ PageType* dereferencePage(PageRefType pageRef) {
     return reinterpret_cast<PageType*>(reinterpret_cast<char*>(superPage)+bitsPerPage/8*pageRef);
 }
 
-PageRefType referenceOfPage(BasePage* page) {
+PageRefType referenceOfPage(void* page) {
     PageRefType pageRef = (reinterpret_cast<Natural64>(page)-reinterpret_cast<Natural64>(superPage))*8/bitsPerPage;
     assert(pageRef < pageCount);
     return pageRef;

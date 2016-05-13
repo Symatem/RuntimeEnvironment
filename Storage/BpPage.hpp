@@ -16,6 +16,18 @@ struct Page {
         pageRefOffset = Storage::bitsPerPage-pageRefBits*(branchKeyCount+1),
         valueOffset = Storage::bitsPerPage-valueBits*leafKeyCount;
 
+    static constexpr LayerType layersNeeded() {
+        // TODO: Better accuracy by using division instead of log2
+        LayerType layerCount = 1;
+        NativeIntegerType addressBits = max(keyBits, rankBits);
+        addressBits -= BitMask<NativeNaturalType>::ceilLog2(leafKeyCount)-1;
+        while(addressBits > 0) {
+            addressBits -= BitMask<NativeNaturalType>::ceilLog2(branchKeyCount)-1;
+            ++layerCount;
+        }
+        return layerCount;
+    }
+
     template<bool isLeaf>
     static OffsetType capacity() {
         return (isLeaf) ? leafKeyCount : branchKeyCount+1;

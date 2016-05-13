@@ -14,7 +14,6 @@ struct BpTree {
     typedef Natural32 OffsetType;
     typedef Natural8 LayerType;
 
-    static const LayerType maxLayerCount = 9;
     static const NativeNaturalType
         keyBits = sizeOfInBits<KeyType>::value,
         rankBits = sizeOfInBits<RankType>::value,
@@ -59,6 +58,7 @@ struct BpTree {
     };
 
 #include "BpPage.hpp"
+    static const LayerType maxLayerCount = Page::layersNeeded();
 #include "BpIterator.hpp"
 
     template<bool enableCopyOnWrite = false>
@@ -175,6 +175,7 @@ struct BpTree {
         }
         data.elementCount = pageCount;
         ++data.layer;
+        assert(data.layer < maxLayerCount);
         return true;
     }
 
@@ -426,7 +427,6 @@ struct BpTree {
         data.spareLowerInner = true;
         data.eraseHigherInner = false;
         data.from.getParentFrame(data.layer, lowerInnerParent, lowerInnerParentIndex);
-        data.to.getParentFrame(data.layer, higherInnerParent, higherInnerParentIndex);
         if(lowerInner == higherInner) {
             higherInner = nullptr;
             if(lowerInnerIndex < higherInnerIndex) {
@@ -438,6 +438,7 @@ struct BpTree {
             } else
                 keepRunning = false;
         } else {
+            data.to.getParentFrame(data.layer, higherInnerParent, higherInnerParentIndex);
             if(Page::template erase2<isLeaf>(lowerInnerParent, higherInnerParent, lowerInner, higherInner,
                                              lowerInnerParentIndex, higherInnerParentIndex, lowerInnerIndex, higherInnerIndex)) {
                 Storage::releasePage(data.to[data.layer]->pageRef);
