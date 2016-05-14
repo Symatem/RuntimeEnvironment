@@ -20,12 +20,6 @@ struct SuperPage : public BasePage {
 } *superPage;
 PageRefType pageCount;
 
-// TODO: Remove
-template<typename DataType>
-DataType* dereferenceBits(Symbol address) {
-    return reinterpret_cast<DataType*>(reinterpret_cast<char*>(superPage)+address/8);
-}
-
 template<typename PageType>
 PageType* dereferencePage(PageRefType pageRef) {
     assert(pageRef < pageCount);

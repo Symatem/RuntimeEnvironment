@@ -1,7 +1,3 @@
-#include <setjmp.h> // TODO: Replace setjmp/longjmp
-#include <signal.h> // TODO: Debugging
-#include <stdio.h> // TODO: Debugging
-
 template<bool _value>
 struct BoolConstant {
     static const bool value = _value;

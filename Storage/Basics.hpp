@@ -196,10 +196,6 @@ struct BasePage {
 
 void resizeMemory(NativeNaturalType pageCount);
 
-// TODO: Remove
-template<typename DataType = NativeNaturalType>
-DataType* dereferenceBits(Symbol address);
-
 template<typename PageType>
 PageType* dereferencePage(PageRefType pageRef);
 PageRefType referenceOfPage(void* page);

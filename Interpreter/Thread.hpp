@@ -1,4 +1,5 @@
 #include "../Ontology/Triple.hpp"
+#include <setjmp.h> // TODO: Replace setjmp/longjmp
 
 struct Thread;
 bool executePrimitive(Thread& thread, Symbol procedure);
@@ -50,7 +51,7 @@ struct Thread {
         return value;
     }
 
-    jmp_buf exceptionEnv;
+    jmp_buf exceptionEnv; // TODO: Replace setjmp/longjmp
     Symbol task, status, frame, block;
 
     Thread() :task(Ontology::VoidSymbol) {}
@@ -92,7 +93,7 @@ struct Thread {
         link({block, Ontology::MessageSymbol, message});
         pushCallStack();
         link({frame, Ontology::ProcedureSymbol, Ontology::ExceptionSymbol}); // TODO: debugging
-        longjmp(exceptionEnv, 1);
+        longjmp(exceptionEnv, 1); // TODO: Replace setjmp/longjmp
     }
 
     void pushCallStack() {
@@ -142,7 +143,7 @@ struct Thread {
             popCallStack();
             return true;
         }
-        if(setjmp(exceptionEnv) == 0) {
+        if(setjmp(exceptionEnv) == 0) { // TODO: Replace setjmp/longjmp
             procedure = getGuaranteed(execute, Ontology::ProcedureSymbol);
             block = Storage::createSymbol();
             pushCallStack();

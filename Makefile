@@ -18,7 +18,7 @@ build/SymatemHRL: $(SOURCES) Targets/HRL.cpp
 	$(CC) $(CPPOPTIONS) -o $@ Targets/HRL.cpp
 
 build/WASM.bc: $(SOURCES) Targets/WASM.cpp
-	$(LLVM_BIN)/clang $(CPPOPTIONS) -O3 -c -emit-llvm -o $@ Targets/WASM.cpp
+	$(LLVM_BIN)/clang $(CPPOPTIONS) -O3 -target wasm32 -c -emit-llvm -o $@ Targets/WASM.cpp
 
 build/WASM.asm: build/WASM.bc
 	$(LLVM_BIN)/llc -march=wasm32 -filetype=asm -o build/WASM.pre_asm build/WASM.bc
