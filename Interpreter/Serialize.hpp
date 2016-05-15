@@ -2,7 +2,7 @@
 
 const char* HRLRawBegin = "raw:";
 
-struct Serialize {
+struct Serializer {
     Thread& thread;
     Symbol symbol;
 
@@ -47,11 +47,11 @@ struct Serialize {
         }
     }
 
-    Serialize(Thread& _thread, Symbol _symbol) :thread(_thread), symbol(_symbol) {
+    Serializer(Thread& _thread, Symbol _symbol) :thread(_thread), symbol(_symbol) {
         Ontology::setSolitary({symbol, Ontology::BlobTypeSymbol, Ontology::TextSymbol});
     }
 
-    Serialize(Thread& _thread) :Serialize(_thread, Storage::createSymbol()) {}
+    Serializer(Thread& _thread) :Serializer(_thread, Storage::createSymbol()) {}
 
     void serializeBlob(Symbol src) {
         NativeNaturalType len = Storage::getBlobSize(src);
@@ -77,13 +77,13 @@ struct Serialize {
                         put('"');
                 }   break;
                 case Ontology::NaturalSymbol:
-                    serializeNumber(thread.readBlob<NativeNaturalType>(src));
+                    serializeNumber(Storage::readBlobAt<NativeNaturalType>(src));
                     break;
                 case Ontology::IntegerSymbol:
-                    serializeNumber(thread.readBlob<NativeIntegerType>(src));
+                    serializeNumber(Storage::readBlobAt<NativeIntegerType>(src));
                     break;
                 case Ontology::FloatSymbol:
-                    serializeNumber(thread.readBlob<NativeFloatType>(src));
+                    serializeNumber(Storage::readBlobAt<NativeFloatType>(src));
                     break;
                 default: {
                     puts(HRLRawBegin);

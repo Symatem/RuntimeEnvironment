@@ -337,6 +337,8 @@ struct Blob {
     }
 };
 
+// TODO: Cleanup code: Inline these methods?
+
 NativeNaturalType getBlobSize(Symbol symbol) {
     return Blob(symbol).getSize();
 }
@@ -346,7 +348,7 @@ void setBlobSize(Symbol symbol, NativeNaturalType size) {
 }
 
 template<typename DataType>
-DataType readBlobAt(Symbol srcSymbol, NativeNaturalType srcIndex) {
+DataType readBlobAt(Symbol srcSymbol, NativeNaturalType srcIndex = 0) {
     DataType dst;
     Blob(srcSymbol).externalOperate<false, DataType>(srcIndex, dst);
     return dst;
@@ -355,11 +357,6 @@ DataType readBlobAt(Symbol srcSymbol, NativeNaturalType srcIndex) {
 template<typename DataType>
 void writeBlobAt(Symbol dstSymbol, NativeNaturalType dstIndex, DataType src) {
     Blob(dstSymbol).externalOperate<true, DataType>(dstIndex, src);
-}
-
-template<typename DataType>
-DataType readBlob(Symbol srcSymbol) {
-    return readBlobAt<DataType>(srcSymbol, 0);
 }
 
 template<typename DataType>

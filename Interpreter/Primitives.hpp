@@ -1,6 +1,6 @@
 #include "Deserialize.hpp"
 
-#define Primitive(Name) void Primitive##Name(Thread& thread)
+#define Primitive(Name) bool Primitive##Name(Thread& thread)
 
 Primitive(Search) {
     Ontology::Triple triple;
@@ -15,10 +15,12 @@ Primitive(Search) {
             }
         thread.throwException("Invalid Varying");
     });
+    if(thread.uncaughtException())
+        return false;
     for(NativeNaturalType index = 0; index < 3; ++index)
         if(Ontology::getUncertain(thread.block, posNames[index], triple.pos[index])) {
             if(modes[index] != 2)
-                thread.throwException("Invalid Input");
+                return thread.throwException("Invalid Input");
             modes[index] = 0;
         }
     getSymbolByName(output, Output)
@@ -33,7 +35,7 @@ Primitive(Search) {
         Ontology::setSolitary({count, Ontology::BlobTypeSymbol, Ontology::NaturalSymbol});
         Storage::writeBlob(count, countValue);
     }
-    thread.popCallStack();
+    return thread.popCallStack();
 }
 
 struct PrimitiveLink {
@@ -55,24 +57,25 @@ Primitive(Triple) {
         Ontology::setSolitary({output, Ontology::BlobTypeSymbol, Ontology::NaturalSymbol});
         Storage::writeBlob(output, outputValue);
     }
-    thread.popCallStack();
+    return thread.popCallStack();
 }
 
 Primitive(Create) {
     Symbol input, value;
     bool inputExists = Ontology::getUncertain(thread.block, Ontology::InputSymbol, input);
     if(inputExists)
-        value = thread.readBlob<NativeNaturalType>(input);
-    Symbol target = thread.getTargetSymbol();
+        value = Storage::readBlobAt<NativeNaturalType>(input);
+    Symbol target;
+    checkReturn(thread.getTargetSymbol(target));
     if(Ontology::query(9, {thread.block, Ontology::OutputSymbol, Ontology::VoidSymbol}, [&](Ontology::Triple result) {
         Symbol output = result.pos[0];
         if(!inputExists)
             value = Storage::createSymbol();
         Ontology::setSolitary({target, output, value});
-        thread.link({target, Ontology::HoldsSymbol, value});
+        Ontology::link({target, Ontology::HoldsSymbol, value});
     }) == 0)
-        thread.throwException("Expected Output");
-    thread.popCallStack();
+        return thread.throwException("Expected Output");
+    return thread.popCallStack();
 }
 
 Primitive(Destroy) {
@@ -82,26 +85,30 @@ Primitive(Destroy) {
     if(Ontology::query(9, {thread.block, Ontology::InputSymbol, Ontology::VoidSymbol}, [&](Ontology::Triple result) {
         symbols.insertElement(result.pos[0]);
     }) == 0)
-        thread.throwException("Expected more Inputs");
+        return thread.throwException("Expected more Inputs");
     symbols.iterate([&](Symbol symbol) {
         Ontology::unlink(symbol);
     });
-    thread.popCallStack();
+    return thread.popCallStack();
 }
 
 Primitive(Push) {
+    Symbol target;
     getSymbolByName(execute, Execute)
-    thread.link({thread.frame, Ontology::ExecuteSymbol, execute});
-    thread.setBlock(thread.getTargetSymbol());
+    Ontology::link({thread.frame, Ontology::ExecuteSymbol, execute});
+    checkReturn(thread.getTargetSymbol(target));
+    thread.setBlock(target);
+    return true;
 }
 
 Primitive(Pop) {
     getSymbolByName(count, Count)
     checkBlobType(count, Ontology::NaturalSymbol)
-    auto countValue = thread.readBlob<NativeNaturalType>(count);
+    auto countValue = Storage::readBlobAt<NativeNaturalType>(count);
     if(countValue < 2)
-        thread.throwException("Invalid Count Value");
+        return thread.throwException("Invalid Count Value");
     for(; countValue > 0 && thread.popCallStack(); --countValue);
+    return true;
 }
 
 Primitive(Branch) {
@@ -110,6 +117,7 @@ Primitive(Branch) {
     thread.popCallStack();
     if(inputValue != 0)
         Ontology::setSolitary({thread.frame, Ontology::ExecuteSymbol, branch});
+    return true;
 }
 
 Primitive(Exception) {
@@ -117,33 +125,36 @@ Primitive(Exception) {
     if(Ontology::getUncertain(thread.block, Ontology::ExceptionSymbol, exception)) {
         Symbol currentFrame = exception;
         while(Ontology::getUncertain(currentFrame, Ontology::ParentSymbol, currentFrame));
-        thread.link({currentFrame, Ontology::ParentSymbol, thread.frame});
+        Ontology::link({currentFrame, Ontology::ParentSymbol, thread.frame});
     }
     Symbol execute, currentFrame = thread.frame, prevFrame = currentFrame;
     do {
         if(currentFrame != prevFrame && Ontology::getUncertain(currentFrame, Ontology::CatchSymbol, execute)) {
             Ontology::setSolitary({prevFrame, Ontology::ParentSymbol, Ontology::VoidSymbol});
             thread.setFrame(currentFrame, true);
-            thread.link({thread.block, Ontology::HoldsSymbol, exception});
-            thread.link({thread.block, Ontology::ExceptionSymbol, exception});
+            Ontology::link({thread.block, Ontology::HoldsSymbol, exception});
+            Ontology::link({thread.block, Ontology::ExceptionSymbol, exception});
             Ontology::setSolitary({thread.frame, Ontology::ExecuteSymbol, execute});
-            return;
+            return true;
         }
         prevFrame = currentFrame;
     } while(Ontology::getUncertain(currentFrame, Ontology::ParentSymbol, currentFrame));
     thread.setStatus(Ontology::ExceptionSymbol);
+    return false;
 }
 
 Primitive(Serialize) {
     getSymbolByName(input, Input)
     getSymbolByName(output, Output)
-    Serialize serialize(thread, output);
-    serialize.serializeBlob(input);
-    thread.popCallStack();
+    Serializer serializer(thread, output);
+    serializer.serializeBlob(input);
+    return thread.popCallStack();
 }
 
 Primitive(Deserialize) {
-    Deserialize{thread};
+    Deserializer deserializer(thread);
+    checkReturn(deserializer.deserialize());
+    return true;
 }
 
 Primitive(CloneBlob) {
@@ -153,7 +164,7 @@ Primitive(CloneBlob) {
     Symbol type = Ontology::VoidSymbol;
     Ontology::getUncertain(input, Ontology::BlobTypeSymbol, type);
     Ontology::setSolitary({output, Ontology::BlobTypeSymbol, type});
-    thread.popCallStack();
+    return thread.popCallStack();
 }
 
 Primitive(SliceBlob) {
@@ -163,8 +174,8 @@ Primitive(SliceBlob) {
     getUncertainValueByName(destination, Destination, 0)
     getUncertainValueByName(source, Source, 0)
     if(!Storage::sliceBlob(target, input, destinationValue, sourceValue, countValue))
-        thread.throwException("Invalid Count, Destination or SrcOffset Value");
-    thread.popCallStack();
+        return thread.throwException("Invalid Count, Destination or SrcOffset Value");
+    return thread.popCallStack();
 }
 
 Primitive(GetBlobSize) {
@@ -172,7 +183,7 @@ Primitive(GetBlobSize) {
     getSymbolByName(output, Output)
     Ontology::setSolitary({output, Ontology::BlobTypeSymbol, Ontology::NaturalSymbol});
     Storage::writeBlob(output, Storage::getBlobSize(input));
-    thread.popCallStack();
+    return thread.popCallStack();
 }
 
 struct PrimitiveDecreaseBlobSize {
@@ -194,25 +205,25 @@ Primitive(ChangeBlobSize) {
     getSymbolByName(count, Count)
     checkBlobType(at, Ontology::NaturalSymbol)
     checkBlobType(count, Ontology::NaturalSymbol)
-    if(!op::e(target, thread.readBlob<NativeNaturalType>(at), thread.readBlob<NativeNaturalType>(count)))
-        thread.throwException("Invalid At or Count Value");
-    thread.popCallStack();
+    if(!op::e(target, Storage::readBlobAt<NativeNaturalType>(at), Storage::readBlobAt<NativeNaturalType>(count)))
+        return thread.throwException("Invalid At or Count Value");
+    return thread.popCallStack();
 }
 
 template<typename T>
-void PrimitiveNumericCastTo(Thread& thread, Symbol type, Symbol output, Symbol input) {
+bool PrimitiveNumericCastTo(Thread& thread, Symbol type, Symbol output, Symbol input) {
     switch(type) {
         case Ontology::NaturalSymbol:
-            Storage::writeBlob(output, static_cast<T>(thread.readBlob<NativeNaturalType>(input)));
-            break;
+            Storage::writeBlob(output, static_cast<T>(Storage::readBlobAt<NativeNaturalType>(input)));
+            return true;
         case Ontology::IntegerSymbol:
-            Storage::writeBlob(output, static_cast<T>(thread.readBlob<NativeIntegerType>(input)));
-            break;
+            Storage::writeBlob(output, static_cast<T>(Storage::readBlobAt<NativeIntegerType>(input)));
+            return true;
         case Ontology::FloatSymbol:
-            Storage::writeBlob(output, static_cast<T>(thread.readBlob<NativeFloatType>(input)));
-            break;
+            Storage::writeBlob(output, static_cast<T>(Storage::readBlobAt<NativeFloatType>(input)));
+            return true;
         default:
-            thread.throwException("Invalid Input");
+            return thread.throwException("Invalid Input");
     }
 }
 
@@ -222,22 +233,22 @@ Primitive(NumericCast) {
     getSymbolByName(output, Output)
     Symbol type;
     if(!Ontology::getUncertain(input, Ontology::BlobTypeSymbol, type))
-        thread.throwException("Invalid Input");
+        return thread.throwException("Invalid Input");
     Ontology::setSolitary({output, Ontology::BlobTypeSymbol, to});
     switch(to) {
         case Ontology::NaturalSymbol:
-            PrimitiveNumericCastTo<NativeNaturalType>(thread, type, output, input);
+            checkReturn(PrimitiveNumericCastTo<NativeNaturalType>(thread, type, output, input));
             break;
         case Ontology::IntegerSymbol:
-            PrimitiveNumericCastTo<NativeIntegerType>(thread, type, output, input);
+            checkReturn(PrimitiveNumericCastTo<NativeIntegerType>(thread, type, output, input));
             break;
         case Ontology::FloatSymbol:
-            PrimitiveNumericCastTo<NativeFloatType>(thread, type, output, input);
+            checkReturn(PrimitiveNumericCastTo<NativeFloatType>(thread, type, output, input));
             break;
         default:
-            thread.throwException("Invalid To Value");
+            return thread.throwException("Invalid To Value");
     }
-    thread.popCallStack();
+    return thread.popCallStack();
 }
 
 Primitive(Equal) {
@@ -255,18 +266,20 @@ Primitive(Equal) {
             firstSymbol = input;
         } else if(type == _type) {
             if(type == Ontology::FloatSymbol) {
-                if(thread.readBlob<NativeFloatType>(input) != thread.readBlob<NativeFloatType>(firstSymbol))
+                if(Storage::readBlobAt<NativeFloatType>(input) != Storage::readBlobAt<NativeFloatType>(firstSymbol))
                     outputValue = 0;
             } else if(Storage::compareBlobs(input, firstSymbol) != 0)
                 outputValue = 0;
         } else
             thread.throwException("Inputs have different types");
     }) < 2)
-        thread.throwException("Expected more Input");
+        return thread.throwException("Expected more Input");
+    if(thread.uncaughtException())
+        return false;
     getSymbolByName(output, Output)
     Ontology::setSolitary({output, Ontology::BlobTypeSymbol, Ontology::NaturalSymbol});
     Storage::writeBlob(output, outputValue);
-    thread.popCallStack();
+    return thread.popCallStack();
 }
 
 struct PrimitiveLessThan {
@@ -292,17 +305,17 @@ Primitive(CompareLogic) {
     Ontology::getUncertain(input, Ontology::BlobTypeSymbol, type);
     Ontology::getUncertain(comparandum, Ontology::BlobTypeSymbol, _type);
     if(type != _type)
-        thread.throwException("Input and Comparandum have different types");
+        return thread.throwException("Input and Comparandum have different types");
     NativeNaturalType outputValue;
     switch(type) {
         case Ontology::NaturalSymbol:
-            outputValue = op::n(thread.readBlob<NativeNaturalType>(input), thread.readBlob<NativeNaturalType>(comparandum));
+            outputValue = op::n(Storage::readBlobAt<NativeNaturalType>(input), Storage::readBlobAt<NativeNaturalType>(comparandum));
             break;
         case Ontology::IntegerSymbol:
-            outputValue = op::i(thread.readBlob<NativeIntegerType>(input), thread.readBlob<NativeIntegerType>(comparandum));
+            outputValue = op::i(Storage::readBlobAt<NativeIntegerType>(input), Storage::readBlobAt<NativeIntegerType>(comparandum));
             break;
         case Ontology::FloatSymbol:
-            outputValue = op::f(thread.readBlob<NativeFloatType>(input), thread.readBlob<NativeFloatType>(comparandum));
+            outputValue = op::f(Storage::readBlobAt<NativeFloatType>(input), Storage::readBlobAt<NativeFloatType>(comparandum));
             break;
         default:
             outputValue = op::s(input, comparandum);
@@ -310,7 +323,7 @@ Primitive(CompareLogic) {
     }
     Ontology::setSolitary({output, Ontology::BlobTypeSymbol, Ontology::NaturalSymbol});
     Storage::writeBlob(output, outputValue);
-    thread.popCallStack();
+    return thread.popCallStack();
 }
 
 struct PrimitiveBitShiftEmpty {
@@ -348,9 +361,11 @@ Primitive(BitShift) {
     getSymbolByName(count, Count)
     getSymbolByName(output, Output)
     checkBlobType(count, Ontology::NaturalSymbol)
-    auto outputValue = thread.readBlob<NativeNaturalType>(input);
-    auto countValue = thread.readBlob<NativeNaturalType>(count);
-    switch(thread.getGuaranteed(thread.block, Ontology::DirectionSymbol)) {
+    auto outputValue = Storage::readBlobAt<NativeNaturalType>(input);
+    auto countValue = Storage::readBlobAt<NativeNaturalType>(count);
+    Symbol direction;
+    checkReturn(thread.getGuaranteed(thread.block, Ontology::DirectionSymbol, direction));
+    switch(direction) {
         case Ontology::DivideSymbol:
             op::d(outputValue, countValue);
             break;
@@ -358,19 +373,19 @@ Primitive(BitShift) {
             op::m(outputValue, countValue);
             break;
         default:
-            thread.throwException("Invalid Direction");
+            return thread.throwException("Invalid Direction");
     }
     Ontology::setSolitary({output, Ontology::BlobTypeSymbol, Ontology::VoidSymbol});
     Storage::writeBlob(output, outputValue);
-    thread.popCallStack();
+    return thread.popCallStack();
 }
 
 Primitive(BitwiseComplement) {
     getSymbolByName(input, Input)
     getSymbolByName(output, Output)
     Ontology::setSolitary({output, Ontology::BlobTypeSymbol, Ontology::VoidSymbol});
-    Storage::writeBlob(output, ~thread.readBlob<NativeNaturalType>(input));
-    thread.popCallStack();
+    Storage::writeBlob(output, ~Storage::readBlobAt<NativeNaturalType>(input));
+    return thread.popCallStack();
 }
 
 struct PrimitiveBitwiseAnd {
@@ -393,15 +408,15 @@ Primitive(AssociativeCommutativeBitwise) {
         Symbol input = result.pos[0];
         if(first) {
             first = false;
-            outputValue = thread.readBlob<NativeNaturalType>(input);
+            outputValue = Storage::readBlobAt<NativeNaturalType>(input);
         } else
-            op::n(outputValue, thread.readBlob<NativeNaturalType>(input));
+            op::n(outputValue, Storage::readBlobAt<NativeNaturalType>(input));
     }) < 2)
-        thread.throwException("Expected more Input");
+        return thread.throwException("Expected more Input");
     getSymbolByName(output, Output)
     Ontology::setSolitary({output, Ontology::BlobTypeSymbol, Ontology::VoidSymbol});
     Storage::writeBlob(output, outputValue);
-    thread.popCallStack();
+    return thread.popCallStack();
 }
 
 struct PrimitiveAdd {
@@ -426,20 +441,20 @@ Primitive(AssociativeCommutativeArithmetic) {
     } aux;
     bool first = true;
     if(Ontology::query(9, {thread.block, Ontology::InputSymbol, Ontology::VoidSymbol}, [&](Ontology::Triple result) {
-        Symbol input = result.pos[0],
-               _type = thread.getGuaranteed(input, Ontology::BlobTypeSymbol);
+        Symbol input = result.pos[0], _type;
+        thread.getGuaranteed(input, Ontology::BlobTypeSymbol, _type);
         if(first) {
             first = false;
             type = _type;
             switch(type) {
                 case Ontology::NaturalSymbol:
-                    aux.n = thread.readBlob<NativeNaturalType>(input);
+                    aux.n = Storage::readBlobAt<NativeNaturalType>(input);
                     break;
                 case Ontology::IntegerSymbol:
-                    aux.i = thread.readBlob<NativeIntegerType>(input);
+                    aux.i = Storage::readBlobAt<NativeIntegerType>(input);
                     break;
                 case Ontology::FloatSymbol:
-                    aux.f = thread.readBlob<NativeFloatType>(input);
+                    aux.f = Storage::readBlobAt<NativeFloatType>(input);
                     break;
                 default:
                     thread.throwException("Invalid Input");
@@ -447,99 +462,103 @@ Primitive(AssociativeCommutativeArithmetic) {
         } else if(type == _type) {
             switch(type) {
                 case Ontology::NaturalSymbol:
-                    op::n(aux.n, thread.readBlob<NativeNaturalType>(input));
+                    op::n(aux.n, Storage::readBlobAt<NativeNaturalType>(input));
                     break;
                 case Ontology::IntegerSymbol:
-                    op::i(aux.i, thread.readBlob<NativeIntegerType>(input));
+                    op::i(aux.i, Storage::readBlobAt<NativeIntegerType>(input));
                     break;
                 case Ontology::FloatSymbol:
-                    op::f(aux.f, thread.readBlob<NativeFloatType>(input));
+                    op::f(aux.f, Storage::readBlobAt<NativeFloatType>(input));
                     break;
             }
         } else
             thread.throwException("Inputs have different types");
     }) < 2)
-        thread.throwException("Expected more Input");
+        return thread.throwException("Expected more Input");
+    if(thread.uncaughtException())
+        return false;
     getSymbolByName(output, Output)
     Ontology::setSolitary({output, Ontology::BlobTypeSymbol, type});
     Storage::writeBlob(output, aux.n);
-    thread.popCallStack();
+    return thread.popCallStack();
 }
 
 Primitive(Subtract) {
     getSymbolByName(minuend, Minuend)
     getSymbolByName(subtrahend, Subtrahend)
     getSymbolByName(output, Output)
-    Symbol type = thread.getGuaranteed(minuend, Ontology::BlobTypeSymbol),
-           _type = thread.getGuaranteed(subtrahend, Ontology::BlobTypeSymbol);
+    Symbol type, _type;
+    checkReturn(thread.getGuaranteed(minuend, Ontology::BlobTypeSymbol, type));
+    checkReturn(thread.getGuaranteed(subtrahend, Ontology::BlobTypeSymbol, _type));
     if(type != _type)
-        thread.throwException("Minuend and Subtrahend have different types");
+        return thread.throwException("Minuend and Subtrahend have different types");
     Ontology::setSolitary({output, Ontology::BlobTypeSymbol, type});
     switch(type) {
         case Ontology::NaturalSymbol:
-            Storage::writeBlob(output, thread.readBlob<NativeNaturalType>(minuend)-thread.readBlob<NativeNaturalType>(subtrahend));
+            Storage::writeBlob(output, Storage::readBlobAt<NativeNaturalType>(minuend)-Storage::readBlobAt<NativeNaturalType>(subtrahend));
             break;
         case Ontology::IntegerSymbol:
-            Storage::writeBlob(output, thread.readBlob<NativeIntegerType>(minuend)-thread.readBlob<NativeIntegerType>(subtrahend));
+            Storage::writeBlob(output, Storage::readBlobAt<NativeIntegerType>(minuend)-Storage::readBlobAt<NativeIntegerType>(subtrahend));
             break;
         case Ontology::FloatSymbol:
-            Storage::writeBlob(output, thread.readBlob<NativeFloatType>(minuend)-thread.readBlob<NativeFloatType>(subtrahend));
+            Storage::writeBlob(output, Storage::readBlobAt<NativeFloatType>(minuend)-Storage::readBlobAt<NativeFloatType>(subtrahend));
             break;
         default:
-            thread.throwException("Invalid Minuend or Subtrahend");
+            return thread.throwException("Invalid Minuend or Subtrahend");
     }
-    thread.popCallStack();
+    return thread.popCallStack();
 }
 
 Primitive(Divide) {
     getSymbolByName(dividend, Dividend)
     getSymbolByName(divisor, Divisor)
-    Symbol type = thread.getGuaranteed(dividend, Ontology::BlobTypeSymbol);
-    Symbol _type = thread.getGuaranteed(divisor, Ontology::BlobTypeSymbol);
+    Symbol type, _type;
+    checkReturn(thread.getGuaranteed(dividend, Ontology::BlobTypeSymbol, type));
+    checkReturn(thread.getGuaranteed(divisor, Ontology::BlobTypeSymbol, _type));
     if(type != _type)
-        thread.throwException("Dividend and Divisor have different types");
+        return thread.throwException("Dividend and Divisor have different types");
     Symbol rest, quotient;
     bool restExists = Ontology::getUncertain(thread.block, Ontology::RestSymbol, rest),
          quotientExists = Ontology::getUncertain(thread.block, Ontology::QuotientSymbol, quotient);
     if(restExists) {
         Ontology::setSolitary({rest, Ontology::BlobTypeSymbol, type});
         if(Storage::getBlobSize(rest) != architectureSize)
-            thread.throwException("Invalid Rest");
+            return thread.throwException("Invalid Rest");
     }
     if(quotientExists) {
         Ontology::setSolitary({quotient, Ontology::BlobTypeSymbol, type});
         if(Storage::getBlobSize(quotient) != architectureSize)
-            thread.throwException("Invalid Quotient");
+            return thread.throwException("Invalid Quotient");
     }
     if(!restExists && !quotientExists)
-        thread.throwException("Expected Rest or Quotient");
+        return thread.throwException("Expected Rest or Quotient");
     switch(type) {
         case Ontology::NaturalSymbol: {
-            auto dividendValue = thread.readBlob<NativeNaturalType>(dividend),
-                 divisorValue = thread.readBlob<NativeNaturalType>(divisor);
+            auto dividendValue = Storage::readBlobAt<NativeNaturalType>(dividend),
+                 divisorValue = Storage::readBlobAt<NativeNaturalType>(divisor);
             if(divisorValue == 0)
-                thread.throwException("Division by Zero");
+                return thread.throwException("Division by Zero");
             if(restExists)
                 Storage::writeBlob(rest, dividendValue%divisorValue);
             if(quotientExists)
                 Storage::writeBlob(quotient, dividendValue/divisorValue);
         }   break;
         case Ontology::IntegerSymbol: {
-            auto dividendValue = thread.readBlob<NativeIntegerType>(dividend),
-                 divisorValue = thread.readBlob<NativeIntegerType>(divisor);
+            auto dividendValue = Storage::readBlobAt<NativeIntegerType>(dividend),
+                 divisorValue = Storage::readBlobAt<NativeIntegerType>(divisor);
             if(divisorValue == 0)
-                thread.throwException("Division by Zero");
+                return thread.throwException("Division by Zero");
             if(restExists)
                 Storage::writeBlob(rest, dividendValue%divisorValue);
             if(quotientExists)
                 Storage::writeBlob(quotient, dividendValue/divisorValue);
         }   break;
         case Ontology::FloatSymbol: {
-            auto dividendValue = thread.readBlob<NativeFloatType>(dividend),
-                 divisorValue = thread.readBlob<NativeFloatType>(divisor),
+            auto dividendValue = Storage::readBlobAt<NativeFloatType>(dividend),
+                 divisorValue = Storage::readBlobAt<NativeFloatType>(divisor),
                  quotientValue = dividendValue/divisorValue;
             if(divisorValue == 0.0)
-                thread.throwException("Division by Zero");
+                return thread.throwException("Division by Zero");
             if(restExists) {
                 NativeFloatType integerPart = static_cast<NativeIntegerType>(quotientValue);
                 Storage::writeBlob(rest, quotientValue-integerPart);
@@ -549,23 +568,23 @@ Primitive(Divide) {
                 Storage::writeBlob(quotient, quotientValue);
         }   break;
         default:
-            thread.throwException("Invalid Dividend or Divisor");
+            return thread.throwException("Invalid Dividend or Divisor");
     }
-    thread.popCallStack();
+    return thread.popCallStack();
 }
 
 #define PrimitiveEntry(Name) \
     case Ontology::Name##Symbol: \
-        Primitive##Name(thread); \
-        return true;
+        found = true; \
+        return Primitive##Name(thread);
 
 #define PrimitiveGroup(GroupName, Name) \
     case Ontology::Name##Symbol: \
-        Primitive##GroupName<Primitive##Name>(thread); \
-        return true;
+        found = true; \
+        return Primitive##GroupName<Primitive##Name>(thread);
 
-bool executePrimitive(Thread& thread, Symbol Primitive) {
-    switch(Primitive) {
+bool executePrimitive(Thread& thread, Symbol primitive, bool& found) {
+    switch(primitive) {
         PrimitiveEntry(Search)
         PrimitiveGroup(Triple, Link)
         PrimitiveGroup(Triple, Unlink)
@@ -598,5 +617,6 @@ bool executePrimitive(Thread& thread, Symbol Primitive) {
         PrimitiveEntry(Subtract)
         PrimitiveEntry(Divide)
     }
-    return false;
+    found = false;
+    return true;
 }

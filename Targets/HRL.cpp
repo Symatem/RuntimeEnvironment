@@ -49,7 +49,7 @@ void loadFromPath(Symbol parentPackage, bool execute, char* path) {
         Ontology::blobIndex.insertElement(package);
         if(parentPackage == Ontology::VoidSymbol)
             parentPackage = package;
-        thread.link({package, Ontology::HoldsSymbol, parentPackage});
+        Ontology::link({package, Ontology::HoldsSymbol, parentPackage});
         struct dirent* entry;
         while((entry = readdir(dp)))
             if(entry->d_name[0] != '.') {

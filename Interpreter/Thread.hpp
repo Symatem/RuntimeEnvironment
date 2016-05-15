@@ -1,57 +1,29 @@
 #include "../Ontology/Triple.hpp"
-#include <setjmp.h> // TODO: Replace setjmp/longjmp
+
+#define checkReturn(expression) \
+    if(!(expression)) \
+        return false;
+
+#define getSymbolByName(name, Name) \
+    Symbol name; \
+    checkReturn(thread.getGuaranteed(thread.block, Ontology::Name##Symbol, name));
+
+#define checkBlobType(name, expectedType) \
+    if(Ontology::query(1, {name, Ontology::BlobTypeSymbol, expectedType}) == 0) \
+        return thread.throwException("Invalid Blob Type");
+
+#define getUncertainValueByName(name, Name, DefaultValue) \
+    Symbol name; \
+    NativeNaturalType name##Value = DefaultValue; \
+    if(Ontology::getUncertain(thread.block, Ontology::Name##Symbol, name)) { \
+        checkBlobType(name, Ontology::NaturalSymbol) \
+        name##Value = Storage::readBlobAt<NativeNaturalType>(name); \
+    }
 
 struct Thread;
-bool executePrimitive(Thread& thread, Symbol procedure);
+bool executePrimitive(Thread& thread, Symbol primitive, bool& found);
 
 struct Thread {
-    bool valueCountIs(Symbol entity, Symbol attribute, NativeNaturalType size) {
-        return Ontology::query(9, {entity, attribute, Ontology::VoidSymbol}) == size;
-    }
-
-    bool tripleExists(Ontology::Triple triple) {
-        return Ontology::query(0, triple) == 1;
-    }
-
-    void link(Ontology::Triple triple) {
-        if(!Ontology::link(triple)) {
-            Symbol data = Storage::createSymbol();
-            link({data, Ontology::EntitySymbol, triple.pos[0]});
-            link({data, Ontology::AttributeSymbol, triple.pos[1]});
-            link({data, Ontology::ValueSymbol, triple.pos[2]});
-            throwException("Already linked", data);
-        }
-    }
-
-    void unlink(Ontology::Triple triple) {
-        if(!Ontology::unlink(triple)) {
-            Symbol data = Storage::createSymbol();
-            link({data, Ontology::EntitySymbol, triple.pos[0]});
-            link({data, Ontology::AttributeSymbol, triple.pos[1]});
-            link({data, Ontology::ValueSymbol, triple.pos[2]});
-            throwException("Already unlinked", data);
-        }
-    }
-
-    template <typename T>
-    T readBlob(Symbol symbol) {
-        if(Storage::getBlobSize(symbol) != sizeOfInBits<T>::value)
-            throwException("Invalid Blob Size");
-        return Storage::readBlob<T>(symbol);
-    }
-
-    Symbol getGuaranteed(Symbol entity, Symbol attribute) {
-        Symbol value;
-        if(!Ontology::getUncertain(entity, attribute, value)) {
-            Symbol data = Storage::createSymbol();
-            link({data, Ontology::EntitySymbol, entity});
-            link({data, Ontology::AttributeSymbol, attribute});
-            throwException("Nonexistent or ambiguous", data);
-        }
-        return value;
-    }
-
-    jmp_buf exceptionEnv; // TODO: Replace setjmp/longjmp
     Symbol task, status, frame, block;
 
     Thread() :task(Ontology::VoidSymbol) {}
@@ -66,10 +38,10 @@ struct Thread {
         if(_frame == Ontology::VoidSymbol)
             block = Ontology::VoidSymbol;
         else {
-            link({task, Ontology::HoldsSymbol, _frame});
+            Ontology::link({task, Ontology::HoldsSymbol, _frame});
             Ontology::setSolitary({task, Ontology::FrameSymbol, _frame});
             if(setBlock)
-                block = getGuaranteed(_frame, Ontology::BlockSymbol);
+                assert(getGuaranteed(_frame, Ontology::BlockSymbol, block));
         }
         Ontology::unlink({task, Ontology::HoldsSymbol, frame});
         if(frame != Ontology::VoidSymbol)
@@ -79,29 +51,46 @@ struct Thread {
 
     void setBlock(Symbol _block) {
         assert(block != _block);
-        unlink({frame, Ontology::HoldsSymbol, block});
+        Ontology::unlink({frame, Ontology::HoldsSymbol, block});
         Ontology::scrutinizeExistence(block);
         block = _block;
-        link({frame, Ontology::HoldsSymbol, block});
-        link({frame, Ontology::BlockSymbol, block});
+        Ontology::link({frame, Ontology::HoldsSymbol, block});
+        Ontology::link({frame, Ontology::BlockSymbol, block});
     }
 
-    void throwException(const char* messageStr, Symbol data = Ontology::VoidSymbol) {
+    bool throwException(const char* messageStr, Symbol data = Ontology::VoidSymbol) {
         block = (data != Ontology::VoidSymbol) ? data : Storage::createSymbol();
         Symbol message = Ontology::createFromString(messageStr);
         Ontology::blobIndex.insertElement(message);
-        link({block, Ontology::MessageSymbol, message});
+        Ontology::link({block, Ontology::MessageSymbol, message});
         pushCallStack();
-        link({frame, Ontology::ProcedureSymbol, Ontology::ExceptionSymbol}); // TODO: debugging
-        longjmp(exceptionEnv, 1); // TODO: Replace setjmp/longjmp
+        Ontology::link({frame, Ontology::ProcedureSymbol, Ontology::ExceptionSymbol}); // TODO: debugging
+        return false;
+    }
+
+    bool valueCountIs(Symbol entity, Symbol attribute, NativeNaturalType size) {
+        return Ontology::query(9, {entity, attribute, Ontology::VoidSymbol}) == size;
+    }
+
+    bool tripleExists(Ontology::Triple triple) {
+        return Ontology::query(0, triple) == 1;
+    }
+
+    bool getGuaranteed(Symbol entity, Symbol attribute, Symbol& value) {
+        if(Ontology::getUncertain(entity, attribute, value))
+            return true;
+        Symbol data = Storage::createSymbol();
+        Ontology::link({data, Ontology::EntitySymbol, entity});
+        Ontology::link({data, Ontology::AttributeSymbol, attribute});
+        return throwException("Nonexistent or ambiguous", data);
     }
 
     void pushCallStack() {
         Symbol childFrame = Storage::createSymbol();
-        link({childFrame, Ontology::HoldsSymbol, frame});
-        link({childFrame, Ontology::ParentSymbol, frame});
-        link({childFrame, Ontology::HoldsSymbol, block});
-        link({childFrame, Ontology::BlockSymbol, block});
+        Ontology::link({childFrame, Ontology::HoldsSymbol, frame});
+        Ontology::link({childFrame, Ontology::ParentSymbol, frame});
+        Ontology::link({childFrame, Ontology::HoldsSymbol, block});
+        Ontology::link({childFrame, Ontology::BlockSymbol, block});
         setFrame(childFrame, false);
     }
 
@@ -117,13 +106,13 @@ struct Thread {
         return parentExists;
     }
 
-    Symbol getTargetSymbol() {
-        Symbol result;
+    bool getTargetSymbol(Symbol& result) {
         if(!Ontology::getUncertain(block, Ontology::TargetSymbol, result)) {
-            Symbol parentFrame = getGuaranteed(frame, Ontology::ParentSymbol);
-            result = getGuaranteed(parentFrame, Ontology::BlockSymbol);
+            Symbol parentFrame;
+            checkReturn(getGuaranteed(frame, Ontology::ParentSymbol, parentFrame));
+            checkReturn(getGuaranteed(parentFrame, Ontology::BlockSymbol, result));
         }
-        return result;
+        return true;
     }
 
     void clear() {
@@ -134,54 +123,62 @@ struct Thread {
         task = status = frame = block = Ontology::VoidSymbol;
     }
 
-    bool step() {
-        if(!running())
-            return false;
-        Symbol parentBlock = block, parentFrame = frame, execute,
-               procedure, next = Ontology::VoidSymbol, catcher, staticParams, dynamicParams;
+    bool tryToStep() {
+        bool foundPrimitive;
+        Symbol parentBlock = block, parentFrame = frame, execute, procedure,
+               next = Ontology::VoidSymbol, catcher, staticParams, dynamicParams;
         if(!Ontology::getUncertain(parentFrame, Ontology::ExecuteSymbol, execute)) {
             popCallStack();
             return true;
         }
-        if(setjmp(exceptionEnv) == 0) { // TODO: Replace setjmp/longjmp
-            procedure = getGuaranteed(execute, Ontology::ProcedureSymbol);
-            block = Storage::createSymbol();
-            pushCallStack();
-            link({frame, Ontology::ProcedureSymbol, procedure}); // TODO: debugging
-            if(Ontology::getUncertain(execute, Ontology::StaticSymbol, staticParams))
-                Ontology::query(12, {staticParams, Ontology::VoidSymbol, Ontology::VoidSymbol}, [&](Ontology::Triple result) {
-                    link({block, result.pos[0], result.pos[1]});
-                });
-            if(Ontology::getUncertain(execute, Ontology::DynamicSymbol, dynamicParams))
-                Ontology::query(12, {dynamicParams, Ontology::VoidSymbol, Ontology::VoidSymbol}, [&](Ontology::Triple result) {
-                    switch(result.pos[1]) {
-                        case Ontology::TaskSymbol:
-                            link({block, result.pos[0], task});
-                            break;
-                        case Ontology::FrameSymbol:
-                            link({block, result.pos[0], parentFrame});
-                            break;
-                        case Ontology::BlockSymbol:
-                            link({block, result.pos[0], parentBlock});
-                            break;
-                        default:
-                            Ontology::query(9, {parentBlock, result.pos[1], Ontology::VoidSymbol}, [&](Ontology::Triple resultB) {
-                                link({block, result.pos[0], resultB.pos[0]});
-                            });
-                            break;
-                    }
-                });
-            Ontology::getUncertain(execute, Ontology::NextSymbol, next);
-            Ontology::setSolitary({parentFrame, Ontology::ExecuteSymbol, next});
-            if(Ontology::getUncertain(execute, Ontology::CatchSymbol, catcher))
-                link({frame, Ontology::CatchSymbol, catcher});
-            if(!executePrimitive(*this, procedure))
-                link({frame, Ontology::ExecuteSymbol, getGuaranteed(procedure, Ontology::ExecuteSymbol)});
-        } else {
-            assert(task != Ontology::VoidSymbol && frame != Ontology::VoidSymbol);
-            executePrimitive(*this, Ontology::ExceptionSymbol);
+        checkReturn(getGuaranteed(execute, Ontology::ProcedureSymbol, procedure));
+        block = Storage::createSymbol();
+        pushCallStack();
+        Ontology::link({frame, Ontology::ProcedureSymbol, procedure}); // TODO: debugging
+        if(Ontology::getUncertain(execute, Ontology::StaticSymbol, staticParams))
+            Ontology::query(12, {staticParams, Ontology::VoidSymbol, Ontology::VoidSymbol}, [&](Ontology::Triple result) {
+                Ontology::link({block, result.pos[0], result.pos[1]});
+            });
+        if(Ontology::getUncertain(execute, Ontology::DynamicSymbol, dynamicParams))
+            Ontology::query(12, {dynamicParams, Ontology::VoidSymbol, Ontology::VoidSymbol}, [&](Ontology::Triple result) {
+                switch(result.pos[1]) {
+                    case Ontology::TaskSymbol:
+                        Ontology::link({block, result.pos[0], task});
+                        break;
+                    case Ontology::FrameSymbol:
+                        Ontology::link({block, result.pos[0], parentFrame});
+                        break;
+                    case Ontology::BlockSymbol:
+                        Ontology::link({block, result.pos[0], parentBlock});
+                        break;
+                    default:
+                        Ontology::query(9, {parentBlock, result.pos[1], Ontology::VoidSymbol}, [&](Ontology::Triple resultB) {
+                            Ontology::link({block, result.pos[0], resultB.pos[0]});
+                        });
+                        break;
+                }
+            });
+        Ontology::getUncertain(execute, Ontology::NextSymbol, next);
+        Ontology::setSolitary({parentFrame, Ontology::ExecuteSymbol, next});
+        if(Ontology::getUncertain(execute, Ontology::CatchSymbol, catcher))
+            Ontology::link({frame, Ontology::CatchSymbol, catcher});
+        checkReturn(executePrimitive(*this, procedure, foundPrimitive));
+        if(!foundPrimitive) {
+            checkReturn(getGuaranteed(procedure, Ontology::ExecuteSymbol, execute));
+            Ontology::link({frame, Ontology::ExecuteSymbol, execute});
         }
         return true;
+    }
+
+    bool step() {
+        if(!running())
+            return false;
+        if(tryToStep())
+            return true;
+        bool foundPrimitive;
+        assert(task != Ontology::VoidSymbol && frame != Ontology::VoidSymbol);
+        executePrimitive(*this, Ontology::ExceptionSymbol, foundPrimitive);
+        return false;
     }
 
     bool uncaughtException() {
@@ -211,24 +208,24 @@ struct Thread {
     void deserializationTask(Symbol input, Symbol package = Ontology::VoidSymbol) {
         clear();
         block = Storage::createSymbol();
-        link({block, Ontology::HoldsSymbol, input});
+        Ontology::link({block, Ontology::HoldsSymbol, input});
         if(package == Ontology::VoidSymbol)
             package = block;
         Symbol staticParams = Storage::createSymbol();
-        link({staticParams, Ontology::PackageSymbol, package});
-        link({staticParams, Ontology::InputSymbol, input});
-        link({staticParams, Ontology::TargetSymbol, block});
-        link({staticParams, Ontology::OutputSymbol, Ontology::OutputSymbol});
+        Ontology::link({staticParams, Ontology::PackageSymbol, package});
+        Ontology::link({staticParams, Ontology::InputSymbol, input});
+        Ontology::link({staticParams, Ontology::TargetSymbol, block});
+        Ontology::link({staticParams, Ontology::OutputSymbol, Ontology::OutputSymbol});
         Symbol execute = Storage::createSymbol();
-        link({execute, Ontology::ProcedureSymbol, Ontology::DeserializeSymbol});
-        link({execute, Ontology::StaticSymbol, staticParams});
+        Ontology::link({execute, Ontology::ProcedureSymbol, Ontology::DeserializeSymbol});
+        Ontology::link({execute, Ontology::StaticSymbol, staticParams});
         task = Storage::createSymbol();
         Symbol childFrame = Storage::createSymbol();
-        link({childFrame, Ontology::HoldsSymbol, staticParams});
-        link({childFrame, Ontology::HoldsSymbol, execute});
-        link({childFrame, Ontology::HoldsSymbol, block});
-        link({childFrame, Ontology::BlockSymbol, block});
-        link({childFrame, Ontology::ExecuteSymbol, execute});
+        Ontology::link({childFrame, Ontology::HoldsSymbol, staticParams});
+        Ontology::link({childFrame, Ontology::HoldsSymbol, execute});
+        Ontology::link({childFrame, Ontology::HoldsSymbol, block});
+        Ontology::link({childFrame, Ontology::BlockSymbol, block});
+        Ontology::link({childFrame, Ontology::ExecuteSymbol, execute});
         setFrame(childFrame, false);
         executeFinite(1);
     }
@@ -237,11 +234,11 @@ struct Thread {
         Symbol prev = Ontology::VoidSymbol;
         if(Ontology::query(9, {block, Ontology::OutputSymbol, Ontology::VoidSymbol}, [&](Ontology::Triple result) {
             Symbol next = Storage::createSymbol();
-            link({next, Ontology::ProcedureSymbol, result.pos[0]});
+            Ontology::link({next, Ontology::ProcedureSymbol, result.pos[0]});
             if(prev == Ontology::VoidSymbol)
                 Ontology::setSolitary({frame, Ontology::ExecuteSymbol, next});
             else
-                link({prev, Ontology::NextSymbol, next});
+                Ontology::link({prev, Ontology::NextSymbol, next});
             prev = next;
         }) == 0)
             return false;
