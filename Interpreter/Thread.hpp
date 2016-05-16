@@ -68,14 +68,6 @@ struct Thread {
         return false;
     }
 
-    bool valueCountIs(Symbol entity, Symbol attribute, NativeNaturalType size) {
-        return Ontology::query(9, {entity, attribute, Ontology::VoidSymbol}) == size;
-    }
-
-    bool tripleExists(Ontology::Triple triple) {
-        return Ontology::query(0, triple) == 1;
-    }
-
     bool getGuaranteed(Symbol entity, Symbol attribute, Symbol& value) {
         if(Ontology::getUncertain(entity, attribute, value))
             return true;
@@ -183,12 +175,12 @@ struct Thread {
 
     bool uncaughtException() {
         assert(task != Ontology::VoidSymbol);
-        return tripleExists({task, Ontology::StatusSymbol, Ontology::ExceptionSymbol});
+        return Ontology::tripleExists({task, Ontology::StatusSymbol, Ontology::ExceptionSymbol});
     }
 
     bool running() {
         assert(task != Ontology::VoidSymbol);
-        return tripleExists({task, Ontology::StatusSymbol, Ontology::RunSymbol});
+        return Ontology::tripleExists({task, Ontology::StatusSymbol, Ontology::RunSymbol});
     }
 
     void executeFinite(NativeNaturalType n) {

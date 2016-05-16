@@ -13,12 +13,12 @@ const NativeNaturalType blobBucketTypeCount = 15,
 
 struct SuperPage : public BasePage {
     PageRefType freePage;
-    Symbol symbolCount;
+    Symbol symbolCount; // TODO: pageCount
     BpTreeSet<Symbol> freeSymbols;
     BpTreeSet<PageRefType> fullBlobBuckets, freeBlobBuckets[blobBucketTypeCount];
     BpTreeMap<Symbol, NativeNaturalType> blobs;
 } *superPage;
-PageRefType pageCount;
+PageRefType pageCount; // TODO: move
 
 template<typename PageType>
 PageType* dereferencePage(PageRefType pageRef) {

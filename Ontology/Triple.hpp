@@ -65,7 +65,7 @@ enum IndexMode {
     HexaIndex = 6
 } indexMode = HexaIndex;
 
-BlobSet<false, Symbol, Symbol[6]> symbols;
+BlobSet<false, Symbol, Symbol[6]> symbols; // TODO: Rename symbols -> tripleIndex
 BlobIndex<false> blobIndex;
 
 bool linkInSubIndex(Triple triple) {
@@ -319,6 +319,14 @@ NativeNaturalType query(NativeNaturalType mode, Triple triple, Closure<void(Trip
     return (*method.function)(method.subIndex, triple, handleNext);
 }
 
+bool valueCountIs(Symbol entity, Symbol attribute, NativeNaturalType size) {
+    return query(9, {entity, attribute, VoidSymbol}) == size;
+}
+
+bool tripleExists(Triple triple) {
+    return query(0, triple) == 1;
+}
+
 // TODO: Test
 void setIndexMode(IndexMode _indexMode) {
     assert(indexMode != _indexMode);
@@ -509,13 +517,13 @@ Symbol createFromString(const char* src) {
     return dst;
 }
 
-void tryToFillPreDefined() {
+bool tryToFillPreDefined(NativeNaturalType additionalSymbols = 0) {
     const Symbol preDefinedSymbolsEnd = sizeof(PreDefinedSymbols)/sizeof(void*);
     symbols.symbol = preDefinedSymbolsEnd;
     blobIndex.symbol = preDefinedSymbolsEnd+1;
     if(!symbols.empty())
-        return;
-    Storage::superPage->symbolCount = preDefinedSymbolsEnd+2;
+        return false;
+    Storage::superPage->symbolCount = preDefinedSymbolsEnd+2+additionalSymbols;
     for(Symbol symbol = 0; symbol < preDefinedSymbolsEnd; ++symbol) {
         const char* str = PreDefinedSymbols[symbol];
         stringToBlob(str, strlen(str), symbol);
@@ -525,6 +533,7 @@ void tryToFillPreDefined() {
     Symbol ArchitectureSize = createFromData<NativeNaturalType>(architectureSize);
     link({RunTimeEnvironmentSymbol, HoldsSymbol, ArchitectureSize});
     link({RunTimeEnvironmentSymbol, ArchitectureSizeSymbol, ArchitectureSize});
+    return true;
 }
 
 };

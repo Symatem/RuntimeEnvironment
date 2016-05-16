@@ -21,7 +21,7 @@ struct Deserializer {
     }
 
     void nextSymbol(Symbol stackEntry, Symbol symbol) {
-        if(thread.valueCountIs(stackEntry, Ontology::UnnestEntitySymbol, 0)) {
+        if(Ontology::valueCountIs(stackEntry, Ontology::UnnestEntitySymbol, 0)) {
             queue.symbol = stackEntry;
             queue.insert(0, symbol);
             queue.symbol = currentEntry;
@@ -231,21 +231,21 @@ struct Deserializer {
                     if(stack.size() == 1)
                         return throwException("Semicolon outside of any brackets");
                     checkReturn(seperateTokens(true));
-                    if(!thread.valueCountIs(currentEntry, Ontology::UnnestEntitySymbol, 0))
+                    if(!Ontology::valueCountIs(currentEntry, Ontology::UnnestEntitySymbol, 0))
                         return throwException("Unnesting failed");
                     break;
                 case ')': {
                     if(stack.size() == 1)
                         return throwException("Unmatched closing bracket");
                     checkReturn(seperateTokens(false));
-                    if(stack.size() == 2 && thread.valueCountIs(parentEntry, Ontology::UnnestEntitySymbol, 0)) {
+                    if(stack.size() == 2 && Ontology::valueCountIs(parentEntry, Ontology::UnnestEntitySymbol, 0)) {
                         locals.clear();
                         Symbol entity;
                         checkReturn(thread.getGuaranteed(currentEntry, Ontology::EntitySymbol, entity));
                         if(Ontology::query(12, {entity, Ontology::VoidSymbol, Ontology::VoidSymbol}) == 0)
                             return throwException("Nothing declared");
                     }
-                    if(!thread.valueCountIs(currentEntry, Ontology::UnnestEntitySymbol, 0))
+                    if(!Ontology::valueCountIs(currentEntry, Ontology::UnnestEntitySymbol, 0))
                         return throwException("Unnesting failed");
                     Ontology::unlink(currentEntry);
                     stack.pop_back();
@@ -259,7 +259,7 @@ struct Deserializer {
         checkReturn(parseToken());
         if(stack.size() != 1)
             return throwException("Missing closing bracket");
-        if(!thread.valueCountIs(currentEntry, Ontology::UnnestEntitySymbol, 0))
+        if(!Ontology::valueCountIs(currentEntry, Ontology::UnnestEntitySymbol, 0))
             return throwException("Unnesting failed");
         if(queue.empty())
             return throwException("Empty Input");
