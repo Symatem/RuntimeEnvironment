@@ -67,6 +67,60 @@ const char* resolvePathPartial(const char* pos, Symbol& node) {
     return nullptr;
 }
 
+void fillNode(Symbol node, mode_t mode, dev_t rdev) {
+    time_t now;
+    time(&now);
+
+    Symbol symbol = Storage::createSymbol();
+    Storage::writeBlob<mode_t>(symbol, mode);
+    Ontology::link({node, ModeSymbol, symbol});
+
+    symbol = Storage::createSymbol();
+    Storage::writeBlob<uid_t>(symbol, geteuid());
+    Ontology::link({node, UIDSymbol, symbol});
+
+    symbol = Storage::createSymbol();
+    Storage::writeBlob<gid_t>(symbol, getegid());
+    Ontology::link({node, GIDSymbol, symbol});
+
+    if(rdev > 0) {
+        symbol = Storage::createSymbol();
+        Storage::writeBlob<dev_t>(symbol, rdev);
+        Ontology::link({node, RdevSymbol, symbol});
+    }
+
+    symbol = Storage::createSymbol();
+    Storage::writeBlob<time_t>(symbol, now);
+    Ontology::link({node, CTimeSymbol, symbol});
+}
+
+int makeNode(Symbol& node, const char* path, mode_t mode, dev_t rdev) {
+    Symbol parent;
+    const char* nameStr = resolvePathPartial(path, parent);
+    if(!nameStr) {
+        node = parent;
+        return -EEXIST;
+    }
+
+    for(const char* pos = nameStr; *pos; ++pos)
+        if(*pos == '/') {
+            node = Ontology::VoidSymbol;
+            return -EINVAL;
+        }
+
+    if(node == Ontology::VoidSymbol) {
+        node = Storage::createSymbol();
+        fillNode(node, mode, rdev);
+    }
+
+    Symbol entry = Storage::createSymbol(),
+           name = Ontology::createFromString(nameStr);
+    Ontology::blobIndex.insertElement(name);
+    Ontology::link({entry, Ontology::AttributeSymbol, name});
+    Ontology::link({entry, Ontology::ValueSymbol, node});
+    Ontology::link({parent, Ontology::EntitySymbol, entry});
+	return 0;
+}
 
 
 
