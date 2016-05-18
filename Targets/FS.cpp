@@ -124,6 +124,80 @@ int makeNode(Symbol& node, const char* path, mode_t mode, dev_t rdev) {
 
 
 
+void* symatem_init(struct fuse_conn_info* conn) {
+/*#ifdef __APPLE__
+	FUSE_ENABLE_SETVOLNAME(conn);
+	FUSE_ENABLE_XTIMES(conn);
+#endif*/
+	return NULL;
+}
+
+void symatem_destroy(void* userdata) {
+
+}
+
+int symatem_statfs(const char* path, struct statvfs* stbuf) {
+    stbuf->f_bsize = Storage::bitsPerPage/8;
+    stbuf->f_blocks = Storage::pageCount;
+    stbuf->f_bfree = 0; // TODO
+    stbuf->f_bavail = 0; // TODO
+    stbuf->f_files = 0; // TODO
+    stbuf->f_ffree = 0; // TODO
+    stbuf->f_namemax = 0; // TODO
+	return 0;
+}
+
+int symatem_fgetattr(const char* path, struct stat* stbuf, struct fuse_file_info* fi) {
+    checkNodeExistence();
+    Symbol symbol;
+    stbuf->st_ino = fi->fh;
+    stbuf->st_nlink = Ontology::query(1, {Ontology::ValueSymbol, fi->fh, Ontology::VoidSymbol});
+    stbuf->st_size = Storage::getBlobSize(fi->fh)/8;
+    stbuf->st_blocks = (stbuf->st_size+511)/512;
+    stbuf->st_mode = Ontology::getUncertain(fi->fh, ModeSymbol, symbol) ? Storage::readBlobAt<mode_t>(symbol) : 0;
+    stbuf->st_uid = Ontology::getUncertain(fi->fh, UIDSymbol, symbol) ? Storage::readBlobAt<uid_t>(symbol) : geteuid();
+    stbuf->st_gid = Ontology::getUncertain(fi->fh, GIDSymbol, symbol) ? Storage::readBlobAt<gid_t>(symbol) : getegid();
+    stbuf->st_rdev = Ontology::getUncertain(fi->fh, RdevSymbol, symbol) ? Storage::readBlobAt<dev_t>(symbol) : 0;
+    stbuf->st_ctime = Ontology::getUncertain(fi->fh, CTimeSymbol, symbol) ? Storage::readBlobAt<time_t>(symbol) : 0;
+    stbuf->st_mtime = Ontology::getUncertain(fi->fh, MTimeSymbol, symbol) ? Storage::readBlobAt<time_t>(symbol) : stbuf->st_ctime;
+    stbuf->st_atime = Ontology::getUncertain(fi->fh, ATimeSymbol, symbol) ? Storage::readBlobAt<time_t>(symbol) : stbuf->st_mtime;
+	return 0;
+}
+
+int symatem_getattr(const char* path, struct stat* stbuf) {
+    struct fuse_file_info fi;
+    resolvePath(fi.fh, path);
+	return symatem_fgetattr(path, stbuf, &fi);
+}
+
+int symatem_faccess(const char* path, int mask, struct fuse_file_info* fi) {
+    checkNodeExistence();
+
+    Symbol symbol;
+    mode_t mode = Ontology::getUncertain(fi->fh, ModeSymbol, symbol) ? Storage::readBlobAt<mode_t>(symbol) : 0;
+    bool ownerUser = Ontology::getUncertain(fi->fh, UIDSymbol, symbol) ? Storage::readBlobAt<uid_t>(symbol) == geteuid() : true;
+    bool ownerGroup = Ontology::getUncertain(fi->fh, GIDSymbol, symbol) ? Storage::readBlobAt<gid_t>(symbol) == getegid() : true;
+
+    if((mode&R_OK) && !(ownerUser && mode&S_IRUSR) && !(ownerGroup && mode&S_IRGRP) && !(mode&S_IROTH))
+        return -EACCES;
+
+    if((mode&W_OK) && !(ownerUser && mode&S_IWUSR) && !(ownerGroup && mode&S_IWGRP) && !(mode&S_IWOTH))
+        return -EACCES;
+
+    if((mode&X_OK) && !(ownerUser && mode&S_IXUSR) && !(ownerGroup && mode&S_IXGRP) && !(mode&S_IXOTH))
+        return -EACCES;
+
+	return 0;
+}
+
+int symatem_access(const char* path, int mask) {
+    struct fuse_file_info fi;
+    resolvePath(fi.fh, path);
+	return symatem_faccess(path, mask, &fi);
+}
+
+
+
 Integer32 main(Integer32 argc, Integer8** argv) {
 	if(argc < 3) {
 		printf("Usage: SymatemFS [DataFile] [MountPoint]\n");
