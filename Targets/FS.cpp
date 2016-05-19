@@ -196,6 +196,64 @@ int symatem_access(const char* path, int mask) {
 	return symatem_faccess(path, mask, &fi);
 }
 
+int symatem_opendir(const char* path, struct fuse_file_info* fi) {
+    resolvePath(fi->fh, path);
+    checkNodeExistence();
+	return symatem_faccess(path, R_OK, fi);
+}
+
+int symatem_releasedir(const char* path, struct fuse_file_info* fi) {
+    checkNodeExistence();
+	return 0;
+}
+
+int symatem_readdir(const char* path, void* buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info* fi) {
+    checkNodeExistence();
+    Ontology::query(9, {fi->fh, Ontology::EntitySymbol, Ontology::VoidSymbol}, [&](Ontology::Triple result) {
+        Symbol name;
+        struct fuse_file_info fi;
+        struct stat stbuf;
+        if(Ontology::getUncertain(result.pos[0], Ontology::AttributeSymbol, name)
+           && Ontology::getUncertain(result.pos[0], Ontology::ValueSymbol, fi.fh)) {
+            NativeNaturalType bytes = Storage::getBlobSize(name)/8;
+            Integer8* nameStr = static_cast<Integer8*>(malloc(bytes+1));
+            for(NativeNaturalType i = 0; i < bytes; ++i)
+                nameStr[i] = Storage::readBlobAt<Integer8>(name, i);
+            nameStr[bytes] = 0;
+            symatem_fgetattr(path, &stbuf, &fi);
+            filler(buf, nameStr, &stbuf, 0);
+            free(nameStr);
+        }
+    });
+	return 0;
+}
+
+int symatem_mknod(const char* path, mode_t mode, dev_t rdev) {
+    if(mode == S_IFSOCK || mode == S_IFLNK || mode == S_IFBLK || mode == S_IFCHR || mode == S_IFIFO)
+        return -ENOSYS;
+    Symbol node = Ontology::VoidSymbol;
+    return makeNode(node, path, mode, rdev);
+}
+
+int symatem_unlink(const char* path) {
+    return -ENOSYS; // TODO
+    getNodeOfPath(path);
+    // TODO: Only unlink in one parent
+    Ontology::query(1, {Ontology::ValueSymbol, node, Ontology::VoidSymbol}, [&](Ontology::Triple result) {
+        Ontology::unlink(result.pos[0]);
+    });
+    Ontology::unlink(node);
+	return 0;
+}
+
+int symatem_mkdir(const char* path, mode_t mode) {
+	return symatem_mknod(path, mode, 0);
+}
+
+int symatem_rmdir(const char* path) {
+	return symatem_unlink(path);
+}
+
 
 
 Integer32 main(Integer32 argc, Integer8** argv) {
