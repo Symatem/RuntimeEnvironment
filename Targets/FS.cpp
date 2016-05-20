@@ -254,6 +254,125 @@ int symatem_rmdir(const char* path) {
 	return symatem_unlink(path);
 }
 
+int symatem_readlink(const char* path, char* buf, size_t size) {
+    getNodeOfPath(path);
+    NativeNaturalType len = min(static_cast<NativeNaturalType>(size), Storage::getBlobSize(node)/8);
+    for(NativeNaturalType i = 0; i < len; ++i)
+        buf[i] = Storage::readBlobAt<Integer8>(node, i);
+    buf[len] = 0;
+	return 0;
+}
+
+int symatem_symlink(const char* from, const char* to) {
+    getNodeOfPath(from);
+	int result = makeNode(node, to, S_IFLNK, 0);
+    if(result == 0) {
+        NativeNaturalType len = strlen(to);
+        Storage::setBlobSize(node, len*8);
+        for(NativeNaturalType i = 0; i < len; ++i)
+            Storage::writeBlobAt<Integer8>(node, i, to[i]);
+    }
+    return result;
+}
+
+int symatem_link(const char* from, const char* to) {
+    getNodeOfPath(from);
+    return makeNode(node, to, 0, 0);
+}
+
+int symatem_rename(const char* from, const char* to) {
+    getNodeOfPath(from);
+    int result = symatem_link(from, to);
+    if(result)
+        return result;
+	return unlink(from);
+}
+
+int symatem_chmod(const char* path, mode_t mode) {
+    getNodeOfPath(path);
+    Symbol symbol;
+    if(!Ontology::getUncertain(node, ModeSymbol, symbol)) {
+        symbol = Storage::createSymbol();
+        Ontology::link({node, ModeSymbol, symbol});
+    }
+    Storage::writeBlob<mode_t>(symbol, mode);
+	return 0;
+}
+
+int symatem_chown(const char* path, uid_t uid, gid_t gid) {
+    getNodeOfPath(path);
+    Symbol symbol;
+    if(!Ontology::getUncertain(node, UIDSymbol, symbol)) {
+        symbol = Storage::createSymbol();
+        Ontology::link({node, UIDSymbol, symbol});
+    }
+    Storage::writeBlob<uid_t>(symbol, gid);
+    if(!Ontology::getUncertain(node, GIDSymbol, symbol)) {
+        symbol = Storage::createSymbol();
+        Ontology::link({node, GIDSymbol, symbol});
+    }
+    Storage::writeBlob<gid_t>(symbol, gid);
+    return 0;
+}
+
+int symatem_ftruncate(const char* path, off_t size, struct fuse_file_info* fi) {
+    checkNodeExistence();
+    Storage::setBlobSize(fi->fh, size*8);
+    for(NativeNaturalType i = 0; i < size; ++i)
+        Storage::writeBlobAt<Natural8>(fi->fh, i, 0);
+	return 0;
+}
+
+int symatem_fallocate(const char* path, int mode, off_t offset, off_t length, struct fuse_file_info* fi) {
+    checkNodeExistence();
+    if(offset+length > Storage::getBlobSize(fi->fh)/8)
+        return symatem_ftruncate(path, offset+length, fi);
+	return 0;
+}
+
+int symatem_truncate(const char* path, off_t size) {
+    struct fuse_file_info fi;
+    resolvePath(fi.fh, path);
+    return symatem_ftruncate(path, size, &fi);
+}
+
+int symatem_create(const char* path, mode_t mode, struct fuse_file_info* fi) {
+    fi->fh = Ontology::VoidSymbol;
+    return makeNode(fi->fh, path, mode, 0);
+}
+
+int symatem_open(const char* path, struct fuse_file_info* fi) {
+    resolvePath(fi->fh, path);
+    checkNodeExistence();
+	return symatem_faccess(path, R_OK, fi);
+}
+
+int symatem_release(const char* path, struct fuse_file_info* fi) {
+    checkNodeExistence();
+	return 0;
+}
+
+int symatem_read(const char* path, char* buf, size_t size, off_t offset, struct fuse_file_info* fi) {
+    checkNodeExistence();
+    if(offset+size > Storage::getBlobSize(fi->fh)/8)
+        return -EINVAL;
+    for(NativeNaturalType i = offset; i < offset+size; ++i)
+        buf[i] = Storage::readBlobAt<Integer8>(fi->fh, i);
+	return size;
+}
+
+int symatem_write(const char* path, const char* buf, size_t size, off_t offset, struct fuse_file_info* fi) {
+    checkNodeExistence();
+    if(offset+size > Storage::getBlobSize(fi->fh)/8) {
+        int result = symatem_ftruncate(path, offset+size, fi);
+        if(result)
+            return result;
+    }
+    for(NativeNaturalType i = offset; i < offset+size; ++i)
+        Storage::writeBlobAt<Integer8>(fi->fh, i, buf[i]);
+	return size;
+}
+
 
 
 Integer32 main(Integer32 argc, Integer8** argv) {
