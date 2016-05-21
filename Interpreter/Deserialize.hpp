@@ -42,14 +42,14 @@ struct Deserializer {
         if(strlen(str) > pos-tokenBegin)
             return false;
         for(NativeNaturalType i = 0; i < strlen(str); ++i)
-            if(Storage::readBlobAt<char>(input, tokenBegin+i) != str[i])
+            if(Storage::readBlobAt<Natural8>(input, tokenBegin+i) != str[i])
                 return false;
         return true;
     }
 
     bool parseToken(bool isText = false) {
         if(pos > tokenBegin) {
-            char src = Storage::readBlobAt<char>(input, tokenBegin);
+            Natural8 src = Storage::readBlobAt<Natural8>(input, tokenBegin);
             Symbol symbol;
             if(isText)
                 symbol = sliceText();
@@ -68,7 +68,7 @@ struct Deserializer {
                 Natural8 nibble, byte;
                 NativeNaturalType at = 0;
                 while(tokenBegin < pos) {
-                    src = Storage::readBlobAt<char>(input, tokenBegin);
+                    src = Storage::readBlobAt<Natural8>(input, tokenBegin);
                     if(src >= '0' && src <= '9')
                         nibble = src-'0';
                     else if(src >= 'A' && src <= 'F')
@@ -92,7 +92,7 @@ struct Deserializer {
                     ++tokenBegin;
                 // TODO What if too long, precision loss?
                 while(tokenBegin < pos) {
-                    src = Storage::readBlobAt<char>(input, tokenBegin);
+                    src = Storage::readBlobAt<Natural8>(input, tokenBegin);
                     devisor *= 10;
                     if(src >= '0' && src <= '9') {
                         mantissa *= 10;
@@ -190,7 +190,7 @@ struct Deserializer {
         row = column = 1;
         end = Storage::getBlobSize(input)/8;
         for(tokenBegin = pos = 0; pos < end; ++pos) {
-            char src = Storage::readBlobAt<char>(input, pos);
+            Natural8 src = Storage::readBlobAt<Natural8>(input, pos);
             switch(src) {
                 case '\n':
                     checkReturn(parseToken());
@@ -209,7 +209,7 @@ struct Deserializer {
                             return throwException("Unterminated text");
                         bool prev = (src != '\\');
                         ++pos;
-                        src = Storage::readBlobAt<char>(input, pos);
+                        src = Storage::readBlobAt<Natural8>(input, pos);
                         if(prev) {
                             if(src == '\\')
                                 continue;

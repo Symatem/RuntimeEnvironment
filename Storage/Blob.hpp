@@ -307,32 +307,29 @@ struct Blob {
         modifiedBlob(symbol);
     }
 
-    template<bool swap, typename DataType>
-    void externalOperate(NativeNaturalType index, DataType& data) {
-        assert((index+1)*sizeOfInBits<DataType>::value <= getSize());
+    template<bool swap>
+    void externalOperate(void* data, NativeNaturalType at, NativeNaturalType count) {
+        assert(count > 0 && at+count <= getSize());
         if(state == InBucket) {
-            bitwiseCopySwap<swap>(reinterpret_cast<NativeNaturalType*>(&data),
+            bitwiseCopySwap<swap>(reinterpret_cast<NativeNaturalType*>(data),
                                   reinterpret_cast<NativeNaturalType*>(superPage),
-                                  0, address+index*sizeOfInBits<DataType>::value,
-                                  sizeOfInBits<DataType>::value);
+                                  0, address+at,
+                                  count);
         } else {
             BpTreeBlob::Iterator<false> iter;
-            bpTree.find<Rank>(iter, index*sizeOfInBits<DataType>::value);
-            NativeNaturalType segment = iter[0]->endIndex-iter[0]->index;
-            if(segment < sizeOfInBits<DataType>::value) {
-                bitwiseCopySwap<swap>(reinterpret_cast<NativeNaturalType*>(&data),
+            bpTree.find<Rank>(iter, at);
+            at = 0;
+            while(true) {
+                NativeNaturalType segment = min(count, static_cast<NativeNaturalType>(iter[0]->endIndex-iter[0]->index));
+                bitwiseCopySwap<swap>(reinterpret_cast<NativeNaturalType*>(data),
                                       reinterpret_cast<NativeNaturalType*>(superPage),
-                                      0, addressOfInteroperation(iter, 0), segment);
-                assert(iter.template advance<1>(0, segment) == 0);
-                NativeNaturalType rest = sizeOfInBits<DataType>::value-segment;
-                assert(rest <= iter[0]->endIndex-iter[0]->index);
-                bitwiseCopySwap<swap>(reinterpret_cast<NativeNaturalType*>(&data),
-                                      reinterpret_cast<NativeNaturalType*>(superPage),
-                                      segment, addressOfInteroperation(iter, 0), rest);
-            } else
-                bitwiseCopySwap<swap>(reinterpret_cast<NativeNaturalType*>(&data),
-                                      reinterpret_cast<NativeNaturalType*>(superPage),
-                                      0, addressOfInteroperation(iter, 0), sizeOfInBits<DataType>::value);
+                                      at, addressOfInteroperation(iter, 0), segment);
+                count -= segment;
+                if(count == 0)
+                   break;
+                iter.template advance<1>(0, segment);
+                at += segment;
+            }
         }
     }
 };
@@ -350,20 +347,20 @@ void setBlobSize(Symbol symbol, NativeNaturalType size) {
 template<typename DataType>
 DataType readBlobAt(Symbol srcSymbol, NativeNaturalType srcIndex = 0) {
     DataType dst;
-    Blob(srcSymbol).externalOperate<false, DataType>(srcIndex, dst);
+    Blob(srcSymbol).externalOperate<false>(&dst, srcIndex*sizeOfInBits<DataType>::value, sizeOfInBits<DataType>::value);
     return dst;
 }
 
 template<typename DataType>
 void writeBlobAt(Symbol dstSymbol, NativeNaturalType dstIndex, DataType src) {
-    Blob(dstSymbol).externalOperate<true, DataType>(dstIndex, src);
+    Blob(dstSymbol).externalOperate<true>(&src, dstIndex*sizeOfInBits<DataType>::value, sizeOfInBits<DataType>::value);
 }
 
 template<typename DataType>
 void writeBlob(Symbol dstSymbol, DataType src) {
     Blob dstBlob(dstSymbol);
     dstBlob.setSize(sizeOfInBits<DataType>::value);
-    dstBlob.externalOperate<true, DataType>(0, src);
+    dstBlob.externalOperate<true>(&src, 0, sizeOfInBits<DataType>::value);
     modifiedBlob(dstSymbol);
 }
 

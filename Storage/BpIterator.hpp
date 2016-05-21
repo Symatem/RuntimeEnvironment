@@ -96,6 +96,7 @@ struct Iterator {
                 }
             if(keepRunning || stepsTaken > 0) {
                 Page* page = getPage(frame->pageRef);
+                layer = page->header.layer;
                 LayerType endLayer = (atLayer) ? atLayer-1 : 0;
                 while(layer > endLayer) {
                     descend(frame, page, layer);

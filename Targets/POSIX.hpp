@@ -105,6 +105,6 @@ void loadStorage(const Integer8* path) {
 void unloadStorage() {
     if(Storage::pageCount)
         munmap(Storage::superPage, bytesForPages(Storage::pageCount));
-    assert(ftruncate(file, bytesForPages(Storage::pageCount)) == 0);
+    assert(ftruncate(file, Storage::pageCount*Storage::bitsPerPage/8) == 0);
     assert(close(file) == 0);
 }

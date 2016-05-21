@@ -6,22 +6,24 @@ Symbol createFromFile(const char* path) {
     Integer32 fd = open(path, O_RDONLY);
     if(fd < 0)
         return Ontology::VoidSymbol;
-    Symbol dst = Storage::createSymbol();
-    Ontology::link({dst, Ontology::BlobTypeSymbol, Ontology::TextSymbol});
+    Symbol dstSymbol = Storage::createSymbol();
+    Ontology::link({dstSymbol, Ontology::BlobTypeSymbol, Ontology::TextSymbol});
     NativeNaturalType length = lseek(fd, 0, SEEK_END);
-    Storage::increaseBlobSize(dst, 0, length*8);
+    Storage::Blob dstBlob(dstSymbol);
+    dstBlob.increaseSize(0, length*8);
     lseek(fd, 0, SEEK_SET);
-    char buffer[64];
+    Natural8 src[512];
     NativeNaturalType dstIndex = 0;
     while(length > 0) {
-        NativeNaturalType count = min((NativeNaturalType)sizeof(buffer), length);
-        read(fd, buffer, count);
-        for(NativeNaturalType j = 0; j < count; ++j)
-            Storage::writeBlobAt<char>(dst, dstIndex++, buffer[j]);
+        NativeNaturalType count = min(static_cast<NativeNaturalType>(sizeof(src)), length);
+        read(fd, src, count);
+        dstBlob.externalOperate<true>(src, dstIndex*8, count*8);
+        dstIndex += count;
         length -= count;
     }
     close(fd);
-    return dst;
+    Storage::modifiedBlob(dstSymbol);
+    return dstSymbol;
 }
 
 void loadFromPath(Symbol parentPackage, bool execute, char* path) {

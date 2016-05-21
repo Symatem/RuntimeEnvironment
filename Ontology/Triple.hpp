@@ -503,12 +503,12 @@ Symbol createFromSlice(Symbol src, NativeNaturalType srcOffset, NativeNaturalTyp
     return dst;
 }
 
-void stringToBlob(const char* src, NativeNaturalType length, Symbol dst) {
-    link({dst, BlobTypeSymbol, TextSymbol});
-    Storage::increaseBlobSize(dst, 0, length*8);
-    for(NativeNaturalType i = 0; i < length; ++i)
-        Storage::writeBlobAt<char>(dst, i, src[i]);
-    Storage::modifiedBlob(dst);
+void stringToBlob(const char* src, NativeNaturalType length, Symbol dstSymbol) {
+    link({dstSymbol, BlobTypeSymbol, TextSymbol});
+    Storage::Blob dstBlob(dstSymbol);
+    dstBlob.increaseSize(0, length*8);
+    dstBlob.externalOperate<true>(const_cast<Integer8*>(src), 0, length*8);
+    Storage::modifiedBlob(dstSymbol);
 }
 
 Symbol createFromString(const char* src) {

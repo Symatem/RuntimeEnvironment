@@ -6,17 +6,18 @@ struct Serializer {
     Thread& thread;
     Symbol symbol;
 
-    void put(char src) {
+    void put(Natural8 src) {
         NativeNaturalType at = Storage::getBlobSize(symbol);
         Storage::increaseBlobSize(symbol, at, 8);
-        Storage::writeBlobAt<char>(symbol, at/8, src);
+        Storage::writeBlobAt<Natural8>(symbol, at/8, src);
     }
 
     void puts(const char* src) {
         NativeNaturalType at = Storage::getBlobSize(symbol), length = strlen(src)*8;
-        Storage::increaseBlobSize(symbol, at, length);
-        for(NativeNaturalType i = 0; i < strlen(src); ++i)
-            Storage::writeBlobAt<char>(symbol, at/8+i, src[i]);
+        Storage::Blob dstBlob(symbol);
+        dstBlob.increaseSize(0, length);
+        dstBlob.externalOperate<true>(const_cast<Integer8*>(src), at, length);
+        Storage::modifiedBlob(symbol);
     }
 
     template<typename NumberType>
@@ -63,7 +64,7 @@ struct Serializer {
                     len /= 8;
                     bool spaces = false;
                     for(NativeNaturalType i = 0; i < len; ++i) {
-                        char element = Storage::readBlobAt<char>(src, i);
+                        Natural8 element = Storage::readBlobAt<Natural8>(src, i);
                         if(element == ' ' || element == '\t' || element == '\n') {
                             spaces = true;
                             break;
@@ -72,7 +73,7 @@ struct Serializer {
                     if(spaces)
                         put('"');
                     for(NativeNaturalType i = 0; i < len; ++i)
-                        put(Storage::readBlobAt<char>(src, i));
+                        put(Storage::readBlobAt<Natural8>(src, i));
                     if(spaces)
                         put('"');
                 }   break;
@@ -89,8 +90,8 @@ struct Serializer {
                     puts(HRLRawBegin);
                     len = (len+3)/4;
                     for(NativeNaturalType i = 0; i < len; ++i) {
-                        char element = Storage::readBlobAt<char>(src, i/2);
-                        char nibble = (element>>((i%2)*4))&0x0F;
+                        Natural8 element = Storage::readBlobAt<Natural8>(src, i/2),
+                                 nibble = (element>>((i%2)*4))&0x0F;
                         if(nibble < 0xA)
                             put('0'+nibble);
                         else

@@ -41,7 +41,7 @@ struct Page {
     template<typename DataType, NativeNaturalType offset>
     DataType get(OffsetType src) const {
         static_assert(offset%8 == 0);
-        return *reinterpret_cast<const DataType*>(reinterpret_cast<const char*>(this)+(offset+src*sizeOfInBits<DataType>::value)/8);
+        return *reinterpret_cast<const DataType*>(reinterpret_cast<const Natural8*>(this)+(offset+src*sizeOfInBits<DataType>::value)/8);
     }
 
     template<bool isLeaf>
@@ -60,7 +60,7 @@ struct Page {
     template<typename DataType, NativeNaturalType offset>
     void set(OffsetType dst, DataType content) {
         static_assert(offset%8 == 0);
-        *reinterpret_cast<DataType*>(reinterpret_cast<char*>(this)+(offset+dst*sizeOfInBits<DataType>::value)/8) = content;
+        *reinterpret_cast<DataType*>(reinterpret_cast<Natural8*>(this)+(offset+dst*sizeOfInBits<DataType>::value)/8) = content;
     }
 
     template<bool isLeaf>

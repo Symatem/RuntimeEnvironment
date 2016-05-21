@@ -12,8 +12,8 @@ const NativeNaturalType blobBucketTypeCount = 15,
 // blobBucketTypeCount = 11, {8, 16, 32, 64, 192, 320, 640, 1152, 3328, 7552, 15232};
 
 struct SuperPage : public BasePage {
+    Symbol symbolCount; // TODO: Rename pagesEnd, symbolsEnd
     PageRefType freePage;
-    Symbol symbolCount; // TODO: pageCount
     BpTreeSet<Symbol> freeSymbols;
     BpTreeSet<PageRefType> fullBlobBuckets, freeBlobBuckets[blobBucketTypeCount];
     BpTreeMap<Symbol, NativeNaturalType> blobs;
@@ -23,7 +23,7 @@ PageRefType pageCount; // TODO: move
 template<typename PageType>
 PageType* dereferencePage(PageRefType pageRef) {
     assert(pageRef < pageCount);
-    return reinterpret_cast<PageType*>(reinterpret_cast<char*>(superPage)+bitsPerPage/8*pageRef);
+    return reinterpret_cast<PageType*>(reinterpret_cast<Natural8*>(superPage)+bitsPerPage/8*pageRef);
 }
 
 PageRefType referenceOfPage(void* page) {
