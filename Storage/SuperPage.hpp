@@ -12,23 +12,22 @@ const NativeNaturalType blobBucketTypeCount = 15,
 // blobBucketTypeCount = 11, {8, 16, 32, 64, 192, 320, 640, 1152, 3328, 7552, 15232};
 
 struct SuperPage : public BasePage {
-    Symbol symbolCount; // TODO: Rename pagesEnd, symbolsEnd
+    Symbol pagesEnd, symbolsEnd;
     PageRefType freePage;
     BpTreeSet<Symbol> freeSymbols;
     BpTreeSet<PageRefType> fullBlobBuckets, freeBlobBuckets[blobBucketTypeCount];
     BpTreeMap<Symbol, NativeNaturalType> blobs;
 } *superPage;
-PageRefType pageCount; // TODO: move
 
 template<typename PageType>
 PageType* dereferencePage(PageRefType pageRef) {
-    assert(pageRef < pageCount);
+    assert(pageRef < superPage->pagesEnd);
     return reinterpret_cast<PageType*>(reinterpret_cast<Natural8*>(superPage)+bitsPerPage/8*pageRef);
 }
 
 PageRefType referenceOfPage(void* page) {
     PageRefType pageRef = (reinterpret_cast<Natural64>(page)-reinterpret_cast<Natural64>(superPage))*8/bitsPerPage;
-    assert(pageRef < pageCount);
+    assert(pageRef < superPage->pagesEnd);
     return pageRef;
 }
 
@@ -40,15 +39,15 @@ PageRefType aquirePage() {
         superPage->freePage = freePage->next;
         return pageRef;
     } else {
-        resizeMemory(pageCount+1);
-        return pageCount-1;
+        resizeMemory(superPage->pagesEnd+1);
+        return superPage->pagesEnd-1;
     }
 }
 
 void releasePage(PageRefType pageRef) {
     assert(superPage);
-    if(pageRef == pageCount-1)
-        resizeMemory(pageCount-1);
+    if(pageRef == superPage->pagesEnd-1)
+        resizeMemory(superPage->pagesEnd-1);
     else {
         auto superPage = dereferencePage<SuperPage>(0);
         auto freePage = dereferencePage<FreePage>(pageRef);

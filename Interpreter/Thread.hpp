@@ -9,7 +9,7 @@
     checkReturn(thread.getGuaranteed(thread.block, Ontology::Name##Symbol, name));
 
 #define checkBlobType(name, expectedType) \
-    if(Ontology::query(1, {name, Ontology::BlobTypeSymbol, expectedType}) == 0) \
+    if(!Ontology::tripleExists({name, Ontology::BlobTypeSymbol, expectedType})) \
         return thread.throwException("Invalid Blob Type");
 
 #define getUncertainValueByName(name, Name, DefaultValue) \

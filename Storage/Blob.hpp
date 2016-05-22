@@ -7,7 +7,7 @@ Symbol createSymbol() {
     if(freeSymbols.elementCount)
         return superPage->freeSymbols.getOne<First, true>();
     else */
-        return superPage->symbolCount++;
+        return superPage->symbolsEnd++;
 }
 
 void modifiedBlob(Symbol symbol) {
@@ -387,8 +387,8 @@ bool increaseBlobSize(Symbol symbol, NativeNaturalType at, NativeNaturalType cou
 void releaseSymbol(Symbol symbol) {
     Blob(symbol).setSize(0);
     /* TODO: Fix scrutinizeExistence
-    if(symbol == superPage->symbolCount-1)
-        --superPage->symbolCount;
+    if(symbol == superPage->symbolsEnd-1)
+        --superPage->symbolsEnd;
     else
         superPage->freeSymbols.insert(symbol); */
 }

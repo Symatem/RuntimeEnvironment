@@ -177,8 +177,7 @@ struct Deserializer {
     bool deserialize() {
         checkReturn(thread.getGuaranteed(thread.block, Ontology::PackageSymbol, package));
         checkReturn(thread.getGuaranteed(thread.block, Ontology::InputSymbol, input));
-        if(Ontology::query(1, {input, Ontology::BlobTypeSymbol, Ontology::TextSymbol}) == 0)
-            return thread.throwException("Invalid Blob Type");
+        checkBlobType(input, Ontology::TextSymbol)
         locals.symbol = Storage::createSymbol();
         stack.symbol = Storage::createSymbol();
         currentEntry = Storage::createSymbol();

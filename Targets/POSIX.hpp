@@ -17,46 +17,38 @@ void resetStats(struct Storage::Stats& stats) {
 }
 
 void printStatsPartial(struct Storage::Stats& stats) {
-    printf("    Uninhabitable: %10llu bits\n", stats.uninhabitable);
-    printf("    Meta Data:     %10llu bits\n", stats.totalMetaData);
-    printf("      Inhabited:   %10llu bits\n", stats.inhabitedMetaData);
+    NativeNaturalType totalBits = stats.uninhabitable+stats.totalMetaData+stats.totalPayload;
+    assert(totalBits%Storage::bitsPerPage == 0);
+    printf("%10llu bits %2.2f %%\n", totalBits, 100.0*totalBits/(Storage::superPage->pagesEnd*Storage::bitsPerPage));
+    printf("    Uninhabitable: %10llu bits %2.2f %%\n", stats.uninhabitable, 100.0*stats.uninhabitable/totalBits);
+    printf("    Meta Data:     %10llu bits %2.2f %%\n", stats.totalMetaData, 100.0*stats.totalMetaData/totalBits);
+    printf("      Inhabited:   %10llu bits %2.2f %%\n", stats.inhabitedMetaData, 100.0*stats.inhabitedMetaData/stats.totalMetaData);
     printf("      Vacant:      %10llu bits\n", stats.totalMetaData-stats.inhabitedMetaData);
-    printf("    Payload:       %10llu bits\n", stats.totalPayload);
-    printf("      Inhabited:   %10llu bits\n", stats.inhabitedPayload);
+    printf("    Payload:       %10llu bits %2.2f %%\n", stats.totalPayload, 100.0*stats.totalPayload/totalBits);
+    printf("      Inhabited:   %10llu bits %2.2f %%\n", stats.inhabitedPayload, 100.0*stats.inhabitedPayload/stats.totalPayload);
     printf("      Vacant:      %10llu bits\n", stats.totalPayload-stats.inhabitedPayload);
 }
 
 void printStats() {
-    struct Storage::Stats stats;
-    printf("Stats:\n");
-    printf("  Global:          %10llu bits\n", Storage::pageCount*Storage::bitsPerPage);
-    printf("    Wilderness:    %10llu bits\n", Storage::countFreePages()*Storage::bitsPerPage);
-    printf("    Super Page:    %10llu bits\n", Storage::bitsPerPage);
-    printf("      Inhabited:   %10llu bits\n", sizeOfInBits<Storage::SuperPage>::value);
-    printf("      Vacant:      %10llu bits\n", Storage::bitsPerPage-sizeOfInBits<Storage::SuperPage>::value);
-
-    resetStats(stats);
-    auto superPage = Storage::dereferencePage<Storage::SuperPage>(0);
-    superPage->fullBlobBuckets.generateStats(stats, [&](Storage::BpTreeSet<PageRefType>::Iterator<false>& iter) {
-        Storage::dereferencePage<Storage::BlobBucket>(iter.getKey())->generateStats(stats);
-    });
+    struct Storage::Stats metaStructs;
+    resetStats(metaStructs);
+    metaStructs.totalMetaData += Storage::bitsPerPage;
+    metaStructs.inhabitedMetaData += sizeOfInBits<Storage::SuperPage>::value;
+    Storage::superPage->freeSymbols.generateStats(metaStructs);
+    Storage::superPage->fullBlobBuckets.generateStats(metaStructs);
     for(NativeNaturalType i = 0; i < Storage::blobBucketTypeCount; ++i)
-        superPage->freeBlobBuckets[i].generateStats(stats, [&](Storage::BpTreeSet<PageRefType>::Iterator<false>& iter) {
-            Storage::dereferencePage<Storage::BlobBucket>(iter.getKey())->generateStats(stats);
-        });
-    printf("  Blob Buckets:    %10llu\n", stats.elementCount); // TODO elementCount is both, B+Tree and Blobs
-    printStatsPartial(stats);
+        Storage::superPage->freeBlobBuckets[i].generateStats(metaStructs);
+    Storage::superPage->blobs.generateStats(metaStructs);
 
-    resetStats(stats);
-    superPage->blobs.generateStats(stats);
-    printf("  Symbols:         %10llu\n", superPage->symbolCount);
-    printf("    Recyclable:    %10llu\n", superPage->symbolCount-stats.elementCount);
-    printf("    Used:          %10llu\n", stats.elementCount);
-    printf("      Meta:        %10llu\n", stats.elementCount-Ontology::symbols.size());
-    printf("      User:        %10llu\n", Ontology::symbols.size());
-    printStatsPartial(stats);
+    NativeNaturalType totalBits = Storage::superPage->pagesEnd*Storage::bitsPerPage,
+                      totalRecyclableBits = Storage::countFreePages()*Storage::bitsPerPage;
 
-    printf("  Triples:         %10llu\n", Ontology::query(13, {}));
+    printf("Stats:\n");
+    printf("  Global:          %10llu bits\n", totalBits);
+    printf("    Recyclable:    %10llu bits %2.2f %%\n", totalRecyclableBits, 100.0*totalRecyclableBits/totalBits);
+    printf("  Meta Structures  ");
+    printStatsPartial(metaStructs);
+
     printf("\n");
 }
 
@@ -75,36 +67,35 @@ void assertFailed(const char* str) {
 
 Integer32 file;
 
-NativeNaturalType bytesForPages(NativeNaturalType pageCount) {
+NativeNaturalType bytesForPages(NativeNaturalType pagesEnd) {
     const NativeNaturalType mmapChunkSize = 1<<24;
-    return (pageCount*Storage::bitsPerPage+mmapChunkSize-1)/mmapChunkSize*mmapChunkSize/8;
+    return (pagesEnd*Storage::bitsPerPage+mmapChunkSize-1)/mmapChunkSize*mmapChunkSize/8;
 }
 
-void Storage::resizeMemory(NativeNaturalType _pageCount) {
-    if(pageCount)
-        munmap(superPage, bytesForPages(pageCount));
-    assert(_pageCount < maxPageCount);
-    pageCount = _pageCount;
-    assert(ftruncate(file, bytesForPages(pageCount)) == 0);
-    assert(MMAP_FUNC(superPage, bytesForPages(pageCount),
-                     PROT_READ|PROT_WRITE, MAP_FIXED|MAP_FILE|MAP_SHARED,
-                     file, 0) == superPage);
+void Storage::resizeMemory(NativeNaturalType _pagesEnd) {
+    assert(_pagesEnd < maxPageCount);
+    munmap(superPage, bytesForPages(Storage::maxPageCount));
+    assert(ftruncate(file, bytesForPages(_pagesEnd)) == 0);
+    assert(MMAP_FUNC(superPage, bytesForPages(Storage::maxPageCount),
+                     PROT_READ|PROT_WRITE, MAP_FIXED|MAP_FILE|MAP_SHARED, file, 0) == superPage);
+    superPage->pagesEnd = _pagesEnd;
 }
 
 void loadStorage(const Integer8* path) {
     file = open(path, O_RDWR|O_CREAT, 0666);
     assert(file >= 0);
-    Storage::pageCount = lseek(file, 0, SEEK_END)/(Storage::bitsPerPage/8);
-    if(Storage::pageCount < Storage::minPageCount)
-        Storage::pageCount = Storage::minPageCount;
-    Storage::superPage = reinterpret_cast<Storage::SuperPage*>(MMAP_FUNC(nullptr, bytesForPages(Storage::maxPageCount), PROT_NONE, MAP_FILE|MAP_SHARED, file, 0));
+    assert(ftruncate(file, 0) == 0);
+    assert(ftruncate(file, bytesForPages(Storage::minPageCount)) == 0);
+    Storage::superPage = reinterpret_cast<Storage::SuperPage*>(
+                         MMAP_FUNC(nullptr, bytesForPages(Storage::maxPageCount),
+                                   PROT_READ|PROT_WRITE, MAP_FILE|MAP_SHARED, file, 0));
     assert(Storage::superPage != MAP_FAILED);
-    Storage::resizeMemory(Storage::pageCount);
+    Storage::superPage->pagesEnd = Storage::minPageCount;
 }
 
 void unloadStorage() {
-    if(Storage::pageCount)
-        munmap(Storage::superPage, bytesForPages(Storage::pageCount));
-    assert(ftruncate(file, Storage::pageCount*Storage::bitsPerPage/8) == 0);
+    NativeNaturalType size = Storage::superPage->pagesEnd*Storage::bitsPerPage/8;
+    munmap(Storage::superPage, bytesForPages(Storage::maxPageCount));
+    assert(ftruncate(file, size) == 0);
     assert(close(file) == 0);
 }

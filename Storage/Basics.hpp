@@ -194,7 +194,7 @@ struct BasePage {
     NativeNaturalType transaction;
 };
 
-void resizeMemory(NativeNaturalType pageCount);
+void resizeMemory(NativeNaturalType pagesEnd);
 
 template<typename PageType>
 PageType* dereferencePage(PageRefType pageRef);

@@ -86,12 +86,15 @@ struct BpTree {
         };
         find<First>(iter, 0, pageTouch);
         while(iter.template advance<1>(1, 1, pageTouch) == 0);
-        NativeNaturalType uninhabitable = Page::valueOffset-Page::headerBits-keyBits*Page::leafKeyCount;
+        NativeNaturalType uninhabitable = Page::valueOffset-keyBits*Page::leafKeyCount-Page::headerBits;
         stats.uninhabitable += uninhabitable*leafPageCount;
-        stats.totalPayload += (Storage::bitsPerPage-uninhabitable)*leafPageCount;
-        uninhabitable = Page::keyOffset-Page::headerBits+Page::pageRefOffset-Page::rankOffset-rankBits*(Page::branchKeyCount+1);
+        stats.totalPayload += (Storage::bitsPerPage-uninhabitable-Page::headerBits)*leafPageCount;
+        stats.totalMetaData += Page::headerBits*leafPageCount;
+        stats.inhabitedMetaData += Page::headerBits*leafPageCount;
+        uninhabitable = Page::keyOffset+Page::pageRefOffset-Page::rankOffset-rankBits*(Page::branchKeyCount+1)-Page::headerBits;
         stats.uninhabitable += uninhabitable*branchPageCount;
         stats.totalMetaData += (Storage::bitsPerPage-uninhabitable)*branchPageCount;
+        stats.inhabitedMetaData += Page::headerBits*branchPageCount;
     }
 
     struct InsertData {

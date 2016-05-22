@@ -523,7 +523,7 @@ bool tryToFillPreDefined(NativeNaturalType additionalSymbols = 0) {
     blobIndex.symbol = preDefinedSymbolsEnd+1;
     if(!symbols.empty())
         return false;
-    Storage::superPage->symbolCount = preDefinedSymbolsEnd+2+additionalSymbols;
+    Storage::superPage->symbolsEnd = preDefinedSymbolsEnd+2+additionalSymbols;
     for(Symbol symbol = 0; symbol < preDefinedSymbolsEnd; ++symbol) {
         const char* str = PreDefinedSymbols[symbol];
         stringToBlob(str, strlen(str), symbol);
