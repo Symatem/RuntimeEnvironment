@@ -75,9 +75,8 @@ struct BpTree {
             if(page->header.layer == 0) {
                 ++leafPageCount;
                 stats.inhabitedPayload += (keyBits+valueBits)*page->header.count;
-                stats.elementCount += iter[0]->endIndex;
                 if(callback)
-                    for(; iter[0]->index < iter[0]->endIndex; ++iter[0]->index)
+                    for(iter[0]->index = 0; iter[0]->index < iter[0]->endIndex; ++iter[0]->index)
                         callback(iter);
             } else {
                 ++branchPageCount;

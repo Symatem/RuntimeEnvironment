@@ -7,8 +7,10 @@
 #include <fcntl.h>
 #include <stdio.h>
 
+#define printStatsLine(name, amount, total) \
+    printf(name "%10llu bits %2.2f %%\n", amount, 100.0*(amount)/(total))
+
 void resetStats(struct Storage::Stats& stats) {
-    stats.elementCount = 0;
     stats.uninhabitable = 0;
     stats.totalMetaData = 0;
     stats.inhabitedMetaData = 0;
@@ -17,39 +19,71 @@ void resetStats(struct Storage::Stats& stats) {
 }
 
 void printStatsPartial(struct Storage::Stats& stats) {
-    NativeNaturalType totalBits = stats.uninhabitable+stats.totalMetaData+stats.totalPayload;
-    assert(totalBits%Storage::bitsPerPage == 0);
-    printf("%10llu bits %2.2f %%\n", totalBits, 100.0*totalBits/(Storage::superPage->pagesEnd*Storage::bitsPerPage));
-    printf("    Uninhabitable: %10llu bits %2.2f %%\n", stats.uninhabitable, 100.0*stats.uninhabitable/totalBits);
-    printf("    Meta Data:     %10llu bits %2.2f %%\n", stats.totalMetaData, 100.0*stats.totalMetaData/totalBits);
-    printf("      Inhabited:   %10llu bits %2.2f %%\n", stats.inhabitedMetaData, 100.0*stats.inhabitedMetaData/stats.totalMetaData);
-    printf("      Vacant:      %10llu bits\n", stats.totalMetaData-stats.inhabitedMetaData);
-    printf("    Payload:       %10llu bits %2.2f %%\n", stats.totalPayload, 100.0*stats.totalPayload/totalBits);
-    printf("      Inhabited:   %10llu bits %2.2f %%\n", stats.inhabitedPayload, 100.0*stats.inhabitedPayload/stats.totalPayload);
-    printf("      Vacant:      %10llu bits\n", stats.totalPayload-stats.inhabitedPayload);
+    stats.total = stats.uninhabitable+stats.totalMetaData+stats.totalPayload;
+    assert(stats.total%Storage::bitsPerPage == 0);
+    printStatsLine("", stats.total, Storage::superPage->pagesEnd*Storage::bitsPerPage);
+    printStatsLine("      Uninhabitable ", stats.uninhabitable, stats.total);
+    printStatsLine("      Meta Data     ", stats.totalMetaData, stats.total);
+    printStatsLine("        Inhabited   ", stats.inhabitedMetaData, stats.totalMetaData);
+    printStatsLine("      Payload       ", stats.totalPayload, stats.total);
+    printStatsLine("        Inhabited   ", stats.inhabitedPayload, stats.totalPayload);
 }
 
 void printStats() {
-    struct Storage::Stats metaStructs;
+    printf("Pages:\n");
+    struct Storage::Stats metaStructs, fullBuckets, freeBuckets, fragmented;
     resetStats(metaStructs);
+    resetStats(fullBuckets);
+    resetStats(freeBuckets);
+    resetStats(fragmented);
     metaStructs.totalMetaData += Storage::bitsPerPage;
     metaStructs.inhabitedMetaData += sizeOfInBits<Storage::SuperPage>::value;
-    Storage::superPage->freeSymbols.generateStats(metaStructs);
-    Storage::superPage->fullBlobBuckets.generateStats(metaStructs);
-    for(NativeNaturalType i = 0; i < Storage::blobBucketTypeCount; ++i)
-        Storage::superPage->freeBlobBuckets[i].generateStats(metaStructs);
-    Storage::superPage->blobs.generateStats(metaStructs);
-
     NativeNaturalType totalBits = Storage::superPage->pagesEnd*Storage::bitsPerPage,
-                      totalRecyclableBits = Storage::countFreePages()*Storage::bitsPerPage;
+                      recyclableBits = Storage::countFreePages()*Storage::bitsPerPage;
+    NativeNaturalType recyclableSymbolCount = 0, blobCount = 0, blobInBucketTypes[Storage::blobBucketTypeCount+1];
+    for(NativeNaturalType i = 0; i < Storage::blobBucketTypeCount+1; ++i)
+        blobInBucketTypes[i] = 0;
+
+    Storage::superPage->freeSymbols.generateStats(metaStructs, [&](Storage::BpTreeSet<Symbol>::Iterator<false>& iter) {
+        ++recyclableSymbolCount;
+    });
+    Storage::superPage->fullBlobBuckets.generateStats(metaStructs, [&](Storage::BpTreeSet<PageRefType>::Iterator<false>& iter) {
+        Storage::dereferencePage<Storage::BlobBucket>(iter.getKey())->generateStats(fullBuckets);
+    });
+    for(NativeNaturalType i = 0; i < Storage::blobBucketTypeCount; ++i)
+        Storage::superPage->freeBlobBuckets[i].generateStats(metaStructs, [&](Storage::BpTreeSet<PageRefType>::Iterator<false>& iter) {
+            Storage::dereferencePage<Storage::BlobBucket>(iter.getKey())->generateStats(freeBuckets);
+        });
+    Storage::superPage->blobs.generateStats(metaStructs, [&](Storage::BpTreeMap<Symbol, NativeNaturalType>::Iterator<false> iter) {
+        Storage::Blob blob(iter.getKey());
+        ++blobInBucketTypes[Storage::BlobBucket::getType(blob.getSize())];
+        if(blob.state == Storage::Blob::Fragmented)
+            blob.bpTree.generateStats(fragmented);
+        ++blobCount;
+    });
 
     printf("Stats:\n");
-    printf("  Global:          %10llu bits\n", totalBits);
-    printf("    Recyclable:    %10llu bits %2.2f %%\n", totalRecyclableBits, 100.0*totalRecyclableBits/totalBits);
-    printf("  Meta Structures  ");
+    printf("  Global            %10llu bits %llu pages\n", totalBits, Storage::superPage->pagesEnd);
+    printStatsLine("    Recyclable      ", recyclableBits, totalBits);
+    printf("    Meta Structures ");
     printStatsPartial(metaStructs);
-
+    printf("    Full Buckets    ");
+    printStatsPartial(fullBuckets);
+    printf("    Free Buckets    ");
+    printStatsPartial(freeBuckets);
+    printf("    Fragmented      ");
+    printStatsPartial(fragmented);
+    printf("  Symbols           %10llu\n", Storage::superPage->symbolsEnd);
+    printf("    Recyclable      %10llu\n", recyclableSymbolCount);
+    printf("    Empty           %10llu\n", Storage::superPage->symbolsEnd-recyclableSymbolCount-blobCount);
+    printf("    Blobs           %10llu\n", blobCount);
+    for(NativeNaturalType i = 0; i < Storage::blobBucketTypeCount; ++i)
+        printf("      %10llu    %10llu\n", Storage::blobBucketType[i], blobInBucketTypes[i]);
+    printf("      Fragmented    %10llu\n", blobInBucketTypes[Storage::blobBucketTypeCount]);
+    printf("  Triples:          %10llu\n", Ontology::query(13, {}));
     printf("\n");
+
+    assert(recyclableBits+metaStructs.total+fullBuckets.total+freeBuckets.total+fragmented.total == totalBits);
 }
 
 

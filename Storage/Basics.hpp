@@ -182,7 +182,7 @@ const NativeNaturalType
       maxPageCount = 2000*512;
 
 struct Stats {
-    NativeNaturalType elementCount,
+    NativeNaturalType total,
                       uninhabitable,
                       totalMetaData,
                       totalPayload,

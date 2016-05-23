@@ -18,7 +18,7 @@ struct BlobBucket {
     }
 
     NativeNaturalType getSizeOffset() const {
-        return architecturePadding(sizeOfInBits<BlobBucketHeader>::value);
+        return sizeOfInBits<BlobBucketHeader>::value;
     }
 
     NativeNaturalType getDataOffset() const {
@@ -42,7 +42,7 @@ struct BlobBucket {
     }
 
     NativeNaturalType getPadding() const {
-        return bitsPerPage-getSizeOffset()-(getSizeBits()+architectureSize+getDataBits())*getMaxCount();
+        return getDataOffset()-(getSizeOffset()+getSizeBits()*getMaxCount());
     }
 
     bool isEmpty() const {
@@ -54,10 +54,9 @@ struct BlobBucket {
     }
 
     void generateStats(struct Stats& stats) {
-        stats.elementCount += header.count;
         stats.uninhabitable += getPadding();
-        stats.totalMetaData += getDataOffset();
-        stats.inhabitedMetaData += getDataOffset();
+        stats.totalMetaData += bitsPerPage-getPadding()-getDataBits()*getMaxCount();
+        stats.inhabitedMetaData += (getSizeBits()+architectureSize)*header.count;
         stats.totalPayload += getDataBits()*getMaxCount();
         stats.inhabitedPayload += getDataBits()*header.count;
     }

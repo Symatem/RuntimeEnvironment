@@ -234,7 +234,7 @@ struct Blob {
         }
         if(srcBlob.state == InBucket && !(state == InBucket && type == srcBlob.type))
             srcBlob.freeFromBucket();
-        if(srcBlob.state == Fragmented && srcBlob.state != Fragmented)
+        if(srcBlob.state == Fragmented && state != Fragmented)
             bpTree.erase();
         modifiedBlob(symbol);
         assert(size == getSize());

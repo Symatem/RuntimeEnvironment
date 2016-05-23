@@ -100,10 +100,10 @@ struct Iterator {
                 LayerType endLayer = (atLayer) ? atLayer-1 : 0;
                 while(layer > endLayer) {
                     descend(frame, page, layer);
-                    if(pageTouchCallback)
-                        pageTouchCallback(page);
                     frame->endIndex = page->header.count;
                     frame->index = (dir == 1) ? 0 : frame->endIndex-1;
+                    if(pageTouchCallback)
+                        pageTouchCallback(page);
                 }
             }
         } while(keepRunning);
@@ -191,6 +191,8 @@ bool find(Iterator<enableCopyOnWrite>& iter,
                     });
                     break;
             }
+            if(pageTouchCallback)
+                pageTouchCallback(page);
             iter.descend(frame, page, layer);
         }
     }

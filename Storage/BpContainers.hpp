@@ -11,6 +11,11 @@ struct BpTreeMap : public BpTree<KeyType, VoidType, sizeOfInBits<ValueType>::val
     struct Iterator : public Super::template Iterator<enableCopyOnWrite, FrameType> {
         typedef typename Super::template Iterator<enableCopyOnWrite, FrameType> SuperIterator;
 
+        Iterator() { }
+        Iterator(SuperIterator iter) {
+            SuperIterator::copy(iter);
+        }
+
         ValueType getValue() {
             FrameType* frame = (*this)[0];
             return Super::getPage(frame->pageRef)->template get<ValueType, Super::Page::valueOffset>(frame->index);

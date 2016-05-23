@@ -7,9 +7,9 @@ struct FreePage : public BasePage {
 };
 
 // TODO: Redistribution if there are many almost empty buckets of the same type
-const NativeNaturalType blobBucketTypeCount = 15,
-        blobBucketType[blobBucketTypeCount] = {8, 16, 32, 64, 192, 320, 640, 1152, 2112, 3328, 6016, 7552, 10112, 15232, 30641};
-// blobBucketTypeCount = 11, {8, 16, 32, 64, 192, 320, 640, 1152, 3328, 7552, 15232};
+const NativeNaturalType blobBucketTypeCount = 12,
+        blobBucketType[blobBucketTypeCount] = {8, 16, 32, 64, 128, 320, 832, 1344, 2432, 4544, 8064, 16192};
+// Alternative: Use 576 instead of 832 ?
 
 struct SuperPage : public BasePage {
     Symbol pagesEnd, symbolsEnd;
