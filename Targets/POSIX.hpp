@@ -99,7 +99,8 @@ void assertFailed(const char* str) {
 #define MMAP_FUNC mmap64
 #endif
 
-Integer32 file;
+Integer32 file = -1;
+struct stat fileStat;
 
 NativeNaturalType bytesForPages(NativeNaturalType pagesEnd) {
     const NativeNaturalType mmapChunkSize = 1<<24;
@@ -108,28 +109,54 @@ NativeNaturalType bytesForPages(NativeNaturalType pagesEnd) {
 
 void Storage::resizeMemory(NativeNaturalType _pagesEnd) {
     assert(_pagesEnd < maxPageCount);
-    munmap(superPage, bytesForPages(Storage::maxPageCount));
-    assert(ftruncate(file, bytesForPages(_pagesEnd)) == 0);
-    assert(MMAP_FUNC(superPage, bytesForPages(Storage::maxPageCount),
-                     PROT_READ|PROT_WRITE, MAP_FIXED|MAP_FILE|MAP_SHARED, file, 0) == superPage);
+    if(file >= 0 && S_ISREG(fileStat.st_mode) && bytesForPages(_pagesEnd) > fileStat.st_size) {
+        assert(ftruncate(file, bytesForPages(_pagesEnd)) == 0);
+        assert(fstat(file, &fileStat) == 0);
+    }
     superPage->pagesEnd = _pagesEnd;
 }
 
-void loadStorage(const Integer8* path) {
-    file = open(path, O_RDWR|O_CREAT, 0666);
-    assert(file >= 0);
-    assert(ftruncate(file, 0) == 0);
-    assert(ftruncate(file, bytesForPages(Storage::minPageCount)) == 0);
-    Storage::superPage = reinterpret_cast<Storage::SuperPage*>(
-                         MMAP_FUNC(nullptr, bytesForPages(Storage::maxPageCount),
-                                   PROT_READ|PROT_WRITE, MAP_FILE|MAP_SHARED, file, 0));
+void loadStorage(const char* path) {
+    assert(file < 0);
+    Integer32 mmapFlags;
+    if(Storage::substrEqual(path, "/dev/zero")) {
+        mmapFlags = MAP_PRIVATE|MAP_ANON;
+        file = -1;
+    } else {
+        mmapFlags = MAP_SHARED|MAP_FILE;
+        file = open(path, O_RDWR|O_CREAT, 0666);
+        if(file < 0) {
+            printf("Could not open data path.\n");
+            exit(1);
+        }
+        assert(file >= 0);
+        assert(fstat(file, &fileStat) == 0);
+        if(S_ISREG(fileStat.st_mode)) {
+            if(fileStat.st_size == 0)
+                assert(ftruncate(file, bytesForPages(Storage::minPageCount)) == 0);
+        } else if(S_ISBLK(fileStat.st_mode) || S_ISCHR(fileStat.st_mode)) {
+
+        } else {
+            printf("Data path must be \"/dev/zero\", a file or a device.\n");
+            exit(2);
+        }
+    }
+    Storage::superPage = reinterpret_cast<Storage::SuperPage*>(MMAP_FUNC(nullptr, bytesForPages(Storage::maxPageCount), PROT_READ|PROT_WRITE, mmapFlags, file, 0));
     assert(Storage::superPage != MAP_FAILED);
-    Storage::superPage->pagesEnd = Storage::minPageCount;
+    if(file < 0 || fileStat.st_size == 0)
+        Storage::superPage->pagesEnd = Storage::minPageCount;
+    else if(S_ISREG(fileStat.st_mode))
+        assert(Storage::superPage->pagesEnd*Storage::bitsPerPage/8 == fileStat.st_size);
 }
 
 void unloadStorage() {
+    printStats();
     NativeNaturalType size = Storage::superPage->pagesEnd*Storage::bitsPerPage/8;
     munmap(Storage::superPage, bytesForPages(Storage::maxPageCount));
-    assert(ftruncate(file, size) == 0);
+    if(file < 0)
+        return;
+    if(S_ISREG(fileStat.st_mode))
+        assert(ftruncate(file, size) == 0);
     assert(close(file) == 0);
+    file = -1;
 }

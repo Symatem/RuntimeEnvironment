@@ -102,7 +102,6 @@ Integer32 main(Integer32 argc, Integer8** argv) {
         loadFromPath(Ontology::VoidSymbol, execute, argv[i]);
     }
     thread.clear();
-    printStats();
 
     unloadStorage();
     return 0;
