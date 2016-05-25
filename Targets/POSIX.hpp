@@ -30,7 +30,6 @@ void printStatsPartial(struct Storage::Stats& stats) {
 }
 
 void printStats() {
-    printf("Pages:\n");
     struct Storage::Stats metaStructs, fullBuckets, freeBuckets, fragmented;
     resetStats(metaStructs);
     resetStats(fullBuckets);
