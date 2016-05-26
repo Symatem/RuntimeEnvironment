@@ -1,5 +1,5 @@
 language: generic
-script: make test
+script: make testHRL
 matrix:
   include:
     # - os: linux
