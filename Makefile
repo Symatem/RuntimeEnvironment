@@ -2,6 +2,15 @@ CPPOPTIONS := -std=c++1z -fno-exceptions -fno-stack-protector -fno-use-cxa-atexi
 SOURCES := Storage/* Ontology/* Interpreter/* Targets/POSIX.hpp
 STD_PATH := ../StandardLibrary
 IMAGE_PATH := /dev/zero
+PLATFORM := $(shell uname)
+ifeq ($(PLATFORM), Linux)
+	FUSE_PATH := /usr/include/fuse
+	FUSE_NAME := fuse
+endif
+ifeq ($(PLATFORM), Darwin)
+	FUSE_PATH := /usr/local/include/osxfuse
+	FUSE_NAME := osxfuse
+endif
 
 buildAll: build/SymatemBp build/SymatemHRL build/SymatemFS build/Symatem.wasm
 
@@ -20,7 +29,7 @@ build/SymatemHRL: Targets/HRL.cpp $(SOURCES) build/
 	$(CC) $(CPPOPTIONS) -o $@ $<
 
 build/SymatemFS: Targets/FS.cpp $(SOURCES) build/
-	$(CC) $(CPPOPTIONS) -I$(FUSE_LIB)/include -L/usr/local/lib -losxfuse -D_FILE_OFFSET_BITS=64 -o $@ $<
+	$(CC) $(CPPOPTIONS) -D_FILE_OFFSET_BITS=64 -I$(FUSE_PATH) -l$(FUSE_NAME) -o $@ $<
 
 build/WASM.asm: Targets/WASM.cpp $(SOURCES) build/
 	$(LLVM_BIN)/clang $(CPPOPTIONS) -O3 -target wasm32 -c -emit-llvm -o build/WASM.bc $<
