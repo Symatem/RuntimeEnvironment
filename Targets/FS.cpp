@@ -70,7 +70,7 @@ int resolvePathPartial(Symbol& parent, Symbol& entry, Symbol& node, const char*&
             Symbol name = Storage::createSymbol();
             Ontology::stringToBlob(begin, pos-begin, name);
             bool found = Ontology::blobIndex.find(name, at);
-            Storage::releaseSymbol(name);
+            Ontology::unlink(name);
             if(!found) {
                 pos = begin;
                 return -ENOENT;
@@ -265,8 +265,10 @@ int symatem_unlink(const char* path) {
         setTimestamp(parent, MTimeSymbol);
         Ontology::getUncertain(entry, NameSymbol, name);
         Ontology::unlink(entry);
-        if(Ontology::query(1, {Ontology::VoidSymbol, NameSymbol, name}) == 0)
+        if(Ontology::query(1, {Ontology::VoidSymbol, NameSymbol, name}) == 0) {
+            Ontology::blobIndex.eraseElement(name);
             Ontology::unlink(name);
+        }
     }
 
     if(Ontology::query(1, {Ontology::VoidSymbol, Ontology::LinkSymbol, node}) == 0) {
@@ -299,9 +301,7 @@ int symatem_readlink(const char* path, char* buf, size_t size) {
 }
 
 int symatem_symlink(const char* from, const char* to) {
-    printf("symatem_symlink %s\n", from);
     getNodeOfPath(from);
-    printf("symatem_symlink %llu\n", node);
     int result = makeNode(node, to, S_IFLNK, 0);
     if(result == 0) {
         NativeNaturalType length = strlen(to);

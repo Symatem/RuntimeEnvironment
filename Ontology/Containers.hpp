@@ -162,7 +162,7 @@ struct BlobIndex : public BlobSet<guarded, Symbol> {
 
     bool eraseElement(Symbol element) {
         NativeNaturalType at;
-        if(!Super::find(element, at))
+        if(!find(element, at))
             return false;
         Super::erase(at);
         return true;
