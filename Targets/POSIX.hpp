@@ -89,7 +89,7 @@ void printStats() {
 
 void assertFailed(const char* str) {
     puts(str);
-    abort();
+    exit(1);
 }
 
 #ifdef __APPLE__
@@ -102,7 +102,7 @@ Integer32 file = -1;
 struct stat fileStat;
 
 NativeNaturalType bytesForPages(NativeNaturalType pagesEnd) {
-    const NativeNaturalType mmapChunkSize = 1<<24;
+    const NativeNaturalType mmapChunkSize = 1<<28;
     return (pagesEnd*Storage::bitsPerPage+mmapChunkSize-1)/mmapChunkSize*mmapChunkSize/8;
 }
 
@@ -117,12 +117,12 @@ void Storage::resizeMemory(NativeNaturalType _pagesEnd) {
 
 void loadStorage(const char* path) {
     assert(file < 0);
-    Integer32 mmapFlags;
+    Integer32 mmapFlags = MAP_FIXED;
     if(Storage::substrEqual(path, "/dev/zero")) {
-        mmapFlags = MAP_PRIVATE|MAP_ANON;
+        mmapFlags |= MAP_PRIVATE|MAP_ANON;
         file = -1;
     } else {
-        mmapFlags = MAP_SHARED|MAP_FILE;
+        mmapFlags |= MAP_SHARED|MAP_FILE;
         file = open(path, O_RDWR|O_CREAT, 0666);
         if(file < 0) {
             printf("Could not open data path.\n");
@@ -140,8 +140,9 @@ void loadStorage(const char* path) {
             exit(2);
         }
     }
-    Storage::superPage = reinterpret_cast<Storage::SuperPage*>(MMAP_FUNC(nullptr, bytesForPages(Storage::maxPageCount), PROT_READ|PROT_WRITE, mmapFlags, file, 0));
-    assert(Storage::superPage != MAP_FAILED);
+
+    Storage::superPage = reinterpret_cast<Storage::SuperPage*>(0x200000000);
+    assert(MMAP_FUNC(Storage::superPage, bytesForPages(Storage::maxPageCount), PROT_READ|PROT_WRITE, mmapFlags, file, 0) != MAP_FAILED);
     if(file < 0 || fileStat.st_size == 0)
         Storage::superPage->pagesEnd = Storage::minPageCount;
     else if(S_ISREG(fileStat.st_mode))

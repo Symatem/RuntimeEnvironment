@@ -12,37 +12,32 @@
     if(error != -EEXIST) \
         return error;
 
+#define setTimestamp(node, META_INDEX) { \
+    time_t now; \
+    time(&now); \
+    Symbol metaSymbol; \
+    assert(Ontology::getUncertain(node, MetaSymbol, metaSymbol)); \
+    Storage::writeBlobAt<Natural64>(metaSymbol, META_INDEX, now); \
+}
+
 #define getNodeOfPath(path) \
     Symbol node; \
     resolvePath(node, path);
 
-#define setAttribute(node, AttributeSymbol, value) { \
-    Symbol symbol; \
-    if(!Ontology::getUncertain(node, AttributeSymbol, symbol)) { \
-        symbol = Storage::createSymbol(); \
-        Ontology::link({node, AttributeSymbol, symbol}); \
-    } \
-    Storage::writeBlob(symbol, value); \
-}
-
-#define setTimestamp(node, AttributeSymbol) { \
-    time_t now; \
-    time(&now); \
-    setAttribute(node, AttributeSymbol, now); \
-}
+#define META_CTIME 0
+#define META_MTIME 1
+#define META_ATIME 2
+#define META_UID 6
+#define META_GID 7
+#define META_RDEV 8
+#define META_MODE 18
 
 enum FSymbols {
     RootSymbol = 83,
-    ModeSymbol,
     EntrySymbol,
     NameSymbol,
     LinkSymbol,
-    UIDSymbol,
-    GIDSymbol,
-    RdevSymbol,
-    ATimeSymbol,
-    MTimeSymbol,
-    CTimeSymbol
+    MetaSymbol
 };
 
 int resolvePathPartial(Symbol& parent, Symbol& entry, Symbol& node, const char*& pos) {
@@ -60,8 +55,9 @@ int resolvePathPartial(Symbol& parent, Symbol& entry, Symbol& node, const char*&
                 begin = pos+1;
                 continue;
             }
-            Symbol symbol;
-            mode_t mode = Ontology::getUncertain(node, ModeSymbol, symbol) ? Storage::readBlobAt<mode_t>(symbol) : 0;
+            Symbol metaSymbol;
+            assert(Ontology::getUncertain(node, MetaSymbol, metaSymbol));
+            mode_t mode = Storage::readBlobAt<Natural16>(metaSymbol, META_MODE);
             if(!S_ISDIR(mode)) {
                 pos = begin;
                 return -ENOTDIR;
@@ -98,12 +94,18 @@ int resolvePathPartial(Symbol& parent, Symbol& entry, Symbol& node, const char*&
 }
 
 void fillNode(Symbol node, mode_t mode, dev_t rdev) {
-    setAttribute(node, ModeSymbol, mode);
-    setAttribute(node, UIDSymbol, geteuid());
-    setAttribute(node, GIDSymbol, getegid());
-    if(rdev > 0)
-        setAttribute(node, RdevSymbol, rdev);
-    setTimestamp(node, CTimeSymbol);
+    time_t now;
+    time(&now);
+    Symbol metaSymbol = Storage::createSymbol();
+    Ontology::link({node, MetaSymbol, metaSymbol});
+    Storage::setBlobSize(metaSymbol, 304);
+    Storage::writeBlobAt<Natural64>(metaSymbol, META_CTIME, now);
+    Storage::writeBlobAt<Natural64>(metaSymbol, META_MTIME, now);
+    Storage::writeBlobAt<Natural64>(metaSymbol, META_ATIME, now);
+    Storage::writeBlobAt<Natural32>(metaSymbol, META_UID, geteuid());
+    Storage::writeBlobAt<Natural32>(metaSymbol, META_GID, getegid());
+    Storage::writeBlobAt<Natural32>(metaSymbol, META_RDEV, rdev);
+    Storage::writeBlobAt<Natural16>(metaSymbol, META_MODE, mode);
 }
 
 int makeNode(Symbol& node, const char* path, mode_t mode, dev_t rdev) {
@@ -134,7 +136,7 @@ int makeNode(Symbol& node, const char* path, mode_t mode, dev_t rdev) {
     Ontology::link({entry, NameSymbol, name});
     Ontology::link({entry, Ontology::LinkSymbol, node});
 
-    setTimestamp(parent, MTimeSymbol);
+    setTimestamp(parent, META_MTIME);
     Ontology::link({parent, EntrySymbol, entry});
     return 0;
 }
@@ -151,18 +153,20 @@ int symatem_statfs(const char* path, struct statvfs* stbuf) {
 
 int symatem_fgetattr(const char* path, struct stat* stbuf, struct fuse_file_info* fi) {
     checkNodeExistence();
-    Symbol symbol;
     stbuf->st_ino = fi->fh;
     stbuf->st_nlink = Ontology::query(1, {Ontology::VoidSymbol, Ontology::LinkSymbol, fi->fh});
     stbuf->st_size = Storage::getBlobSize(fi->fh)/8;
     stbuf->st_blocks = (stbuf->st_size+511)/512;
-    stbuf->st_mode = Ontology::getUncertain(fi->fh, ModeSymbol, symbol) ? Storage::readBlobAt<mode_t>(symbol) : 0;
-    stbuf->st_uid = Ontology::getUncertain(fi->fh, UIDSymbol, symbol) ? Storage::readBlobAt<uid_t>(symbol) : geteuid();
-    stbuf->st_gid = Ontology::getUncertain(fi->fh, GIDSymbol, symbol) ? Storage::readBlobAt<gid_t>(symbol) : getegid();
-    stbuf->st_rdev = Ontology::getUncertain(fi->fh, RdevSymbol, symbol) ? Storage::readBlobAt<dev_t>(symbol) : 0;
-    stbuf->st_ctime = Ontology::getUncertain(fi->fh, CTimeSymbol, symbol) ? Storage::readBlobAt<time_t>(symbol) : 0;
-    stbuf->st_mtime = Ontology::getUncertain(fi->fh, MTimeSymbol, symbol) ? Storage::readBlobAt<time_t>(symbol) : stbuf->st_ctime;
-    stbuf->st_atime = Ontology::getUncertain(fi->fh, ATimeSymbol, symbol) ? Storage::readBlobAt<time_t>(symbol) : stbuf->st_mtime;
+
+    Symbol metaSymbol;
+    assert(Ontology::getUncertain(fi->fh, MetaSymbol, metaSymbol));
+    stbuf->st_ctime = Storage::readBlobAt<Natural64>(metaSymbol, META_CTIME);
+    stbuf->st_mtime = Storage::readBlobAt<Natural64>(metaSymbol, META_MTIME);
+    stbuf->st_atime = Storage::readBlobAt<Natural64>(metaSymbol, META_ATIME);
+    stbuf->st_uid = Storage::readBlobAt<Natural32>(metaSymbol, META_UID);
+    stbuf->st_gid = Storage::readBlobAt<Natural32>(metaSymbol, META_GID);
+    stbuf->st_rdev = Storage::readBlobAt<Natural32>(metaSymbol, META_RDEV);
+    stbuf->st_mode = Storage::readBlobAt<Natural16>(metaSymbol, META_MODE);
     return 0;
 }
 
@@ -175,10 +179,11 @@ int symatem_getattr(const char* path, struct stat* stbuf) {
 int symatem_faccess(const char* path, int mask, struct fuse_file_info* fi) {
     checkNodeExistence();
 
-    Symbol symbol;
-    mode_t mode = Ontology::getUncertain(fi->fh, ModeSymbol, symbol) ? Storage::readBlobAt<mode_t>(symbol) : 0;
-    bool ownerUser = Ontology::getUncertain(fi->fh, UIDSymbol, symbol) ? Storage::readBlobAt<uid_t>(symbol) == geteuid() : true;
-    bool ownerGroup = Ontology::getUncertain(fi->fh, GIDSymbol, symbol) ? Storage::readBlobAt<gid_t>(symbol) == getegid() : true;
+    Symbol metaSymbol;
+    assert(Ontology::getUncertain(fi->fh, MetaSymbol, metaSymbol));
+    mode_t mode = Storage::readBlobAt<Natural16>(metaSymbol, META_MODE);
+    bool ownerUser = Storage::readBlobAt<Natural32>(metaSymbol, META_UID) == geteuid();
+    bool ownerGroup = Storage::readBlobAt<Natural32>(metaSymbol, META_GID) == getegid();
 
     if((mode&R_OK) && !(ownerUser && mode&S_IRUSR) && !(ownerGroup && mode&S_IRGRP) && !(mode&S_IROTH))
         return -EACCES;
@@ -203,7 +208,7 @@ int symatem_access(const char* path, int mask) {
 int symatem_opendir(const char* path, struct fuse_file_info* fi) {
     resolvePath(fi->fh, path);
     checkNodeExistence();
-    setTimestamp(fi->fh, ATimeSymbol);
+    setTimestamp(fi->fh, META_ATIME);
     return symatem_faccess(path, R_OK, fi);
 }
 
@@ -256,13 +261,14 @@ int symatem_unlink(const char* path) {
     if(error != -EEXIST)
         return error;
 
-    Symbol symbol;
-    mode_t mode = Ontology::getUncertain(node, ModeSymbol, symbol) ? Storage::readBlobAt<mode_t>(symbol) : 0;
+    Symbol metaSymbol;
+    assert(Ontology::getUncertain(node, MetaSymbol, metaSymbol));
+    mode_t mode = Storage::readBlobAt<Natural16>(metaSymbol, META_MODE);
     if(S_ISDIR(mode) && Ontology::query(9, {node, EntrySymbol, Ontology::VoidSymbol}) > 0)
         return -ENOTEMPTY;
 
     if(parent != Ontology::VoidSymbol) {
-        setTimestamp(parent, MTimeSymbol);
+        setTimestamp(parent, META_MTIME);
         Ontology::getUncertain(entry, NameSymbol, name);
         Ontology::unlink(entry);
         if(Ontology::query(1, {Ontology::VoidSymbol, NameSymbol, name}) == 0) {
@@ -280,6 +286,7 @@ int symatem_unlink(const char* path) {
             Ontology::unlink(symbol);
         });
     }
+
     return 0;
 }
 
@@ -325,14 +332,27 @@ int symatem_rename(const char* from, const char* to) {
 
 int symatem_chmod(const char* path, mode_t mode) {
     getNodeOfPath(path);
-    setAttribute(node, ModeSymbol, mode);
+    Symbol metaSymbol;
+    assert(Ontology::getUncertain(node, MetaSymbol, metaSymbol));
+    Storage::writeBlobAt<Natural16>(metaSymbol, META_MODE, mode);
     return 0;
 }
 
 int symatem_chown(const char* path, uid_t uid, gid_t gid) {
     getNodeOfPath(path);
-    setAttribute(node, UIDSymbol, uid);
-    setAttribute(node, GIDSymbol, gid);
+    Symbol metaSymbol;
+    assert(Ontology::getUncertain(node, MetaSymbol, metaSymbol));
+    Storage::writeBlobAt<Natural32>(metaSymbol, META_UID, uid);
+    Storage::writeBlobAt<Natural32>(metaSymbol, META_GID, gid);
+    return 0;
+}
+
+int symatem_utimens(const char* path, const struct timespec tv[2]) {
+    getNodeOfPath(path);
+    Symbol metaSymbol;
+    assert(Ontology::getUncertain(node, MetaSymbol, metaSymbol));
+    Storage::writeBlobAt<Natural64>(metaSymbol, META_MTIME, tv[1].tv_sec);
+    Storage::writeBlobAt<Natural64>(metaSymbol, META_ATIME, tv[0].tv_sec);
     return 0;
 }
 
@@ -365,7 +385,7 @@ int symatem_create(const char* path, mode_t mode, struct fuse_file_info* fi) {
 int symatem_open(const char* path, struct fuse_file_info* fi) {
     resolvePath(fi->fh, path);
     checkNodeExistence();
-    setTimestamp(fi->fh, ATimeSymbol);
+    setTimestamp(fi->fh, META_ATIME);
     return symatem_faccess(path, R_OK, fi);
 }
 
@@ -385,7 +405,7 @@ int symatem_read(const char* path, char* buf, size_t size, off_t offset, struct 
 
 int symatem_write(const char* path, const char* buf, size_t size, off_t offset, struct fuse_file_info* fi) {
     checkNodeExistence();
-    setTimestamp(fi->fh, MTimeSymbol);
+    setTimestamp(fi->fh, META_MTIME);
     Storage::Blob dstBlob(fi->fh);
     NativeIntegerType diff = (offset+size)*8-dstBlob.getSize();
     if(diff > 0)
@@ -420,6 +440,7 @@ struct fuse_operations symatem_oper = {
     .rename = symatem_rename,
     .chmod = symatem_chmod,
     .chown = symatem_chown,
+    .utimens = symatem_utimens,
     .ftruncate = symatem_ftruncate,
     .truncate = symatem_truncate,
 #if defined(HAVE_POSIX_FALLOCATE) || defined(__APPLE__)
@@ -442,7 +463,7 @@ Integer32 main(Integer32 argc, Integer8** argv) {
 
     struct fuse_args fargs = FUSE_ARGS_INIT(0, NULL);
     if(fuse_opt_add_arg(&fargs, argv[0]) == -1 ||
-       fuse_opt_add_arg(&fargs, "-d") == -1 ||
+       fuse_opt_add_arg(&fargs, "-f") == -1 ||
        fuse_opt_add_arg(&fargs, "-s") == -1 ||
        fuse_opt_add_arg(&fargs, "-o") == -1 ||
        fuse_opt_add_arg(&fargs, "volname=SymatemFS") == -1 ||
