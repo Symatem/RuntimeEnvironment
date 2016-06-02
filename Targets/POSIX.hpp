@@ -108,7 +108,7 @@ NativeNaturalType bytesForPages(NativeNaturalType pagesEnd) {
 
 void Storage::resizeMemory(NativeNaturalType _pagesEnd) {
     assert(_pagesEnd < maxPageCount);
-    if(file >= 0 && S_ISREG(fileStat.st_mode) && bytesForPages(_pagesEnd) > fileStat.st_size) {
+    if(file >= 0 && S_ISREG(fileStat.st_mode) && bytesForPages(_pagesEnd) > static_cast<NativeNaturalType>(fileStat.st_size)) {
         assert(ftruncate(file, bytesForPages(_pagesEnd)) == 0);
         assert(fstat(file, &fileStat) == 0);
     }
@@ -146,7 +146,7 @@ void loadStorage(const char* path) {
     if(file < 0 || fileStat.st_size == 0)
         Storage::superPage->pagesEnd = Storage::minPageCount;
     else if(S_ISREG(fileStat.st_mode))
-        assert(Storage::superPage->pagesEnd*Storage::bitsPerPage/8 == fileStat.st_size);
+        assert(Storage::superPage->pagesEnd*Storage::bitsPerPage/8 == static_cast<NativeNaturalType>(fileStat.st_size));
 }
 
 void unloadStorage() {

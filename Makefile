@@ -1,4 +1,5 @@
-CPPOPTIONS := -std=c++1z -fno-exceptions -fno-stack-protector -fno-use-cxa-atexit -fvisibility=hidden -Wall
+COMPILER_FLAGS := -O3 -std=c++1z -fno-exceptions -fno-stack-protector -fno-use-cxa-atexit -fvisibility=hidden -Wall -Wsign-compare
+LINKER_FLAGS := -Wl,-no_pie
 SOURCES := Storage/* Ontology/* Interpreter/* Targets/POSIX.hpp
 STD_PATH := ../StandardLibrary
 IMAGE_PATH := /dev/zero
@@ -23,16 +24,16 @@ build/:
 	mkdir -p build
 
 build/SymatemBp: Targets/Bp.cpp $(SOURCES) build/
-	$(CC) $(CPPOPTIONS) -o $@ $<
+	$(CC) $(COMPILER_FLAGS) $(LINKER_FLAGS) -o $@ $<
 
 build/SymatemHRL: Targets/HRL.cpp $(SOURCES) build/
-	$(CC) $(CPPOPTIONS) -o $@ $<
+	$(CC) $(COMPILER_FLAGS) $(LINKER_FLAGS) -o $@ $<
 
 build/SymatemFS: Targets/FS.cpp $(SOURCES) build/
-	$(CC) $(CPPOPTIONS) -D_FILE_OFFSET_BITS=64 -I$(FUSE_PATH) -l$(FUSE_NAME) -o $@ $<
+	$(CC) $(COMPILER_FLAGS) -D_FILE_OFFSET_BITS=64 -I$(FUSE_PATH) $(LINKER_FLAGS) -l$(FUSE_NAME) -o $@ $<
 
 build/WASM.asm: Targets/WASM.cpp $(SOURCES) build/
-	$(LLVM_BIN)/clang $(CPPOPTIONS) -O3 -target wasm32 -c -emit-llvm -o build/WASM.bc $<
+	$(LLVM_BIN)/clang $(COMPILER_FLAGS) -target wasm32 -c -emit-llvm -o build/WASM.bc $<
 	$(LLVM_BIN)/llc -march=wasm32 -filetype=asm -o build/WASM.pre_asm build/WASM.bc
 	perl -pe 's/\.weak/# \.weak/g;' build/WASM.pre_asm > $@
 	rm build/WASM.bc build/WASM.pre_asm

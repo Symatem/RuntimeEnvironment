@@ -59,6 +59,7 @@ struct Blob {
             case Fragmented:
                 return bpTree.getElementCount();
         }
+        assert(false);
     }
 
     template<NativeIntegerType dir>

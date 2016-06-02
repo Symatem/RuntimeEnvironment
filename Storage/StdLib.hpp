@@ -114,9 +114,8 @@ namespace __cxxabiv1 {
     DummyTypeInfo(__pointer_to_member_type_info, __pbase_type_info)
 }
 
-void operator delete(void* ptr) noexcept {
-    ptr = 0;
-}
+void operator delete(void*) noexcept { }
+void operator delete(void*, unsigned long) noexcept { }
 inline void* operator new(unsigned long, void* ptr) noexcept {
     return ptr;
 }

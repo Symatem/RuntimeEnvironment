@@ -90,7 +90,7 @@ Integer32 main(Integer32 argc, Integer8** argv) {
     Ontology::tryToFillPreDefined();
 
     bool execute = false;
-    for(NativeNaturalType i = 2; i < argc; ++i) {
+    for(NativeNaturalType i = 2; i < static_cast<NativeNaturalType>(argc); ++i) {
         if(Storage::substrEqual(argv[i], "-h")) {
             printf("This is not the help page you are looking for.\n");
             printf("No, seriously, RTFM.\n");

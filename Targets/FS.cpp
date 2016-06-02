@@ -359,7 +359,7 @@ int symatem_utimens(const char* path, const struct timespec tv[2]) {
 int symatem_ftruncate(const char* path, off_t size, struct fuse_file_info* fi) {
     checkNodeExistence();
     Storage::setBlobSize(fi->fh, size*8);
-    for(NativeNaturalType i = 0; i < size; ++i)
+    for(NativeNaturalType i = 0; i < static_cast<NativeNaturalType>(size); ++i)
         Storage::writeBlobAt<Natural8>(fi->fh, i, 0);
     return 0;
 }
@@ -372,7 +372,7 @@ int symatem_truncate(const char* path, off_t size) {
 
 int symatem_fallocate(const char* path, int mode, off_t offset, off_t length, struct fuse_file_info* fi) {
     checkNodeExistence();
-    if((offset+length)*8 > Storage::getBlobSize(fi->fh))
+    if(static_cast<NativeNaturalType>(offset+length)*8 > Storage::getBlobSize(fi->fh))
         return symatem_ftruncate(path, offset+length, fi);
     return 0;
 }

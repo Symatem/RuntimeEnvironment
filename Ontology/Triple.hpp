@@ -472,13 +472,13 @@ bool getUncertain(Symbol entity, Symbol attribute, Symbol& value) {
 
 void scrutinizeExistence(Symbol symbol) {
     BlobSet<true, Symbol> symbols;
-    tripleIndex.insertElement(symbol);
-    while(!tripleIndex.empty()) {
-        symbol = tripleIndex.pop_back();
+    symbols.insertElement(symbol);
+    while(!symbols.empty()) {
+        symbol = symbols.pop_back();
         if(query(1, {VoidSymbol, HoldsSymbol, symbol}) > 0)
             continue;
         query(9, {symbol, HoldsSymbol, VoidSymbol}, [&](Triple result) {
-            tripleIndex.insertElement(result.pos[0]);
+            symbols.insertElement(result.pos[0]);
         });
         unlink(symbol); // TODO
     }
