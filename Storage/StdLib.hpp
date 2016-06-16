@@ -62,6 +62,14 @@ struct VoidType {
     }
 };
 
+constexpr NativeNaturalType architecturePadding(NativeNaturalType bits) {
+    return (bits+architectureSize-1)/architectureSize*architectureSize;
+}
+
+NativeNaturalType pointerToNatural(void* ptr) {
+    return reinterpret_cast<long unsigned>(ptr);
+}
+
 template<typename Type>
 struct sizeOfInBits {
     static constexpr NativeNaturalType value = sizeof(Type)*8;
@@ -190,3 +198,80 @@ template<typename T, typename... Args>
 constexpr T max(T c, Args... args) {
     return max(c, max(args...));
 }
+
+template<typename DataType>
+struct BitMask {
+    const static NativeNaturalType bits = sizeOfInBits<DataType>::value;
+    const static DataType empty = 0, one = 1, full = ~empty;
+    constexpr static DataType fillLSBs(NativeNaturalType len) {
+        return (len == bits) ? full : (one<<len)-one;
+    }
+    constexpr static DataType fillMSBs(NativeNaturalType len) {
+        return (len == 0) ? empty : ~((one<<(bits-len))-one);
+    }
+    constexpr static NativeNaturalType clz(DataType value);
+    constexpr static NativeNaturalType ctz(DataType value);
+    constexpr static NativeNaturalType ceilLog2(DataType value) {
+        return bits-clz(value);
+    }
+};
+
+template<>
+constexpr NativeNaturalType BitMask<Natural32>::clz(Natural32 value) {
+    return __builtin_clzl(value);
+}
+
+template<>
+constexpr NativeNaturalType BitMask<Natural32>::ctz(Natural32 value) {
+    return __builtin_ctzl(value);
+}
+
+template<>
+constexpr NativeNaturalType BitMask<Natural64>::clz(Natural64 value) {
+    return __builtin_clzll(value);
+}
+
+template<>
+constexpr NativeNaturalType BitMask<Natural64>::ctz(Natural64 value) {
+    return __builtin_ctzll(value);
+}
+
+struct MersenneTwister64 {
+    const static Natural64
+        mag01 = 0xB5026F5AA96619E9ULL,
+        LM = BitMask<Natural64>::fillLSBs(31),
+        UM = BitMask<Natural64>::fillMSBs(33);
+    const static Natural16 NN = 312, MM = 156;
+    Natural64 mt[NN];
+    Natural16 mti;
+
+    void reset(Natural64 seed) {
+        mt[0] = seed;
+        for(mti = 1; mti < NN; ++mti)
+            mt[mti] = mti+0x5851F42D4C957F2DULL*(mt[mti-1]^(mt[mti-1]>>62));
+    }
+
+    Natural64 operator()() {
+        Natural16 i;
+        Natural64 x;
+        if(mti >= NN) {
+            mti = 0;
+            for(i = 0; i < NN-MM; ++i) {
+                x = (mt[i]&UM)|(mt[i+1]&LM);
+                mt[i] = mt[i+MM] ^ (x>>1) ^ (mag01*(x&1ULL));
+            }
+            for(; i < NN-1; ++i) {
+                x = (mt[i]&UM)|(mt[i+1]&LM);
+                mt[i] = mt[i+(MM-NN)] ^ (x>>1) ^ (mag01*(x&1ULL));
+            }
+            x = (mt[NN-1]&UM)|(mt[0]&LM);
+            mt[NN-1] ^= (x>>1) ^ (mag01*(x&1ULL));
+        }
+        x = mt[mti++];
+        x ^= (x>>29)&0x5555555555555555ULL;
+        x ^= (x<<17)&0x71D67FFFEDA60000ULL;
+        x ^= (x<<37)&0xFFF7EEE000000000ULL;
+        x ^= (x>>43);
+        return x;
+    }
+};

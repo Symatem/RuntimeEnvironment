@@ -336,20 +336,20 @@ struct PrimitiveBitShiftReplicate {
         *reinterpret_cast<NativeIntegerType*>(&dst) >>= count;
     };
     static void m(NativeNaturalType& dst, NativeNaturalType count) {
-        NativeNaturalType lowestBit = dst&Storage::BitMask<NativeNaturalType>::one;
+        NativeNaturalType lowestBit = dst&BitMask<NativeNaturalType>::one;
         dst <<= count;
-        dst |= lowestBit*Storage::BitMask<NativeNaturalType>::fillLSBs(count);
+        dst |= lowestBit*BitMask<NativeNaturalType>::fillLSBs(count);
     };
 };
 
 struct PrimitiveBitShiftBarrel {
     static void d(NativeNaturalType& dst, NativeNaturalType count) {
-        NativeNaturalType aux = dst&Storage::BitMask<NativeNaturalType>::fillLSBs(count);
+        NativeNaturalType aux = dst&BitMask<NativeNaturalType>::fillLSBs(count);
         dst >>= count;
         dst |= aux<<(architectureSize-count);
     };
     static void m(NativeNaturalType& dst, NativeNaturalType count) {
-        NativeNaturalType aux = dst&Storage::BitMask<NativeNaturalType>::fillMSBs(count);
+        NativeNaturalType aux = dst&BitMask<NativeNaturalType>::fillMSBs(count);
         dst <<= count;
         dst |= aux>>(architectureSize-count);
     };

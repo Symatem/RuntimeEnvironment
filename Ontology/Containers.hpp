@@ -48,8 +48,8 @@ struct BlobVector {
 
     void activate() {
         if(!symbol) {
-            assert(guarded);
             symbol = Storage::createSymbol();
+            assert(guarded && symbol);
         }
     }
 

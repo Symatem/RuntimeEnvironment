@@ -203,32 +203,32 @@ struct Blob {
         iter.setValue(address);
     }
 
-    bool decreaseSize(NativeNaturalType at, NativeNaturalType count) {
-        NativeNaturalType size = getSize(), end = at+count;
-        if(at >= end || end > size)
+    bool decreaseSize(NativeNaturalType offset, NativeNaturalType length) {
+        NativeNaturalType size = getSize(), end = offset+length;
+        if(offset >= end || end > size)
             return false;
-        size -= count;
+        size -= length;
         Blob srcBlob = *this;
         if(size == 0) {
             state = Empty;
             superPage->blobs.erase<Key>(symbol);
         } else if(BlobBucket::isBucketAllocatable(size)) {
             type = BlobBucket::getType(size);
-            srcBlob.type = BlobBucket::getType(size+count);
+            srcBlob.type = BlobBucket::getType(size+length);
             if(srcBlob.state == Fragmented || type != srcBlob.type) {
                 state = InBucket;
                 allocateInBucket(size);
-                interoperation(srcBlob, 0, 0, at);
-                interoperation(srcBlob, at, end, size-at);
+                interoperation(srcBlob, 0, 0, offset);
+                interoperation(srcBlob, offset, end, size-offset);
                 updateAddress(address);
             } else {
-                interoperation<-1>(*this, at, end, size-at);
+                interoperation<-1>(*this, offset, end, size-offset);
                 bucket->setSize(indexInBucket, size);
             }
         } else {
             BpTreeBlob::Iterator<true> from, to;
-            bpTree.find<Rank>(from, at);
-            bpTree.find<Rank>(to, at+count-1);
+            bpTree.find<Rank>(from, offset);
+            bpTree.find<Rank>(to, offset+length-1);
             bpTree.erase(from, to);
             address = bpTree.rootPageRef*bitsPerPage;
             updateAddress(address);
@@ -242,28 +242,28 @@ struct Blob {
         return true;
     }
 
-    bool increaseSize(NativeNaturalType at, NativeNaturalType count) {
+    bool increaseSize(NativeNaturalType offset, NativeNaturalType length) {
         NativeNaturalType size = getSize();
-        if(size >= size+count || at > size)
+        if(size >= size+length || offset > size)
             return false;
         Blob srcBlob = *this;
-        size += count;
+        size += length;
         if(BlobBucket::isBucketAllocatable(size)) {
             state = InBucket;
             type = BlobBucket::getType(size);
-            srcBlob.type = BlobBucket::getType(size-count);
+            srcBlob.type = BlobBucket::getType(size-length);
             if(srcBlob.state == Empty || type != srcBlob.type)
                 allocateInBucket(size);
             else {
                 bucket->setSize(indexInBucket, size);
-                interoperation<1>(*this, at+count, at, size-count-at);
+                interoperation<1>(*this, offset+length, offset, size-length-offset);
             }
         } else {
             BpTreeBlob::Iterator<true> iter;
             state = Fragmented;
             if(srcBlob.state == Fragmented) {
-                bpTree.find<Rank>(iter, at);
-                bpTree.insert(iter, count, nullptr);
+                bpTree.find<Rank>(iter, offset);
+                bpTree.insert(iter, length, nullptr);
             } else {
                 bpTree.rootPageRef = 0;
                 bpTree.find<First>(iter);
@@ -277,8 +277,8 @@ struct Blob {
                 break;
             case InBucket:
                 if(state != InBucket || type != srcBlob.type) {
-                    interoperation(srcBlob, 0, 0, at);
-                    interoperation(srcBlob, at+count, at, size-count-at);
+                    interoperation(srcBlob, 0, 0, offset);
+                    interoperation(srcBlob, offset+length, offset, size-length-offset);
                     srcBlob.freeFromBucket();
                 } else
                     break;
@@ -309,27 +309,27 @@ struct Blob {
     }
 
     template<bool swap>
-    void externalOperate(void* data, NativeNaturalType at, NativeNaturalType count) {
-        assert(count > 0 && at+count <= getSize());
+    void externalOperate(void* data, NativeNaturalType offset, NativeNaturalType length) {
+        assert(length > 0 && offset+length <= getSize());
         if(state == InBucket) {
             bitwiseCopySwap<swap>(reinterpret_cast<NativeNaturalType*>(data),
                                   reinterpret_cast<NativeNaturalType*>(superPage),
-                                  0, address+at,
-                                  count);
+                                  0, address+offset,
+                                  length);
         } else {
             BpTreeBlob::Iterator<false> iter;
-            bpTree.find<Rank>(iter, at);
-            at = 0;
+            bpTree.find<Rank>(iter, offset);
+            offset = 0;
             while(true) {
-                NativeNaturalType segment = min(count, static_cast<NativeNaturalType>(iter[0]->endIndex-iter[0]->index));
+                NativeNaturalType segment = min(length, static_cast<NativeNaturalType>(iter[0]->endIndex-iter[0]->index));
                 bitwiseCopySwap<swap>(reinterpret_cast<NativeNaturalType*>(data),
                                       reinterpret_cast<NativeNaturalType*>(superPage),
-                                      at, addressOfInteroperation(iter, 0), segment);
-                count -= segment;
-                if(count == 0)
-                   break;
+                                      offset, addressOfInteroperation(iter, 0), segment);
+                length -= segment;
+                if(length == 0)
+                    break;
                 iter.template advance<1>(0, segment);
-                at += segment;
+                offset += segment;
             }
         }
     }
@@ -377,12 +377,12 @@ void cloneBlob(Symbol dstSymbol, Symbol srcSymbol) {
     Blob(dstSymbol).deepCopy(Blob(srcSymbol));
 }
 
-bool decreaseBlobSize(Symbol symbol, NativeNaturalType at, NativeNaturalType count) {
-    return Blob(symbol).decreaseSize(at, count);
+bool decreaseBlobSize(Symbol symbol, NativeNaturalType offset, NativeNaturalType length) {
+    return Blob(symbol).decreaseSize(offset, length);
 }
 
-bool increaseBlobSize(Symbol symbol, NativeNaturalType at, NativeNaturalType count) {
-    return Blob(symbol).increaseSize(at, count);
+bool increaseBlobSize(Symbol symbol, NativeNaturalType offset, NativeNaturalType length) {
+    return Blob(symbol).increaseSize(offset, length);
 }
 
 void releaseSymbol(Symbol symbol) {
