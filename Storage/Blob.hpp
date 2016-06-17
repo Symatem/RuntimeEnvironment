@@ -333,57 +333,26 @@ struct Blob {
             }
         }
     }
+
+    template<typename DataType>
+    DataType readAt(NativeNaturalType srcIndex = 0) {
+        DataType dst;
+        externalOperate<false>(&dst, srcIndex*sizeOfInBits<DataType>::value, sizeOfInBits<DataType>::value);
+        return dst;
+    }
+
+    template<typename DataType>
+    void writeAt(NativeNaturalType dstIndex, DataType src) {
+        externalOperate<true>(&src, dstIndex*sizeOfInBits<DataType>::value, sizeOfInBits<DataType>::value);
+    }
+
+    template<typename DataType>
+    void write(DataType src) {
+        setSize(sizeOfInBits<DataType>::value);
+        externalOperate<true>(&src, 0, sizeOfInBits<DataType>::value);
+        modifiedBlob(symbol);
+    }
 };
-
-// TODO: Cleanup code: Inline these methods?
-
-NativeNaturalType getBlobSize(Symbol symbol) {
-    return Blob(symbol).getSize();
-}
-
-void setBlobSize(Symbol symbol, NativeNaturalType size) {
-    Blob(symbol).setSize(size);
-}
-
-template<typename DataType>
-DataType readBlobAt(Symbol srcSymbol, NativeNaturalType srcIndex = 0) {
-    DataType dst;
-    Blob(srcSymbol).externalOperate<false>(&dst, srcIndex*sizeOfInBits<DataType>::value, sizeOfInBits<DataType>::value);
-    return dst;
-}
-
-template<typename DataType>
-void writeBlobAt(Symbol dstSymbol, NativeNaturalType dstIndex, DataType src) {
-    Blob(dstSymbol).externalOperate<true>(&src, dstIndex*sizeOfInBits<DataType>::value, sizeOfInBits<DataType>::value);
-}
-
-template<typename DataType>
-void writeBlob(Symbol dstSymbol, DataType src) {
-    Blob dstBlob(dstSymbol);
-    dstBlob.setSize(sizeOfInBits<DataType>::value);
-    dstBlob.externalOperate<true>(&src, 0, sizeOfInBits<DataType>::value);
-    modifiedBlob(dstSymbol);
-}
-
-NativeIntegerType compareBlobs(Symbol aSymbol, Symbol bSymbol) {
-    return Blob(aSymbol).compare(Blob(bSymbol));
-}
-
-bool sliceBlob(Symbol dstSymbol, Symbol srcSymbol, NativeNaturalType dstOffset, NativeNaturalType srcOffset, NativeNaturalType length) {
-    return Blob(dstSymbol).slice(Blob(srcSymbol), dstOffset, srcOffset, length);
-}
-
-void cloneBlob(Symbol dstSymbol, Symbol srcSymbol) {
-    Blob(dstSymbol).deepCopy(Blob(srcSymbol));
-}
-
-bool decreaseBlobSize(Symbol symbol, NativeNaturalType offset, NativeNaturalType length) {
-    return Blob(symbol).decreaseSize(offset, length);
-}
-
-bool increaseBlobSize(Symbol symbol, NativeNaturalType offset, NativeNaturalType length) {
-    return Blob(symbol).increaseSize(offset, length);
-}
 
 void releaseSymbol(Symbol symbol) {
     Blob(symbol).setSize(0);

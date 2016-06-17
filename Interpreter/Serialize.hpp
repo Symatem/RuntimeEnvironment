@@ -7,16 +7,17 @@ struct Serializer {
     Symbol symbol;
 
     void put(Natural8 src) {
-        NativeNaturalType at = Storage::getBlobSize(symbol);
-        Storage::increaseBlobSize(symbol, at, 8);
-        Storage::writeBlobAt<Natural8>(symbol, at/8, src);
+        Storage::Blob dstBlob(symbol);
+        NativeNaturalType offset = dstBlob.getSize();
+        dstBlob.increaseSize(offset, 8);
+        dstBlob.writeAt<Natural8>(offset/8, src);
     }
 
     void puts(const char* src) {
-        NativeNaturalType at = Storage::getBlobSize(symbol), length = strlen(src)*8;
         Storage::Blob dstBlob(symbol);
-        dstBlob.increaseSize(0, length);
-        dstBlob.externalOperate<true>(const_cast<Integer8*>(src), at, length);
+        NativeNaturalType offset = dstBlob.getSize(), length = strlen(src)*8;
+        dstBlob.increaseSize(offset, length);
+        dstBlob.externalOperate<true>(const_cast<Integer8*>(src), offset, length);
         Storage::modifiedBlob(symbol);
     }
 
@@ -55,7 +56,8 @@ struct Serializer {
     Serializer(Thread& _thread) :Serializer(_thread, Storage::createSymbol()) {}
 
     void serializeBlob(Symbol src) {
-        NativeNaturalType len = Storage::getBlobSize(src);
+        Storage::Blob srcBlob(src);
+        NativeNaturalType len = srcBlob.getSize();
         if(len) {
             Symbol type = Ontology::VoidSymbol;
             Ontology::getUncertain(src, Ontology::BlobTypeSymbol, type);
@@ -64,7 +66,7 @@ struct Serializer {
                     len /= 8;
                     bool spaces = false;
                     for(NativeNaturalType i = 0; i < len; ++i) {
-                        Natural8 element = Storage::readBlobAt<Natural8>(src, i);
+                        Natural8 element = srcBlob.readAt<Natural8>(i);
                         if(element == ' ' || element == '\t' || element == '\n') {
                             spaces = true;
                             break;
@@ -73,24 +75,24 @@ struct Serializer {
                     if(spaces)
                         put('"');
                     for(NativeNaturalType i = 0; i < len; ++i)
-                        put(Storage::readBlobAt<Natural8>(src, i));
+                        put(srcBlob.readAt<Natural8>(i));
                     if(spaces)
                         put('"');
                 }   break;
                 case Ontology::NaturalSymbol:
-                    serializeNumber(Storage::readBlobAt<NativeNaturalType>(src));
+                    serializeNumber(srcBlob.readAt<NativeNaturalType>());
                     break;
                 case Ontology::IntegerSymbol:
-                    serializeNumber(Storage::readBlobAt<NativeIntegerType>(src));
+                    serializeNumber(srcBlob.readAt<NativeIntegerType>());
                     break;
                 case Ontology::FloatSymbol:
-                    serializeNumber(Storage::readBlobAt<NativeFloatType>(src));
+                    serializeNumber(srcBlob.readAt<NativeFloatType>());
                     break;
                 default: {
                     puts(HRLRawBegin);
                     len = (len+3)/4;
                     for(NativeNaturalType i = 0; i < len; ++i) {
-                        Natural8 element = Storage::readBlobAt<Natural8>(src, i/2),
+                        Natural8 element = srcBlob.readAt<Natural8>(i/2),
                                  nibble = (element>>((i%2)*4))&0x0F;
                         if(nibble < 0xA)
                             put('0'+nibble);

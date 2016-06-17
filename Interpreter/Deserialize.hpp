@@ -42,14 +42,15 @@ struct Deserializer {
         if(strlen(str) > pos-tokenBegin)
             return false;
         for(NativeNaturalType i = 0; i < strlen(str); ++i)
-            if(Storage::readBlobAt<Natural8>(input, tokenBegin+i) != str[i])
+            if(Storage::Blob(input).readAt<Natural8>(tokenBegin+i) != str[i])
                 return false;
         return true;
     }
 
     bool parseToken(bool isText = false) {
         if(pos > tokenBegin) {
-            Natural8 src = Storage::readBlobAt<Natural8>(input, tokenBegin);
+            Storage::Blob srcBlob(input);
+            Natural8 src = srcBlob.readAt<Natural8>(tokenBegin);
             Symbol symbol;
             if(isText)
                 symbol = sliceText();
@@ -64,11 +65,12 @@ struct Deserializer {
                 if(nibbleCount%2 == 1)
                     return throwException("Count of nibbles must be even");
                 symbol = Storage::createSymbol();
-                Storage::increaseBlobSize(symbol, 0, nibbleCount*4);
+                Storage::Blob dstBlob(symbol);
+                dstBlob.increaseSize(0, nibbleCount*4);
                 Natural8 nibble, byte;
                 NativeNaturalType at = 0;
                 while(tokenBegin < pos) {
-                    src = Storage::readBlobAt<Natural8>(input, tokenBegin);
+                    src = srcBlob.readAt<Natural8>(tokenBegin);
                     if(src >= '0' && src <= '9')
                         nibble = src-'0';
                     else if(src >= 'A' && src <= 'F')
@@ -78,7 +80,7 @@ struct Deserializer {
                     if(at%2 == 0)
                         byte = nibble;
                     else {
-                        Storage::writeBlobAt<Natural8>(symbol, at/2, byte|(nibble<<4));
+                        dstBlob.writeAt<Natural8>(at/2, byte|(nibble<<4));
                         byte = 0;
                     }
                     ++at;
@@ -92,7 +94,7 @@ struct Deserializer {
                     ++tokenBegin;
                 // TODO What if too long, precision loss?
                 while(tokenBegin < pos) {
-                    src = Storage::readBlobAt<Natural8>(input, tokenBegin);
+                    src = srcBlob.readAt<Natural8>(tokenBegin);
                     devisor *= 10;
                     if(src >= '0' && src <= '9') {
                         mantissa *= 10;
@@ -187,9 +189,10 @@ struct Deserializer {
         stack.push_back(currentEntry);
         queue.symbol = currentEntry;
         row = column = 1;
-        end = Storage::getBlobSize(input)/8;
+        Storage::Blob srcBlob(input);
+        end = srcBlob.getSize()/8;
         for(tokenBegin = pos = 0; pos < end; ++pos) {
-            Natural8 src = Storage::readBlobAt<Natural8>(input, pos);
+            Natural8 src = srcBlob.readAt<Natural8>(pos);
             switch(src) {
                 case '\n':
                     checkReturn(parseToken());
@@ -208,7 +211,7 @@ struct Deserializer {
                             return throwException("Unterminated text");
                         bool prev = (src != '\\');
                         ++pos;
-                        src = Storage::readBlobAt<Natural8>(input, pos);
+                        src = srcBlob.readAt<Natural8>(pos);
                         if(prev) {
                             if(src == '\\')
                                 continue;

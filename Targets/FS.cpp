@@ -17,7 +17,7 @@
     time(&now); \
     Symbol metaSymbol; \
     assert(Ontology::getUncertain(node, MetaSymbol, metaSymbol)); \
-    Storage::writeBlobAt<Natural64>(metaSymbol, META_INDEX, now); \
+    Storage::Blob(metaSymbol).writeAt<Natural64>(META_INDEX, now); \
 }
 
 #define getNodeOfPath(path) \
@@ -57,7 +57,7 @@ int resolvePathPartial(Symbol& parent, Symbol& entry, Symbol& node, const char*&
             }
             Symbol metaSymbol;
             assert(Ontology::getUncertain(node, MetaSymbol, metaSymbol));
-            mode_t mode = Storage::readBlobAt<Natural16>(metaSymbol, META_MODE);
+            mode_t mode = Storage::Blob(metaSymbol).readAt<Natural16>(META_MODE);
             if(!S_ISDIR(mode)) {
                 pos = begin;
                 return -ENOTDIR;
@@ -98,14 +98,15 @@ void fillNode(Symbol node, mode_t mode, dev_t rdev) {
     time(&now);
     Symbol metaSymbol = Storage::createSymbol();
     Ontology::link({node, MetaSymbol, metaSymbol});
-    Storage::setBlobSize(metaSymbol, 304);
-    Storage::writeBlobAt<Natural64>(metaSymbol, META_CTIME, now);
-    Storage::writeBlobAt<Natural64>(metaSymbol, META_MTIME, now);
-    Storage::writeBlobAt<Natural64>(metaSymbol, META_ATIME, now);
-    Storage::writeBlobAt<Natural32>(metaSymbol, META_UID, geteuid());
-    Storage::writeBlobAt<Natural32>(metaSymbol, META_GID, getegid());
-    Storage::writeBlobAt<Natural32>(metaSymbol, META_RDEV, rdev);
-    Storage::writeBlobAt<Natural16>(metaSymbol, META_MODE, mode);
+    Storage::Blob metaBlob(metaSymbol);
+    metaBlob.setSize(304);
+    metaBlob.writeAt<Natural64>(META_CTIME, now);
+    metaBlob.writeAt<Natural64>(META_MTIME, now);
+    metaBlob.writeAt<Natural64>(META_ATIME, now);
+    metaBlob.writeAt<Natural32>(META_UID, geteuid());
+    metaBlob.writeAt<Natural32>(META_GID, getegid());
+    metaBlob.writeAt<Natural32>(META_RDEV, rdev);
+    metaBlob.writeAt<Natural16>(META_MODE, mode);
 }
 
 int makeNode(Symbol& node, const char* path, mode_t mode, dev_t rdev) {
@@ -155,18 +156,19 @@ int symatem_fgetattr(const char* path, struct stat* stbuf, struct fuse_file_info
     checkNodeExistence();
     stbuf->st_ino = fi->fh;
     stbuf->st_nlink = Ontology::query(1, {Ontology::VoidSymbol, Ontology::LinkSymbol, fi->fh});
-    stbuf->st_size = Storage::getBlobSize(fi->fh)/8;
+    stbuf->st_size = Storage::Blob(fi->fh).getSize()/8;
     stbuf->st_blocks = (stbuf->st_size+511)/512;
 
     Symbol metaSymbol;
     assert(Ontology::getUncertain(fi->fh, MetaSymbol, metaSymbol));
-    stbuf->st_ctime = Storage::readBlobAt<Natural64>(metaSymbol, META_CTIME);
-    stbuf->st_mtime = Storage::readBlobAt<Natural64>(metaSymbol, META_MTIME);
-    stbuf->st_atime = Storage::readBlobAt<Natural64>(metaSymbol, META_ATIME);
-    stbuf->st_uid = Storage::readBlobAt<Natural32>(metaSymbol, META_UID);
-    stbuf->st_gid = Storage::readBlobAt<Natural32>(metaSymbol, META_GID);
-    stbuf->st_rdev = Storage::readBlobAt<Natural32>(metaSymbol, META_RDEV);
-    stbuf->st_mode = Storage::readBlobAt<Natural16>(metaSymbol, META_MODE);
+    Storage::Blob metaBlob(metaSymbol);
+    stbuf->st_ctime = metaBlob.readAt<Natural64>(META_CTIME);
+    stbuf->st_mtime = metaBlob.readAt<Natural64>(META_MTIME);
+    stbuf->st_atime = metaBlob.readAt<Natural64>(META_ATIME);
+    stbuf->st_uid = metaBlob.readAt<Natural32>(META_UID);
+    stbuf->st_gid = metaBlob.readAt<Natural32>(META_GID);
+    stbuf->st_rdev = metaBlob.readAt<Natural32>(META_RDEV);
+    stbuf->st_mode = metaBlob.readAt<Natural16>(META_MODE);
     return 0;
 }
 
@@ -181,9 +183,10 @@ int symatem_faccess(const char* path, int mask, struct fuse_file_info* fi) {
 
     Symbol metaSymbol;
     assert(Ontology::getUncertain(fi->fh, MetaSymbol, metaSymbol));
-    mode_t mode = Storage::readBlobAt<Natural16>(metaSymbol, META_MODE);
-    bool ownerUser = Storage::readBlobAt<Natural32>(metaSymbol, META_UID) == geteuid();
-    bool ownerGroup = Storage::readBlobAt<Natural32>(metaSymbol, META_GID) == getegid();
+    Storage::Blob metaBlob(metaSymbol);
+    mode_t mode = metaBlob.readAt<Natural16>(META_MODE);
+    bool ownerUser = metaBlob.readAt<Natural32>(META_UID) == geteuid();
+    bool ownerGroup = metaBlob.readAt<Natural32>(META_GID) == getegid();
 
     if((mode&R_OK) && !(ownerUser && mode&S_IRUSR) && !(ownerGroup && mode&S_IRGRP) && !(mode&S_IROTH))
         return -EACCES;
@@ -263,7 +266,7 @@ int symatem_unlink(const char* path) {
 
     Symbol metaSymbol;
     assert(Ontology::getUncertain(node, MetaSymbol, metaSymbol));
-    mode_t mode = Storage::readBlobAt<Natural16>(metaSymbol, META_MODE);
+    mode_t mode = Storage::Blob(metaSymbol).readAt<Natural16>(META_MODE);
     if(S_ISDIR(mode) && Ontology::query(9, {node, EntrySymbol, Ontology::VoidSymbol}) > 0)
         return -ENOTEMPTY;
 
@@ -334,7 +337,7 @@ int symatem_chmod(const char* path, mode_t mode) {
     getNodeOfPath(path);
     Symbol metaSymbol;
     assert(Ontology::getUncertain(node, MetaSymbol, metaSymbol));
-    Storage::writeBlobAt<Natural16>(metaSymbol, META_MODE, mode);
+    Storage::Blob(metaSymbol).writeAt<Natural16>(META_MODE, mode);
     return 0;
 }
 
@@ -342,8 +345,9 @@ int symatem_chown(const char* path, uid_t uid, gid_t gid) {
     getNodeOfPath(path);
     Symbol metaSymbol;
     assert(Ontology::getUncertain(node, MetaSymbol, metaSymbol));
-    Storage::writeBlobAt<Natural32>(metaSymbol, META_UID, uid);
-    Storage::writeBlobAt<Natural32>(metaSymbol, META_GID, gid);
+    Storage::Blob metaBlob(metaSymbol);
+    metaBlob.writeAt<Natural32>(META_UID, uid);
+    metaBlob.writeAt<Natural32>(META_GID, gid);
     return 0;
 }
 
@@ -351,16 +355,19 @@ int symatem_utimens(const char* path, const struct timespec tv[2]) {
     getNodeOfPath(path);
     Symbol metaSymbol;
     assert(Ontology::getUncertain(node, MetaSymbol, metaSymbol));
-    Storage::writeBlobAt<Natural64>(metaSymbol, META_MTIME, tv[1].tv_sec);
-    Storage::writeBlobAt<Natural64>(metaSymbol, META_ATIME, tv[0].tv_sec);
+    Storage::Blob metaBlob(metaSymbol);
+    metaBlob.writeAt<Natural64>(META_MTIME, tv[1].tv_sec);
+    metaBlob.writeAt<Natural64>(META_ATIME, tv[0].tv_sec);
     return 0;
 }
 
 int symatem_ftruncate(const char* path, off_t size, struct fuse_file_info* fi) {
     checkNodeExistence();
-    Storage::setBlobSize(fi->fh, size*8);
+    Storage::Blob dataBlob(fi->fh);
+    dataBlob.setSize(size*8);
     for(NativeNaturalType i = 0; i < static_cast<NativeNaturalType>(size); ++i)
-        Storage::writeBlobAt<Natural8>(fi->fh, i, 0);
+        dataBlob.writeAt<Natural8>(i, 0);
+    Storage::modifiedBlob(fi->fh);
     return 0;
 }
 
@@ -372,7 +379,7 @@ int symatem_truncate(const char* path, off_t size) {
 
 int symatem_fallocate(const char* path, int mode, off_t offset, off_t length, struct fuse_file_info* fi) {
     checkNodeExistence();
-    if(static_cast<NativeNaturalType>(offset+length)*8 > Storage::getBlobSize(fi->fh))
+    if(static_cast<NativeNaturalType>(offset+length)*8 > Storage::Blob(fi->fh).getSize())
         return symatem_ftruncate(path, offset+length, fi);
     return 0;
 }

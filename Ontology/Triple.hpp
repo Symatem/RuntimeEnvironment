@@ -498,14 +498,15 @@ Symbol createFromData(DataType src) {
         assert(false);
     Symbol symbol = Storage::createSymbol();
     link({symbol, BlobTypeSymbol, blobType});
-    Storage::writeBlob(symbol, src);
+    Storage::Blob(symbol).write(src);
     return symbol;
 }
 
 Symbol createFromSlice(Symbol src, NativeNaturalType srcOffset, NativeNaturalType length) {
     Symbol dst = Storage::createSymbol();
-    Storage::increaseBlobSize(dst, 0, length);
-    Storage::sliceBlob(dst, src, 0, srcOffset, length);
+    Storage::Blob dstBlob(dst);
+    dstBlob.increaseSize(0, length);
+    dstBlob.slice(Storage::Blob(src), 0, srcOffset, length);
     return dst;
 }
 

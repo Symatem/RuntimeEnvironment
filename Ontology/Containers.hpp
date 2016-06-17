@@ -16,21 +16,21 @@ struct BlobVector {
     }
 
     bool empty() const {
-        return (!symbol || Storage::getBlobSize(symbol) == 0);
+        return (!symbol || Storage::Blob(symbol).getSize() == 0);
     }
 
     NativeNaturalType size() const {
-        return (symbol) ? Storage::getBlobSize(symbol)/sizeOfInBits<ElementType>::value : 0;
+        return (symbol) ? Storage::Blob(symbol).getSize()/sizeOfInBits<ElementType>::value : 0;
     }
 
-    ElementType readElementAt(NativeNaturalType at) const {
-        assert(symbol && at < size());
-        return Storage::readBlobAt<ElementType>(symbol, at);
+    ElementType readElementAt(NativeNaturalType offset) const {
+        assert(symbol && offset < size());
+        return Storage::Blob(symbol).readAt<ElementType>(offset);
     }
 
-    void writeElementAt(NativeNaturalType at, ElementType element) const {
-        assert(symbol && at < size());
-        Storage::writeBlobAt<ElementType>(symbol, at, element);
+    void writeElementAt(NativeNaturalType offset, ElementType element) const {
+        assert(symbol && offset < size());
+        Storage::Blob(symbol).writeAt<ElementType>(offset, element);
     }
 
     ElementType front() const {
@@ -55,18 +55,19 @@ struct BlobVector {
 
     void clear() {
         if(symbol)
-            Storage::decreaseBlobSize(symbol, 0, Storage::getBlobSize(symbol));
+            Storage::Blob(symbol).setSize(0);
     }
 
-    void insert(NativeNaturalType at, ElementType element) {
+    void insert(NativeNaturalType offset, ElementType element) {
         activate();
-        assert(Storage::increaseBlobSize(symbol, at*sizeOfInBits<ElementType>::value, sizeOfInBits<ElementType>::value));
-        Storage::writeBlobAt<ElementType>(symbol, at, element);
+        Storage::Blob dstBlob(symbol);
+        assert(dstBlob.increaseSize(offset*sizeOfInBits<ElementType>::value, sizeOfInBits<ElementType>::value));
+        dstBlob.writeAt<ElementType>(offset, element);
     }
 
-    void erase(NativeNaturalType begin, NativeNaturalType length) {
+    void erase(NativeNaturalType offset, NativeNaturalType length) {
         assert(symbol);
-        assert(Storage::decreaseBlobSize(symbol, begin*sizeOfInBits<ElementType>::value, length*sizeOfInBits<ElementType>::value));
+        assert(Storage::Blob(symbol).decreaseSize(offset*sizeOfInBits<ElementType>::value, sizeOfInBits<ElementType>::value));
     }
 
     void erase(NativeNaturalType at) {
@@ -140,7 +141,7 @@ struct BlobIndex : public BlobSet<guarded, Symbol> {
 
     NativeNaturalType find(Symbol key) const {
         return binarySearch<NativeNaturalType>(Super::size(), [&](NativeNaturalType at) {
-            return Storage::compareBlobs(key, Super::readElementAt(at)) < 0;
+            return Storage::Blob(key).compare(Storage::Blob(Super::readElementAt(at))) < 0;
         });
     }
 
@@ -148,7 +149,7 @@ struct BlobIndex : public BlobSet<guarded, Symbol> {
         at = find(element);
         if(at == Super::size())
             return false;
-        return (Storage::compareBlobs(element, Super::readElementAt(at)) == 0);
+        return (Storage::Blob(element).compare(Storage::Blob(Super::readElementAt(at))) == 0);
     }
 
     void insertElement(Symbol& element) {

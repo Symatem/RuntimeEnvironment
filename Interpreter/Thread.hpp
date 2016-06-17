@@ -17,7 +17,7 @@
     NativeNaturalType name##Value = DefaultValue; \
     if(Ontology::getUncertain(thread.block, Ontology::Name##Symbol, name)) { \
         checkBlobType(name, Ontology::NaturalSymbol) \
-        name##Value = Storage::readBlobAt<NativeNaturalType>(name); \
+        name##Value = Storage::Blob(name).readAt<NativeNaturalType>(); \
     }
 
 struct Thread;
