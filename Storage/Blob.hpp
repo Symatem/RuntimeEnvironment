@@ -50,16 +50,31 @@ struct Blob {
         }
     }
 
-    NativeNaturalType getSize() {
-        switch(state) {
-            case Empty:
-                return 0;
-            case InBucket:
-                return bucket->getSize(indexInBucket);
-            case Fragmented:
-                return bpTree.getElementCount();
+    void allocateInBucket(NativeNaturalType size) {
+        assert(size > 0);
+        if(superPage->freeBlobBuckets[type].empty()) {
+            pageRef = acquirePage();
+            bucket = dereferencePage<BlobBucket>(pageRef);
+            bucket->init(type);
+            assert(superPage->freeBlobBuckets[type].insert(pageRef));
+        } else {
+            pageRef = superPage->freeBlobBuckets[type].getOne<First, false>();
+            bucket = dereferencePage<BlobBucket>(pageRef);
         }
-        assert(false);
+        indexInBucket = bucket->allocateIndex(size, symbol, pageRef);
+        offsetInBucket = bucket->offsetOfIndex(indexInBucket);
+        address = pageRef*bitsPerPage+offsetInBucket;
+    }
+
+    void freeFromBucket() {
+        assert(state == InBucket);
+        bucket->freeIndex(indexInBucket, pageRef);
+    }
+
+    void updateAddress(NativeNaturalType address) {
+        BpTreeMap<Symbol, NativeNaturalType>::Iterator<true> iter;
+        superPage->blobs.find<Key>(iter, symbol);
+        iter.setValue(address);
     }
 
     template<NativeIntegerType dir>
@@ -157,8 +172,6 @@ struct Blob {
             return -1;
         if(size > otherSize)
             return 1;
-        if(size == 0)
-            return 0;
         return interoperation<0>(other, 0, 0, size);
     }
 
@@ -176,31 +189,24 @@ struct Blob {
         return true;
     }
 
-    void allocateInBucket(NativeNaturalType size) {
-        assert(size > 0);
-        if(superPage->freeBlobBuckets[type].empty()) {
-            pageRef = aquirePage();
-            bucket = dereferencePage<BlobBucket>(pageRef);
-            bucket->init(type);
-            assert(superPage->freeBlobBuckets[type].insert(pageRef));
-        } else {
-            pageRef = superPage->freeBlobBuckets[type].getOne<First, false>();
-            bucket = dereferencePage<BlobBucket>(pageRef);
+    NativeNaturalType getSize() {
+        switch(state) {
+            case Empty:
+                return 0;
+            case InBucket:
+                return bucket->getSize(indexInBucket);
+            case Fragmented:
+                return bpTree.getElementCount();
         }
-        indexInBucket = bucket->allocateIndex(size, symbol, pageRef);
-        offsetInBucket = bucket->offsetOfIndex(indexInBucket);
-        address = pageRef*bitsPerPage+offsetInBucket;
+        assert(false);
     }
 
-    void freeFromBucket() {
-        assert(state == InBucket);
-        bucket->freeIndex(indexInBucket, pageRef);
-    }
-
-    void updateAddress(NativeNaturalType address) {
-        BpTreeMap<Symbol, NativeNaturalType>::Iterator<true> iter;
-        superPage->blobs.find<Key>(iter, symbol);
-        iter.setValue(address);
+    void setSize(NativeNaturalType newSize) {
+        NativeNaturalType oldSize = getSize();
+        if(oldSize < newSize)
+            increaseSize(oldSize, newSize-oldSize);
+        else if(oldSize > newSize)
+            decreaseSize(newSize, oldSize-newSize);
     }
 
     bool decreaseSize(NativeNaturalType offset, NativeNaturalType length) {
@@ -289,14 +295,6 @@ struct Blob {
         modifiedBlob(symbol);
         assert(size == getSize());
         return true;
-    }
-
-    void setSize(NativeNaturalType newSize) {
-        NativeNaturalType oldSize = getSize();
-        if(oldSize < newSize)
-            increaseSize(oldSize, newSize-oldSize);
-        else if(oldSize > newSize)
-            decreaseSize(newSize, oldSize-newSize);
     }
 
     void deepCopy(Blob src) {

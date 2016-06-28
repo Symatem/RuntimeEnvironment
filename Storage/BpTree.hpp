@@ -129,24 +129,24 @@ struct BpTree {
                 Page::template insert<isLeaf>(frame, lowerOuter, data.elementCount);
             } else {
                 frame->endIndex = data.elementCount-(frame->pageCount-1)*frame->elementsPerPage;
-                frame->higherOuterPageRef = Storage::aquirePage();
+                frame->higherOuterPageRef = Storage::acquirePage();
                 switch(frame->pageCount) {
                     case 1:
                         frame->lowerInnerPageRef = frame->higherOuterPageRef;
                         frame->higherInnerPageRef = frame->pageRef;
                         break;
                     case 2:
-                        frame->lowerInnerPageRef = Storage::aquirePage();
+                        frame->lowerInnerPageRef = Storage::acquirePage();
                         frame->higherInnerPageRef = frame->lowerInnerPageRef;
                         break;
                     default:
-                        frame->lowerInnerPageRef = Storage::aquirePage();
-                        frame->higherInnerPageRef = Storage::aquirePage();
+                        frame->lowerInnerPageRef = Storage::acquirePage();
+                        frame->higherInnerPageRef = Storage::acquirePage();
                         break;
                 }
             }
         } else {
-            frame->pageRef = Storage::aquirePage();
+            frame->pageRef = Storage::acquirePage();
             lowerOuter = getPage(frame->pageRef);
             lowerOuter->header.layer = data.layer;
             if(!isLeaf)
@@ -159,13 +159,13 @@ struct BpTree {
                 if(frame->pageCount <= 1)
                     frame->higherInnerPageRef = 0;
                 else {
-                    frame->higherInnerPageRef = Storage::aquirePage();
+                    frame->higherInnerPageRef = Storage::acquirePage();
                     frame->higherInnerEndIndex = frame->elementsPerPage;
                     Page* higherInner = getPage(frame->higherInnerPageRef);
                     higherInner->header.count = frame->elementsPerPage;
                     higherInner->header.layer = data.layer;
                 }
-                frame->higherOuterPageRef = Storage::aquirePage();
+                frame->higherOuterPageRef = Storage::acquirePage();
                 Page* higherOuter = getPage(frame->higherOuterPageRef);
                 higherOuter->header.layer = data.layer;
                 Page::distributeCount(lowerOuter, higherOuter, data.elementCount-(frame->pageCount-1)*frame->elementsPerPage);
@@ -252,7 +252,7 @@ struct BpTree {
                 return page;
             }
         }
-        frame->pageRef = Storage::aquirePage();
+        frame->pageRef = Storage::acquirePage();
         frame->rank = frame->index = 0;
         frame->endIndex = frame->elementsPerPage;
         Page* page = getPage(frame->pageRef);
@@ -269,8 +269,8 @@ struct BpTree {
         page->integrateRanks(frame->rank, page->header.count);
     }
 
-    typedef Closure<void(Page*, OffsetType, OffsetType)> AquireData;
-    void insert(Iterator<true>& _iter, NativeNaturalType n, AquireData aquireData) {
+    typedef Closure<void(Page*, OffsetType, OffsetType)> AcquireData;
+    void insert(Iterator<true>& _iter, NativeNaturalType n, AcquireData acquireData) {
         assert(n > 0);
         InsertData data = {0, n};
         Iterator<true, InsertIteratorFrame> iter;
@@ -298,13 +298,13 @@ struct BpTree {
         }
         PageRefType pageRef;
         Page* leafPage = getPage(iter[0]->pageRef);
-        if(aquireData && iter[0]->index < iter[0]->endIndex)
-            aquireData(leafPage, iter[0]->index, iter[0]->endIndex);
+        if(acquireData && iter[0]->index < iter[0]->endIndex)
+            acquireData(leafPage, iter[0]->index, iter[0]->endIndex);
         while(iter[0]->pageCount > 0) {
             data.layer = 0;
             leafPage = insertAdvance<true>(data, iter[0]);
-            if(aquireData && iter[0]->index < iter[0]->endIndex)
-                aquireData(leafPage, iter[0]->index, iter[0]->endIndex);
+            if(acquireData && iter[0]->index < iter[0]->endIndex)
+                acquireData(leafPage, iter[0]->index, iter[0]->endIndex);
             bool setKey = true;
             pageRef = iter[0]->pageRef;
             while(data.layer < unmodifiedLayer) {

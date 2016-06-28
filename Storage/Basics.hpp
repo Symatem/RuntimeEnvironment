@@ -3,23 +3,24 @@
 namespace Storage {
 
 template<NativeIntegerType dir>
-NativeNaturalType aquireSegmentFrom(const NativeNaturalType* src, NativeNaturalType& srcOffset, NativeNaturalType length) {
+NativeNaturalType readSegmentFrom(const NativeNaturalType* src, NativeNaturalType& srcOffset, NativeNaturalType length) {
     if(dir == +1)
         srcOffset -= length;
     NativeNaturalType lower = srcOffset%architectureSize,
                       index = srcOffset/architectureSize,
-                      firstPart = architectureSize-lower,
                       result = src[index]>>lower;
+    lower = architectureSize-lower;
+    if(lower < length)
+        result |= src[index+1]<<lower;
+    result &= BitMask<NativeNaturalType>::fillLSBs(length);
     if(dir == -1)
         srcOffset += length;
-    if(firstPart < length)
-        result |= src[index+1]<<firstPart;
-    return result&BitMask<NativeNaturalType>::fillLSBs(length);
+    return result;
 }
 
-void writeSegmentTo(NativeNaturalType* dst, NativeNaturalType keepMask, NativeNaturalType input) {
+void writeSegmentTo(NativeNaturalType* dst, NativeNaturalType keepMask, NativeNaturalType src) {
     *dst &= keepMask;
-    *dst |= (~keepMask)&input;
+    *dst |= (~keepMask)&src;
 }
 
 NativeIntegerType bitwiseCompare(const NativeNaturalType* a, const NativeNaturalType* b,
@@ -27,14 +28,12 @@ NativeIntegerType bitwiseCompare(const NativeNaturalType* a, const NativeNatural
                                  NativeNaturalType length) {
     // TODO: Endian order
     while(length >= architectureSize) {
-        NativeIntegerType diff = aquireSegmentFrom<-1>(a, aOffset, architectureSize)-aquireSegmentFrom<-1>(b, bOffset, architectureSize);
+        NativeIntegerType diff = readSegmentFrom<-1>(a, aOffset, architectureSize)-readSegmentFrom<-1>(b, bOffset, architectureSize);
         if(diff != 0)
             return diff;
         length -= architectureSize;
     }
-    if(length == 0)
-        return 0;
-    return aquireSegmentFrom<0>(a, aOffset, length)-aquireSegmentFrom<0>(b, bOffset, length);
+    return (length == 0) ? 0 : readSegmentFrom<0>(a, aOffset, length)-readSegmentFrom<0>(b, bOffset, length);
 }
 
 template<bool atEnd = false>
@@ -73,28 +72,28 @@ void bitwiseCopy(NativeNaturalType* dst, const NativeNaturalType* src,
     if(index == lastIndex) {
         writeSegmentTo(dst+index,
                        BitMask<NativeNaturalType>::fillLSBs(lowSkip)|BitMask<NativeNaturalType>::fillMSBs(highSkip),
-                       aquireSegmentFrom<0>(src, srcOffset, length)<<lowSkip);
+                       readSegmentFrom<0>(src, srcOffset, length)<<lowSkip);
         return;
     }
     if(dir == -1) {
         writeSegmentTo(dst+index,
                        BitMask<NativeNaturalType>::fillLSBs(lowSkip),
-                       aquireSegmentFrom<dir>(src, srcOffset, architectureSize-lowSkip)<<lowSkip);
+                       readSegmentFrom<dir>(src, srcOffset, architectureSize-lowSkip)<<lowSkip);
         while(++index < lastIndex)
-            dst[index] = aquireSegmentFrom<dir>(src, srcOffset, architectureSize);
+            dst[index] = readSegmentFrom<dir>(src, srcOffset, architectureSize);
         writeSegmentTo(dst+index,
                        BitMask<NativeNaturalType>::fillMSBs(highSkip),
-                       aquireSegmentFrom<dir>(src, srcOffset, architectureSize-highSkip));
+                       readSegmentFrom<dir>(src, srcOffset, architectureSize-highSkip));
     } else {
         srcOffset += length;
         writeSegmentTo(dst+index,
                        BitMask<NativeNaturalType>::fillMSBs(highSkip),
-                       aquireSegmentFrom<dir>(src, srcOffset, architectureSize-highSkip));
+                       readSegmentFrom<dir>(src, srcOffset, architectureSize-highSkip));
         while(--index > lastIndex)
-            dst[index] = aquireSegmentFrom<dir>(src, srcOffset, architectureSize);
+            dst[index] = readSegmentFrom<dir>(src, srcOffset, architectureSize);
         writeSegmentTo(dst+index,
                        BitMask<NativeNaturalType>::fillLSBs(lowSkip),
-                       aquireSegmentFrom<dir>(src, srcOffset, architectureSize-lowSkip)<<lowSkip);
+                       readSegmentFrom<dir>(src, srcOffset, architectureSize-lowSkip)<<lowSkip);
     }
 }
 
@@ -154,7 +153,7 @@ void resizeMemory(NativeNaturalType pagesEnd);
 template<typename PageType>
 PageType* dereferencePage(PageRefType pageRef);
 PageRefType referenceOfPage(void* page);
-PageRefType aquirePage();
+PageRefType acquirePage();
 void releasePage(PageRefType pageRef);
 
 };

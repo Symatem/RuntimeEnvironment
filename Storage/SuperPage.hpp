@@ -31,7 +31,7 @@ PageRefType referenceOfPage(void* page) {
     return pageRef;
 }
 
-PageRefType aquirePage() {
+PageRefType acquirePage() {
     assert(superPage);
     if(superPage->freePage) {
         PageRefType pageRef = superPage->freePage;

@@ -20,8 +20,8 @@ struct TreeType : public Storage::BpTree<NativeNaturalType, NativeNaturalType, a
         }
     };
 
-    void insert(Iterator<true>& origIter, NativeNaturalType n, typename Super::AquireData aquireData) {
-        Super::insert(origIter, n, aquireData);
+    void insert(Iterator<true>& origIter, NativeNaturalType n, typename Super::AcquireData acquireData) {
+        Super::insert(origIter, n, acquireData);
     }
 };
 
