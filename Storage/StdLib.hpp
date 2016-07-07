@@ -94,36 +94,21 @@ extern "C" {
         for(pos = str; *pos; ++pos);
         return pos-str;
     }
-    Integer32 atexit(void (*func)()) {
-        func = 0;
-        return 1;
+    NativeNaturalType memcpy(void* dst, void* src, NativeNaturalType len) {
+        for(NativeNaturalType i = 0; i < len; ++i)
+            reinterpret_cast<char*>(dst)[i] = reinterpret_cast<char*>(src)[i];
+        return 0;
     }
-    void __cxa_pure_virtual(void) {}
-    void __cxa_deleted_virtual(void) {}
+    NativeNaturalType memset(void* dst, NativeNaturalType value, NativeNaturalType len) {
+        for(NativeNaturalType i = 0; i < len; ++i)
+            reinterpret_cast<char*>(dst)[i] = value;
+        return 0;
+    }
+    void __cxa_atexit(void(*)(void*), void*, void*) {}
+    void __cxa_pure_virtual() {}
+    void __cxa_deleted_virtual() {}
 }
 
-namespace __cxxabiv1 {
-#define DummyTypeInfo(Child, Parent) \
-    struct Child : public Parent { \
-        virtual ~Child(); \
-    }; \
-    Child::~Child() {}
-    struct type_info {};
-    DummyTypeInfo(__shim_type_info, type_info)
-    DummyTypeInfo(__fundamental_type_info, __shim_type_info)
-    DummyTypeInfo(__array_type_info, __shim_type_info)
-    DummyTypeInfo(__function_type_info, __shim_type_info)
-    DummyTypeInfo(__enum_type_info, __shim_type_info)
-    DummyTypeInfo(__class_type_info, __shim_type_info)
-    DummyTypeInfo(__si_class_type_info, __class_type_info)
-    DummyTypeInfo(__vmi_class_type_info, __class_type_info)
-    DummyTypeInfo(__pbase_type_info, __shim_type_info)
-    DummyTypeInfo(__pointer_type_info, __pbase_type_info)
-    DummyTypeInfo(__pointer_to_member_type_info, __pbase_type_info)
-}
-
-void operator delete(void*) noexcept { }
-void operator delete(void*, unsigned long) noexcept { }
 inline void* operator new(unsigned long, void* ptr) noexcept {
     return ptr;
 }

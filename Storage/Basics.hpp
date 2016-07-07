@@ -26,14 +26,16 @@ void writeSegmentTo(NativeNaturalType* dst, NativeNaturalType keepMask, NativeNa
 NativeIntegerType bitwiseCompare(const NativeNaturalType* a, const NativeNaturalType* b,
                                  NativeNaturalType aOffset, NativeNaturalType bOffset,
                                  NativeNaturalType length) {
-    // TODO: Endian order
-    while(length >= architectureSize) {
-        NativeIntegerType diff = readSegmentFrom<-1>(a, aOffset, architectureSize)-readSegmentFrom<-1>(b, bOffset, architectureSize);
+    aOffset += length;
+    bOffset += length;
+    while(length > 0) {
+        NativeNaturalType segment = min(length, static_cast<NativeNaturalType>(architectureSize));
+        NativeIntegerType diff = readSegmentFrom<+1>(a, aOffset, segment)-readSegmentFrom<+1>(b, bOffset, segment);
         if(diff != 0)
             return diff;
-        length -= architectureSize;
+        length -= segment;
     }
-    return (length == 0) ? 0 : readSegmentFrom<0>(a, aOffset, length)-readSegmentFrom<0>(b, bOffset, length);
+    return 0;
 }
 
 template<bool atEnd = false>

@@ -1,5 +1,7 @@
 #include "POSIX.hpp"
 
+extern "C" {
+
 Thread thread;
 
 Symbol createFromFile(const char* path) {
@@ -105,4 +107,6 @@ Integer32 main(Integer32 argc, Integer8** argv) {
 
     unloadStorage();
     return 0;
+}
+
 }

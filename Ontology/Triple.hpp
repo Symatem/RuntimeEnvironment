@@ -29,7 +29,7 @@ struct Triple {
         return {subIndices[subIndex], pos[(subIndex+1)%3], pos[(subIndex+2)%3]};
     }
 
-    Triple reverseIndex(NativeNaturalType* subIndices, NativeNaturalType subIndex) {
+    Triple invertedIndex(NativeNaturalType* subIndices, NativeNaturalType subIndex) {
         return {subIndices[subIndex+3], pos[(subIndex+2)%3], pos[(subIndex+1)%3]};
     }
 
@@ -89,7 +89,7 @@ bool linkTriplePartial(Triple triple, NativeNaturalType subIndex) {
     if(!linkInSubIndex(triple.forwardIndex(element.value, subIndex)))
         return false;
     if(indexMode == HexaIndex)
-        assert(linkInSubIndex(triple.reverseIndex(element.value, subIndex)));
+        assert(linkInSubIndex(triple.invertedIndex(element.value, subIndex)));
     return true;
 }
 
@@ -373,7 +373,7 @@ bool unlinkWithoutReleasing(Triple triple, bool skipEnabled = false, Symbol skip
         if(!unlinkInSubIndex(triple.forwardIndex(element.value, subIndex)))
             return false;
         if(indexMode == HexaIndex)
-            assert(unlinkInSubIndex(triple.reverseIndex(element.value, subIndex)));
+            assert(unlinkInSubIndex(triple.invertedIndex(element.value, subIndex)));
     }
     if(triple.pos[1] == BlobTypeSymbol)
         Storage::modifiedBlob(triple.pos[0]);

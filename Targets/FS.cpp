@@ -32,6 +32,8 @@
 #define META_RDEV 8
 #define META_MODE 18
 
+extern "C" {
+
 enum FSymbols {
     RootSymbol = 83,
     EntrySymbol,
@@ -489,4 +491,6 @@ Integer32 main(Integer32 argc, Integer8** argv) {
 
     unloadStorage();
     return result;
+}
+
 }

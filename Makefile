@@ -1,5 +1,5 @@
-COMPILER_FLAGS := -O3 -std=c++1z -fno-exceptions -fno-stack-protector -fno-use-cxa-atexit -fvisibility=hidden -Wall -Wsign-compare
-LINKER_FLAGS := -Wl,-no_pie
+COMPILER_FLAGS := -O3 -std=c++1z -fno-exceptions -fno-stack-protector -fno-rtti -ffreestanding -fvisibility=hidden -Wall -Wsign-compare
+LINKER_FLAGS := #-Wl,-no_pie
 SOURCES := Storage/* Ontology/* Interpreter/* Targets/POSIX.hpp
 STD_PATH := ../StandardLibrary
 IMAGE_PATH := /dev/zero
@@ -25,12 +25,15 @@ build/:
 
 build/SymatemBp: Targets/Bp.cpp $(SOURCES) build/
 	$(CC) $(COMPILER_FLAGS) $(LINKER_FLAGS) -o $@ $<
+	strip $@
 
 build/SymatemHRL: Targets/HRL.cpp $(SOURCES) build/
 	$(CC) $(COMPILER_FLAGS) $(LINKER_FLAGS) -o $@ $<
+	strip $@
 
 build/SymatemFS: Targets/FS.cpp $(SOURCES) build/
 	$(CC) $(COMPILER_FLAGS) -D_FILE_OFFSET_BITS=64 -I$(FUSE_PATH) $(LINKER_FLAGS) -l$(FUSE_NAME) -o $@ $<
+	strip $@
 
 build/WASM.asm: Targets/WASM.cpp $(SOURCES) build/
 	$(LLVM_BIN)/clang $(COMPILER_FLAGS) -target wasm32 -c -emit-llvm -o build/WASM.bc $<
@@ -39,7 +42,7 @@ build/WASM.asm: Targets/WASM.cpp $(SOURCES) build/
 	rm build/WASM.bc build/WASM.pre_asm
 
 build/Symatem.wast: build/WASM.asm
-	$(BINARYEN_BIN)/s2wasm $< > $@
+	$(BINARYEN_BIN)/s2wasm -o $@ $<
 
 build/Symatem.wasm: build/Symatem.wast
 	$(PROTO_BIN)/sexpr-wasm -o $@ $<

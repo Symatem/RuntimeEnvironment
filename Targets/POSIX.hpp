@@ -7,6 +7,8 @@
 #include <fcntl.h>
 #include <stdio.h>
 
+extern "C" {
+
 #define printStatsLine(name, amount, total) \
     printf(name "%10llu bits %2.2f %%\n", amount, 100.0*(amount)/(total))
 
@@ -106,15 +108,6 @@ NativeNaturalType bytesForPages(NativeNaturalType pagesEnd) {
     return (pagesEnd*Storage::bitsPerPage+mmapChunkSize-1)/mmapChunkSize*mmapChunkSize/8;
 }
 
-void Storage::resizeMemory(NativeNaturalType _pagesEnd) {
-    assert(_pagesEnd < maxPageCount);
-    if(file >= 0 && S_ISREG(fileStat.st_mode) && bytesForPages(_pagesEnd) > static_cast<NativeNaturalType>(fileStat.st_size)) {
-        assert(ftruncate(file, bytesForPages(_pagesEnd)) == 0);
-        assert(fstat(file, &fileStat) == 0);
-    }
-    superPage->pagesEnd = _pagesEnd;
-}
-
 void loadStorage(const char* path) {
     assert(file < 0);
     Integer32 mmapFlags = MAP_FIXED;
@@ -159,4 +152,15 @@ void unloadStorage() {
         assert(ftruncate(file, size) == 0);
     assert(close(file) == 0);
     file = -1;
+}
+
+}
+
+void Storage::resizeMemory(NativeNaturalType _pagesEnd) {
+    assert(_pagesEnd < maxPageCount);
+    if(file >= 0 && S_ISREG(fileStat.st_mode) && bytesForPages(_pagesEnd) > static_cast<NativeNaturalType>(fileStat.st_size)) {
+        assert(ftruncate(file, bytesForPages(_pagesEnd)) == 0);
+        assert(fstat(file, &fileStat) == 0);
+    }
+    superPage->pagesEnd = _pagesEnd;
 }

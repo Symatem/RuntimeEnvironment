@@ -83,6 +83,8 @@ void testUsingPermutation() {
     }
 }
 
+extern "C" {
+
 Integer32 main(Integer32 argc, Integer8** argv) {
     if(argc < 2) {
         printf("Expected path argument.\n");
@@ -113,4 +115,6 @@ Integer32 main(Integer32 argc, Integer8** argv) {
     assert(tree.empty() && Storage::superPage->pagesEnd == Storage::countFreePages()+1);
     unloadStorage();
     return 0;
+}
+
 }
