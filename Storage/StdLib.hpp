@@ -66,10 +66,6 @@ constexpr NativeNaturalType architecturePadding(NativeNaturalType bits) {
     return (bits+architectureSize-1)/architectureSize*architectureSize;
 }
 
-NativeNaturalType pointerToNatural(void* ptr) {
-    return reinterpret_cast<long unsigned>(ptr);
-}
-
 template<typename Type>
 struct sizeOfInBits {
     static constexpr NativeNaturalType value = sizeof(Type)*8;
