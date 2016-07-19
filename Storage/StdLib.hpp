@@ -119,8 +119,8 @@ struct CallableContainer<ReturnType(Arguments...)> {
 
 template<typename LambdaType, typename ReturnType, typename... Arguments>
 struct LambdaContainer : public CallableContainer<ReturnType(Arguments...)> {
-    LambdaType* lambda;
-    LambdaContainer(LambdaType& _lambda) :lambda(&_lambda) {}
+    LambdaType const* lambda;
+    LambdaContainer(LambdaType const* _lambda) :lambda(_lambda) {}
     ReturnType operator()(Arguments... arguments) {
         return (*lambda)(arguments...);
     }
@@ -133,11 +133,11 @@ template<typename ReturnType, typename... Arguments>
 struct Closure<ReturnType(Arguments...)> {
     void* payload[2];
     template<typename LambdaType>
-    Closure(LambdaType&& lambda) {
-        ::new(&payload) LambdaContainer<LambdaType, ReturnType, Arguments...>(lambda);
+    Closure(LambdaType const& lambda) {
+        ::new(&payload) LambdaContainer<LambdaType, ReturnType, Arguments...>(&lambda);
     }
+    Closure(Closure const& other) :payload{other.payload[0], other.payload[1]} {}
     Closure(decltype(nullptr)) :payload{0, 0} {}
-    Closure(Closure& other) :payload{other.payload[0], other.payload[1]} {}
     operator bool() const {
         return payload[1];
     }

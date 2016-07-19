@@ -34,16 +34,18 @@ struct Triple {
     }
 
     Triple reordered(NativeNaturalType subIndex) {
-        NativeNaturalType alpha[] = {0, 1, 2, 0, 1, 2},
-                           beta[] = {1, 2, 0, 2, 0, 1},
-                          gamma[] = {2, 0, 1, 1, 2, 0};
+        static const NativeNaturalType
+            alpha[] = {0, 1, 2, 0, 1, 2},
+             beta[] = {1, 2, 0, 2, 0, 1},
+            gamma[] = {2, 0, 1, 1, 2, 0};
         return {pos[alpha[subIndex]], pos[beta[subIndex]], pos[gamma[subIndex]]};
     }
 
     Triple normalized(NativeNaturalType subIndex) {
-        NativeNaturalType alpha[] = {0, 2, 1, 0, 1, 2},
-                           beta[] = {1, 0, 2, 2, 0, 1},
-                          gamma[] = {2, 1, 0, 1, 2, 0};
+        static const NativeNaturalType
+            alpha[] = {0, 2, 1, 0, 1, 2},
+             beta[] = {1, 0, 2, 2, 0, 1},
+            gamma[] = {2, 1, 0, 1, 2, 0};
         return {pos[alpha[subIndex]], pos[beta[subIndex]], pos[gamma[subIndex]]};
     }
 };
