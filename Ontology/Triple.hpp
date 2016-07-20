@@ -281,36 +281,45 @@ NativeNaturalType query(NativeNaturalType mode, Triple triple, Closure<void(Trip
     QueryMethod method = lookup[mode];
     if(method.function == nullptr)
         return 0;
-    Closure<void()> handleNext = [&]() {
+    auto monoIndexLambda = [&]() {
+        NativeNaturalType subIndex = 0;
+        if(mode%3 == 1) ++subIndex;
+        if(mode%9 >= 3 && mode%9 < 6) {
+            triple.pos[subIndex] = triple.pos[1];
+            ++subIndex;
+        }
+        if(mode >= 9 && mode < 18)
+            triple.pos[subIndex] = triple.pos[2];
+        callback(triple);
+    };
+    auto higherIndexLambda = [&]() {
         Triple result;
         for(NativeNaturalType i = 0; i < method.size; ++i)
             result.pos[i] = triple.pos[method.pos+i];
         callback(result);
     };
-    if(indexMode == MonoIndex) {
-        if(method.subIndex != EAV) {
-            method.subIndex = EAV;
-            method.function = &searchVVV;
-            handleNext = [&]() {
-                NativeNaturalType subIndex = 0;
-                if(mode%3 == 1) ++subIndex;
-                if(mode%9 >= 3 && mode%9 < 6) {
-                    triple.pos[subIndex] = triple.pos[1];
-                    ++subIndex;
-                }
-                if(mode >= 9 && mode < 18)
-                    triple.pos[subIndex] = triple.pos[2];
-                callback(triple);
-            };
-        }
-    } else if(indexMode == TriIndex && method.subIndex >= 3) {
-        method.subIndex -= 3;
-        method.pos = 2;
-        method.function = &searchGIV;
+    Closure<void()> handleNext;
+    switch(indexMode) {
+        case MonoIndex:
+            if(method.subIndex != EAV) {
+                method.subIndex = EAV;
+                method.function = &searchVVV;
+            }
+            if(callback)
+                handleNext = monoIndexLambda;
+            break;
+        case TriIndex:
+            if(method.subIndex >= 3) {
+                method.subIndex -= 3;
+                method.pos = 2;
+                method.function = &searchGIV;
+            }
+        case HexaIndex:
+            if(callback)
+                handleNext = higherIndexLambda;
+            break;
     }
     triple = triple.reordered(method.subIndex);
-    if(!callback)
-        handleNext = nullptr;
     return (*method.function)(method.subIndex, triple, handleNext);
 }
 

@@ -71,7 +71,7 @@ struct BpTree {
             return;
         Iterator<false> iter;
         NativeNaturalType branchPageCount = 0, leafPageCount = 0;
-        Closure<void(Page*)> pageTouch = [&](Page* page) {
+        auto pageTouch = [&](Page* page) {
             if(page->header.layer == 0) {
                 ++leafPageCount;
                 stats.inhabitedPayload += (keyBits+valueBits)*page->header.count;
