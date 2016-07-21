@@ -128,11 +128,11 @@ struct Thread {
         pushCallStack();
         Ontology::link({frame, Ontology::ProcedureSymbol, procedure}); // TODO: debugging
         if(Ontology::getUncertain(execute, Ontology::StaticSymbol, staticParams))
-            Ontology::query(12, {staticParams, Ontology::VoidSymbol, Ontology::VoidSymbol}, [&](Ontology::Triple result) {
+            Ontology::query(Ontology::MVV, {staticParams, Ontology::VoidSymbol, Ontology::VoidSymbol}, [&](Ontology::Triple result) {
                 Ontology::link({block, result.pos[0], result.pos[1]});
             });
         if(Ontology::getUncertain(execute, Ontology::DynamicSymbol, dynamicParams))
-            Ontology::query(12, {dynamicParams, Ontology::VoidSymbol, Ontology::VoidSymbol}, [&](Ontology::Triple result) {
+            Ontology::query(Ontology::MVV, {dynamicParams, Ontology::VoidSymbol, Ontology::VoidSymbol}, [&](Ontology::Triple result) {
                 switch(result.pos[1]) {
                     case Ontology::TaskSymbol:
                         Ontology::link({block, result.pos[0], task});
@@ -144,7 +144,7 @@ struct Thread {
                         Ontology::link({block, result.pos[0], parentBlock});
                         break;
                     default:
-                        Ontology::query(9, {parentBlock, result.pos[1], Ontology::VoidSymbol}, [&](Ontology::Triple resultB) {
+                        Ontology::query(Ontology::MMV, {parentBlock, result.pos[1], Ontology::VoidSymbol}, [&](Ontology::Triple resultB) {
                             Ontology::link({block, result.pos[0], resultB.pos[0]});
                         });
                         break;
@@ -224,7 +224,7 @@ struct Thread {
 
     bool executeDeserialized() {
         Symbol prev = Ontology::VoidSymbol;
-        if(Ontology::query(9, {block, Ontology::OutputSymbol, Ontology::VoidSymbol}, [&](Ontology::Triple result) {
+        if(Ontology::query(Ontology::MMV, {block, Ontology::OutputSymbol, Ontology::VoidSymbol}, [&](Ontology::Triple result) {
             Symbol next = Storage::createSymbol();
             Ontology::link({next, Ontology::ProcedureSymbol, result.pos[0]});
             if(prev == Ontology::VoidSymbol)

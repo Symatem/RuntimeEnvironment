@@ -4,12 +4,12 @@
 
 Primitive(Search) {
     Ontology::Triple triple;
-    NativeNaturalType modes[3] = {2, 2, 2}, varyingCount = 0;
+    NativeNaturalType mask[3] = {Ontology::QueryMode::Ignore, Ontology::QueryMode::Ignore, Ontology::QueryMode::Ignore}, varyingCount = 0;
     Symbol posNames[3] = {Ontology::EntitySymbol, Ontology::AttributeSymbol, Ontology::ValueSymbol};
-    Ontology::query(9, {thread.block, Ontology::VaryingSymbol, Ontology::VoidSymbol}, [&](Ontology::Triple result) {
+    Ontology::query(Ontology::MMV, {thread.block, Ontology::VaryingSymbol, Ontology::VoidSymbol}, [&](Ontology::Triple result) {
         for(NativeNaturalType index = 0; index < 3; ++index)
             if(result.pos[0] == posNames[index]) {
-                modes[index] = 1;
+                mask[index] = Ontology::QueryMode::Varying;
                 ++varyingCount;
                 return;
             }
@@ -19,14 +19,14 @@ Primitive(Search) {
         return false;
     for(NativeNaturalType index = 0; index < 3; ++index)
         if(Ontology::getUncertain(thread.block, posNames[index], triple.pos[index])) {
-            if(modes[index] != 2)
+            if(mask[index] != Ontology::QueryMode::Ignore)
                 return thread.throwException("Invalid Input");
-            modes[index] = 0;
+            mask[index] = 0;
         }
     getSymbolByName(output, Output)
     Ontology::BlobVector<false, Symbol> outputValue;
     outputValue.symbol = output;
-    auto countValue = Ontology::query(modes[0] + modes[1]*3 + modes[2]*9, triple, [&](Ontology::Triple result) {
+    auto countValue = Ontology::query(static_cast<Ontology::QueryMask>(mask[0]+mask[1]*3+mask[2]*9), triple, [&](Ontology::Triple result) {
         for(NativeNaturalType i = 0; i < varyingCount; ++i)
             outputValue.push_back(result.pos[i]);
     });
@@ -67,7 +67,7 @@ Primitive(Create) {
         value = Storage::Blob(input).readAt<NativeNaturalType>();
     Symbol target;
     checkReturn(thread.getTargetSymbol(target));
-    if(Ontology::query(9, {thread.block, Ontology::OutputSymbol, Ontology::VoidSymbol}, [&](Ontology::Triple result) {
+    if(Ontology::query(Ontology::MMV, {thread.block, Ontology::OutputSymbol, Ontology::VoidSymbol}, [&](Ontology::Triple result) {
         Symbol output = result.pos[0];
         if(!inputExists)
             value = Storage::createSymbol();
@@ -82,7 +82,7 @@ Primitive(Destroy) {
     Ontology::BlobSet<false, Symbol> symbols;
     symbols.symbol = Storage::createSymbol();
     Ontology::link({thread.block, Ontology::HoldsSymbol, symbols.symbol});
-    if(Ontology::query(9, {thread.block, Ontology::InputSymbol, Ontology::VoidSymbol}, [&](Ontology::Triple result) {
+    if(Ontology::query(Ontology::MMV, {thread.block, Ontology::InputSymbol, Ontology::VoidSymbol}, [&](Ontology::Triple result) {
         symbols.insertElement(result.pos[0]);
     }) == 0)
         return thread.throwException("Expected more Inputs");
@@ -255,7 +255,7 @@ Primitive(Equal) {
     Symbol type, firstSymbol;
     NativeNaturalType outputValue = 1;
     bool first = true;
-    if(Ontology::query(9, {thread.block, Ontology::InputSymbol, Ontology::VoidSymbol}, [&](Ontology::Triple result) {
+    if(Ontology::query(Ontology::MMV, {thread.block, Ontology::InputSymbol, Ontology::VoidSymbol}, [&](Ontology::Triple result) {
         if(outputValue == 0)
             return;
         Symbol input = result.pos[0], _type = Ontology::VoidSymbol;
@@ -404,7 +404,7 @@ template<typename op>
 Primitive(AssociativeCommutativeBitwise) {
     NativeNaturalType outputValue;
     bool first = true;
-    if(Ontology::query(9, {thread.block, Ontology::InputSymbol, Ontology::VoidSymbol}, [&](Ontology::Triple result) {
+    if(Ontology::query(Ontology::MMV, {thread.block, Ontology::InputSymbol, Ontology::VoidSymbol}, [&](Ontology::Triple result) {
         Symbol input = result.pos[0];
         if(first) {
             first = false;
@@ -440,7 +440,7 @@ Primitive(AssociativeCommutativeArithmetic) {
         NativeFloatType f;
     } aux;
     bool first = true;
-    if(Ontology::query(9, {thread.block, Ontology::InputSymbol, Ontology::VoidSymbol}, [&](Ontology::Triple result) {
+    if(Ontology::query(Ontology::MMV, {thread.block, Ontology::InputSymbol, Ontology::VoidSymbol}, [&](Ontology::Triple result) {
         Symbol input = result.pos[0], _type;
         thread.getGuaranteed(input, Ontology::BlobTypeSymbol, _type);
         if(first) {

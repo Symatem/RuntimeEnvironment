@@ -244,7 +244,7 @@ struct Deserializer {
                         locals.clear();
                         Symbol entity;
                         checkReturn(thread.getGuaranteed(currentEntry, Ontology::EntitySymbol, entity));
-                        if(Ontology::query(12, {entity, Ontology::VoidSymbol, Ontology::VoidSymbol}) == 0)
+                        if(Ontology::query(Ontology::MVV, {entity, Ontology::VoidSymbol, Ontology::VoidSymbol}) == 0)
                             return throwException("Nothing declared");
                     }
                     if(!Ontology::valueCountIs(currentEntry, Ontology::UnnestEntitySymbol, 0))

@@ -94,7 +94,7 @@ struct Blob {
     template<NativeIntegerType dir, typename IteratorType>
     NativeNaturalType getSegmentSize(IteratorType& iter, NativeNaturalType offset) {
         if(dir == 1) {
-            if(state == Fragmented) { // TODO: Rethink
+            if(state == Fragmented) {
                 if(iter[0]->index > 0)
                     return iter[0]->index;
                 iter.template advance<-1>(1);
