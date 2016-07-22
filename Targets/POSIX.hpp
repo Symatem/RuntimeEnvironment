@@ -81,7 +81,7 @@ void printStats() {
     for(NativeNaturalType i = 0; i < Storage::blobBucketTypeCount; ++i)
         printf("      %10llu    %10llu\n", Storage::blobBucketType[i], blobInBucketTypes[i]);
     printf("      Fragmented    %10llu\n", blobInBucketTypes[Storage::blobBucketTypeCount]);
-    printf("  Triples:          %10llu\n", Ontology::query(Ontology::VVV, {}));
+    printf("  Triples:          %10llu\n", Ontology::query(Ontology::VVV));
     printf("\n");
 
     assert(recyclableBits+metaStructs.total+fullBuckets.total+freeBuckets.total+fragmented.total == totalBits);

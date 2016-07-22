@@ -129,23 +129,23 @@ struct Thread {
         Ontology::link({frame, Ontology::ProcedureSymbol, procedure}); // TODO: debugging
         if(Ontology::getUncertain(execute, Ontology::StaticSymbol, staticParams))
             Ontology::query(Ontology::MVV, {staticParams, Ontology::VoidSymbol, Ontology::VoidSymbol}, [&](Ontology::Triple result) {
-                Ontology::link({block, result.pos[0], result.pos[1]});
+                Ontology::link({block, result.pos[1], result.pos[2]});
             });
         if(Ontology::getUncertain(execute, Ontology::DynamicSymbol, dynamicParams))
             Ontology::query(Ontology::MVV, {dynamicParams, Ontology::VoidSymbol, Ontology::VoidSymbol}, [&](Ontology::Triple result) {
-                switch(result.pos[1]) {
+                switch(result.pos[2]) {
                     case Ontology::TaskSymbol:
-                        Ontology::link({block, result.pos[0], task});
+                        Ontology::link({block, result.pos[1], task});
                         break;
                     case Ontology::FrameSymbol:
-                        Ontology::link({block, result.pos[0], parentFrame});
+                        Ontology::link({block, result.pos[1], parentFrame});
                         break;
                     case Ontology::BlockSymbol:
-                        Ontology::link({block, result.pos[0], parentBlock});
+                        Ontology::link({block, result.pos[1], parentBlock});
                         break;
                     default:
-                        Ontology::query(Ontology::MMV, {parentBlock, result.pos[1], Ontology::VoidSymbol}, [&](Ontology::Triple resultB) {
-                            Ontology::link({block, result.pos[0], resultB.pos[0]});
+                        Ontology::query(Ontology::MMV, {parentBlock, result.pos[2], Ontology::VoidSymbol}, [&](Ontology::Triple resultB) {
+                            Ontology::link({block, result.pos[1], resultB.pos[2]});
                         });
                         break;
                 }
@@ -226,7 +226,7 @@ struct Thread {
         Symbol prev = Ontology::VoidSymbol;
         if(Ontology::query(Ontology::MMV, {block, Ontology::OutputSymbol, Ontology::VoidSymbol}, [&](Ontology::Triple result) {
             Symbol next = Storage::createSymbol();
-            Ontology::link({next, Ontology::ProcedureSymbol, result.pos[0]});
+            Ontology::link({next, Ontology::ProcedureSymbol, result.pos[2]});
             if(prev == Ontology::VoidSymbol)
                 Ontology::setSolitary({frame, Ontology::ExecuteSymbol, next});
             else

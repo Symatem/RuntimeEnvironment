@@ -76,11 +76,11 @@ int resolvePathPartial(Symbol& parent, Symbol& entry, Symbol& node, const char*&
             name = Ontology::blobIndex.readElementAt(at);
             found = false;
             Ontology::query(Ontology::MMV, {node, EntrySymbol, Ontology::VoidSymbol}, [&](Ontology::Triple result) {
-                if(Ontology::tripleExists({result.pos[0], NameSymbol, name})) {
+                if(Ontology::tripleExists({result.pos[2], NameSymbol, name})) {
                     found = true;
                     entry = result.pos[0];
                     parent = node;
-                    Ontology::getUncertain(result.pos[0], Ontology::LinkSymbol, node);
+                    Ontology::getUncertain(result.pos[2], Ontology::LinkSymbol, node);
                 }
             });
             if(!found) {
@@ -230,8 +230,8 @@ int symatem_readdir(const char* path, void* buf, fuse_fill_dir_t filler, off_t o
     symatem_fgetattr(path, &stbuf, fi);
     filler(buf, ".", &stbuf, 0);
 
-    Ontology::query(Ontology::VGG, {Ontology::VoidSymbol, Ontology::LinkSymbol, fi->fh}, [&](Ontology::Triple entryResult) {
-        Ontology::query(Ontology::VGG, {Ontology::VoidSymbol, EntrySymbol, entryResult.pos[0]}, [&](Ontology::Triple parentResult) {
+    Ontology::query(Ontology::VMM, {Ontology::VoidSymbol, Ontology::LinkSymbol, fi->fh}, [&](Ontology::Triple entryResult) {
+        Ontology::query(Ontology::VMM, {Ontology::VoidSymbol, EntrySymbol, entryResult.pos[0]}, [&](Ontology::Triple parentResult) {
             entryFi.fh = parentResult.pos[0];
             symatem_fgetattr(NULL, &stbuf, &entryFi);
             filler(buf, "..", &stbuf, 0);
@@ -240,8 +240,8 @@ int symatem_readdir(const char* path, void* buf, fuse_fill_dir_t filler, off_t o
 
     Ontology::query(Ontology::MMV, {fi->fh, EntrySymbol, Ontology::VoidSymbol}, [&](Ontology::Triple result) {
         Symbol name;
-        if(Ontology::getUncertain(result.pos[0], NameSymbol, name)
-           && Ontology::getUncertain(result.pos[0], Ontology::LinkSymbol, entryFi.fh)) {
+        if(Ontology::getUncertain(result.pos[2], NameSymbol, name)
+           && Ontology::getUncertain(result.pos[2], Ontology::LinkSymbol, entryFi.fh)) {
             Storage::Blob srcBlob(name);
             NativeNaturalType length = srcBlob.getSize()/8;
             Integer8* nameStr = static_cast<Integer8*>(malloc(length+1));
@@ -276,16 +276,16 @@ int symatem_unlink(const char* path) {
         setTimestamp(parent, META_MTIME);
         Ontology::getUncertain(entry, NameSymbol, name);
         Ontology::unlink(entry);
-        if(Ontology::query(Ontology::VGG, {Ontology::VoidSymbol, NameSymbol, name}) == 0) {
+        if(Ontology::query(Ontology::VMM, {Ontology::VoidSymbol, NameSymbol, name}) == 0) {
             Ontology::blobIndex.eraseElement(name);
             Ontology::unlink(name);
         }
     }
 
-    if(Ontology::query(Ontology::VGG, {Ontology::VoidSymbol, Ontology::LinkSymbol, node}) == 0) {
+    if(Ontology::query(Ontology::VMM, {Ontology::VoidSymbol, Ontology::LinkSymbol, node}) == 0) {
         Ontology::BlobSet<true, Symbol> dirty;
-        Ontology::query(15, {node, Ontology::VoidSymbol, Ontology::VoidSymbol}, [&](Ontology::Triple result) {
-            dirty.insertElement(result.pos[0]);
+        Ontology::query(Ontology::MIV, {node, Ontology::VoidSymbol, Ontology::VoidSymbol}, [&](Ontology::Triple result) {
+            dirty.insertElement(result.pos[2]);
         });
         dirty.iterate([&](Symbol symbol) {
             Ontology::unlink(symbol);

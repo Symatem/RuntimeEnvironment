@@ -137,7 +137,6 @@ struct Closure<ReturnType(Arguments...)> {
         ::new(&payload) LambdaContainer<LambdaType, ReturnType, Arguments...>(&lambda);
     }
     Closure(decltype(nullptr)) :payload{0, 0} {}
-    Closure() :Closure(nullptr) {}
     operator bool() const {
         return payload[1];
     }

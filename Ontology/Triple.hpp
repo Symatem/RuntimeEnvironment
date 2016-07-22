@@ -109,13 +109,14 @@ bool linkTriplePartial(Triple triple, NativeNaturalType subIndex) {
 
 bool link(Triple triple) {
     forEachSubIndex
-        linkTriplePartial(triple, subIndex);
+        if(!linkTriplePartial(triple, subIndex))
+            return false;
     if(triple.pos[1] == BlobTypeSymbol)
         Storage::modifiedBlob(triple.pos[0]);
     return true;
 }
 
-NativeNaturalType searchMMM(NativeNaturalType subIndex, Triple& triple, Closure<void()> callback) {
+NativeNaturalType searchMMM(NativeNaturalType subIndex, Triple& triple, Closure<void(Triple)> callback) {
     NativeNaturalType alphaIndex, betaIndex, gammaIndex;
     if(!tripleIndex.find(triple.pos[0], alphaIndex))
         return 0;
@@ -128,11 +129,11 @@ NativeNaturalType searchMMM(NativeNaturalType subIndex, Triple& triple, Closure<
     if(!gamma.find(triple.pos[2], gammaIndex))
         return 0;
     if(callback)
-        callback();
+        callback(triple.normalized(subIndex));
     return 1;
 }
 
-NativeNaturalType searchMMV(NativeNaturalType subIndex, Triple& triple, Closure<void()> callback) {
+NativeNaturalType searchMMV(NativeNaturalType subIndex, Triple& triple, Closure<void(Triple)> callback) {
     NativeNaturalType alphaIndex, betaIndex;
     if(!tripleIndex.find(triple.pos[0], alphaIndex))
         return 0;
@@ -145,12 +146,12 @@ NativeNaturalType searchMMV(NativeNaturalType subIndex, Triple& triple, Closure<
     if(callback)
         gamma.iterate([&](Pair<Symbol, NativeNaturalType[0]> gammaResult) {
             triple.pos[2] = gammaResult;
-            callback();
+            callback(triple.normalized(subIndex));
         });
     return gamma.size();
 }
 
-NativeNaturalType searchMVV(NativeNaturalType subIndex, Triple& triple, Closure<void()> callback) {
+NativeNaturalType searchMVV(NativeNaturalType subIndex, Triple& triple, Closure<void(Triple)> callback) {
     NativeNaturalType alphaIndex, count = 0;
     if(!tripleIndex.find(triple.pos[0], alphaIndex))
         return 0;
@@ -163,7 +164,7 @@ NativeNaturalType searchMVV(NativeNaturalType subIndex, Triple& triple, Closure<
             triple.pos[1] = betaResult.key;
             gamma.iterate([&](Pair<Symbol, NativeNaturalType[0]> gammaResult) {
                 triple.pos[2] = gammaResult;
-                callback();
+                callback(triple.normalized(subIndex));
             });
         }
         count += gamma.size();
@@ -171,7 +172,7 @@ NativeNaturalType searchMVV(NativeNaturalType subIndex, Triple& triple, Closure<
     return count;
 }
 
-NativeNaturalType searchMIV(NativeNaturalType subIndex, Triple& triple, Closure<void()> callback) {
+NativeNaturalType searchMIV(NativeNaturalType subIndex, Triple& triple, Closure<void(Triple)> callback) {
     NativeNaturalType alphaIndex;
     if(!tripleIndex.find(triple.pos[0], alphaIndex))
         return 0;
@@ -188,12 +189,12 @@ NativeNaturalType searchMIV(NativeNaturalType subIndex, Triple& triple, Closure<
     if(callback)
         result.iterate([&](Symbol gamma) {
             triple.pos[2] = gamma;
-            callback();
+            callback(triple.normalized(subIndex));
         });
     return result.size();
 }
 
-NativeNaturalType searchMVI(NativeNaturalType subIndex, Triple& triple, Closure<void()> callback) {
+NativeNaturalType searchMVI(NativeNaturalType subIndex, Triple& triple, Closure<void(Triple)> callback) {
     NativeNaturalType alphaIndex;
     if(!tripleIndex.find(triple.pos[0], alphaIndex))
         return 0;
@@ -202,21 +203,21 @@ NativeNaturalType searchMVI(NativeNaturalType subIndex, Triple& triple, Closure<
     if(callback)
         beta.iterate([&](Pair<Symbol, Symbol> betaResult) {
             triple.pos[1] = betaResult.key;
-            callback();
+            callback(triple.normalized(subIndex));
         });
     return beta.size();
 }
 
-NativeNaturalType searchVII(NativeNaturalType subIndex, Triple& triple, Closure<void()> callback) {
+NativeNaturalType searchVII(NativeNaturalType subIndex, Triple& triple, Closure<void(Triple)> callback) {
     if(callback)
         tripleIndex.iterate([&](Pair<Symbol, Symbol[6]> alphaResult) {
             triple.pos[0] = alphaResult.key;
-            callback();
+            callback(triple.normalized(subIndex));
         });
     return tripleIndex.size();
 }
 
-NativeNaturalType searchVVI(NativeNaturalType subIndex, Triple& triple, Closure<void()> callback) {
+NativeNaturalType searchVVI(NativeNaturalType subIndex, Triple& triple, Closure<void(Triple)> callback) {
     NativeNaturalType count = 0;
     tripleIndex.iterate([&](Pair<Symbol, Symbol[6]> alphaResult) {
         BlobSet<false, Symbol, Symbol> beta;
@@ -225,7 +226,7 @@ NativeNaturalType searchVVI(NativeNaturalType subIndex, Triple& triple, Closure<
             triple.pos[0] = alphaResult.key;
             beta.iterate([&](Pair<Symbol, Symbol> betaResult) {
                 triple.pos[1] = betaResult.key;
-                callback();
+                callback(triple.normalized(subIndex));
             });
         }
         count += beta.size();
@@ -233,7 +234,7 @@ NativeNaturalType searchVVI(NativeNaturalType subIndex, Triple& triple, Closure<
     return count;
 }
 
-NativeNaturalType searchVVV(NativeNaturalType subIndex, Triple& triple, Closure<void()> callback) {
+NativeNaturalType searchVVV(NativeNaturalType subIndex, Triple& triple, Closure<void(Triple)> callback) {
     NativeNaturalType count = 0;
     tripleIndex.iterate([&](Pair<Symbol, Symbol[6]> alphaResult) {
         triple.pos[0] = alphaResult.key;
@@ -246,7 +247,7 @@ NativeNaturalType searchVVV(NativeNaturalType subIndex, Triple& triple, Closure<
                 triple.pos[1] = betaResult.key;
                 gamma.iterate([&](Pair<Symbol, NativeNaturalType[0]> gammaResult) {
                     triple.pos[2] = gammaResult;
-                    callback();
+                    callback(triple.normalized(subIndex));
                 });
             }
             count += gamma.size();
@@ -255,10 +256,10 @@ NativeNaturalType searchVVV(NativeNaturalType subIndex, Triple& triple, Closure<
     return count;
 }
 
-NativeNaturalType query(QueryMask mask, Triple triple, Closure<void(Triple)> callback = nullptr) {
+NativeNaturalType query(QueryMask mask, Triple triple = {VoidSymbol, VoidSymbol, VoidSymbol}, Closure<void(Triple)> callback = nullptr) {
     struct QueryMethod {
         NativeNaturalType subIndex, offset, size;
-        NativeNaturalType(*function)(NativeNaturalType, Triple&, Closure<void()>);
+        NativeNaturalType(*function)(NativeNaturalType, Triple&, Closure<void(Triple)>);
     };
     const QueryMethod lookup[] = {
         {EAV, 0, 0, &searchMMM},
@@ -295,26 +296,18 @@ NativeNaturalType query(QueryMask mask, Triple triple, Closure<void(Triple)> cal
         return 0;
     triple = triple.reordered(method.subIndex);
     Triple given = triple;
-    NativeNaturalType result = 0;
-    auto monoIndexLambda = [&]() {
+    NativeNaturalType count = 0;
+    auto monoIndexLambda = [&](Triple result) {
         // TODO: Implement
-        callback(triple);
-        ++result;
-    };
-    auto higherIndexLambda = [&]() {
-        Triple result;
-        for(NativeNaturalType i = 0; i < method.size; ++i)
-            result.pos[i] = triple.pos[i+method.offset];
         callback(result);
+        ++count;
     };
-    Closure<void()> handleNext;
     switch(indexMode) {
         case MonoIndex:
             if(method.subIndex != EAV) {
                 method.subIndex = EAV;
                 method.function = &searchVVV;
-                if(callback)
-                    handleNext = monoIndexLambda;
+                auto handleNext = (callback) ? Closure<void(Triple)>(monoIndexLambda) : nullptr;
                 (*method.function)(method.subIndex, triple, handleNext);
                 break;
             }
@@ -325,11 +318,9 @@ NativeNaturalType query(QueryMask mask, Triple triple, Closure<void(Triple)> cal
                 method.function = &searchMIV;
             }
         case HexaIndex:
-            if(callback)
-                handleNext = higherIndexLambda;
-            result = (*method.function)(method.subIndex, triple, handleNext);
+            count = (*method.function)(method.subIndex, triple, callback);
     }
-    return result;
+    return count;
 }
 
 bool valueCountIs(Symbol entity, Symbol attribute, NativeNaturalType size) {
@@ -345,7 +336,7 @@ void setIndexMode(IndexMode _indexMode) {
     assert(indexMode != _indexMode);
     if(indexMode < _indexMode) {
         Triple triple;
-        searchVVV(EAV, triple, [&]() {
+        searchVVV(EAV, triple, [&](Triple result) {
             NativeNaturalType indexCount = (_indexMode == MonoIndex) ? 1 : 3;
             for(NativeNaturalType subIndex = indexMode; subIndex < indexCount; ++subIndex)
                 linkTriplePartial(triple, subIndex);
@@ -466,10 +457,10 @@ void setSolitary(Triple triple, bool linkVoidSymbol = false) {
     BlobSet<true, Symbol> dirty;
     bool toLink = (linkVoidSymbol || triple.pos[2] != VoidSymbol);
     query(MMV, triple, [&](Triple result) {
-        if((triple.pos[2] == result.pos[0]) && (linkVoidSymbol || result.pos[0] != VoidSymbol))
+        if((triple.pos[2] == result.pos[2]) && (linkVoidSymbol || result.pos[2] != VoidSymbol))
             toLink = false;
         else
-            dirty.insertElement(result.pos[0]);
+            dirty.insertElement(result.pos[2]);
     });
     if(toLink)
         link(triple);
@@ -486,7 +477,7 @@ void setSolitary(Triple triple, bool linkVoidSymbol = false) {
 
 bool getUncertain(Symbol entity, Symbol attribute, Symbol& value) {
     return (query(MMV, {entity, attribute, VoidSymbol}, [&](Triple result) {
-        value = result.pos[0];
+        value = result.pos[2];
     }) == 1);
 }
 
@@ -497,8 +488,8 @@ void scrutinizeExistence(Symbol symbol) {
         symbol = symbols.pop_back();
         if(query(VMM, {VoidSymbol, HoldsSymbol, symbol}) > 0)
             continue;
-        query(MVV, {symbol, HoldsSymbol, VoidSymbol}, [&](Triple result) {
-            symbols.insertElement(result.pos[0]);
+        query(MMV, {symbol, HoldsSymbol, VoidSymbol}, [&](Triple result) {
+            symbols.insertElement(result.pos[2]);
         });
         unlink(symbol); // TODO
     }

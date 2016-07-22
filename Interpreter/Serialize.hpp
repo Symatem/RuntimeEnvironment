@@ -116,15 +116,15 @@ struct Serializer {
             serializeBlob(entity);
             puts(";\n");
             Ontology::query(Ontology::MVI, {entity, Ontology::VoidSymbol, Ontology::VoidSymbol}, [&](Ontology::Triple result) {
-                if(followCallback && result.pos[0] == followAttribute) {
+                if(followCallback && result.pos[1] == followAttribute) {
                     Ontology::getUncertain(entity, followAttribute, followEntity);
                     return;
                 }
                 put('\t');
-                serializeBlob(result.pos[0]);
-                Ontology::query(Ontology::MMV, {entity, result.pos[0], Ontology::VoidSymbol}, [&](Ontology::Triple resultB) {
+                serializeBlob(result.pos[1]);
+                Ontology::query(Ontology::MMV, {entity, result.pos[1], Ontology::VoidSymbol}, [&](Ontology::Triple resultB) {
                     put(' ');
-                    serializeBlob(resultB.pos[0]);
+                    serializeBlob(resultB.pos[2]);
                 });
                 puts(";\n");
             });
