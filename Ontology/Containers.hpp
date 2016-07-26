@@ -107,13 +107,13 @@ struct BlobSet : public BlobVector<guarded, Pair<KeyType, ValueType>> {
 
     NativeNaturalType find(KeyType key) const {
         return binarySearch<NativeNaturalType>(Super::size(), [&](NativeNaturalType at) {
-            return key > Super::readElementAt(at);
+            return key > Super::readElementAt(at).key;
         });
     }
 
     bool find(KeyType key, NativeNaturalType& at) const {
         at = find(key);
-        return (at < Super::size() && Super::readElementAt(at) == key);
+        return (at < Super::size() && Super::readElementAt(at).key == key);
     }
 
     bool insertElement(ElementType element) {

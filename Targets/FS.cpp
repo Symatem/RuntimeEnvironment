@@ -157,7 +157,7 @@ int symatem_statfs(const char* path, struct statvfs* stbuf) {
 int symatem_fgetattr(const char* path, struct stat* stbuf, struct fuse_file_info* fi) {
     checkNodeExistence();
     stbuf->st_ino = fi->fh;
-    stbuf->st_nlink = Ontology::query(Ontology::VGG, {Ontology::VoidSymbol, Ontology::LinkSymbol, fi->fh});
+    stbuf->st_nlink = Ontology::query(Ontology::VMM, {Ontology::VoidSymbol, Ontology::LinkSymbol, fi->fh});
     stbuf->st_size = Storage::Blob(fi->fh).getSize()/8;
     stbuf->st_blocks = (stbuf->st_size+511)/512;
 

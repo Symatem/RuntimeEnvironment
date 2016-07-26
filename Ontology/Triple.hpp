@@ -48,6 +48,22 @@ struct Triple {
             gamma[] = {2, 1, 0, 1, 2, 0};
         return {pos[alpha[subIndex]], pos[beta[subIndex]], pos[gamma[subIndex]]};
     }
+
+    bool operator==(Triple const& other) {
+        return pos[0] == other.pos[0] && pos[1] == other.pos[1] && pos[2] == other.pos[2];
+    }
+
+    bool operator>(Triple const& other) {
+        if(pos[2] > other.pos[2])
+            return true;
+        if(pos[2] < other.pos[2])
+            return false;
+        if(pos[1] > other.pos[1])
+            return true;
+        if(pos[1] < other.pos[1])
+            return false;
+        return pos[0] > other.pos[0];
+    }
 };
 
 enum IndexType {
@@ -56,7 +72,7 @@ enum IndexType {
 };
 
 enum IndexMode {
-    MonoIndex = 1, // TODO: Fix this mode
+    MonoIndex = 1,
     TriIndex = 3,
     HexaIndex = 6
 } indexMode = HexaIndex;
@@ -294,22 +310,27 @@ NativeNaturalType query(QueryMask mask, Triple triple = {VoidSymbol, VoidSymbol,
     QueryMethod method = lookup[mask];
     if(method.function == nullptr)
         return 0;
-    triple = triple.reordered(method.subIndex);
-    Triple given = triple;
-    NativeNaturalType count = 0;
+    Triple match = triple;
+    BlobSet<true, Triple> resultSet;
     auto monoIndexLambda = [&](Triple result) {
-        // TODO: Implement
-        callback(result);
-        ++count;
+        static const NativeNaturalType maskDivisor[] = {1, 3, 9};
+        for(NativeNaturalType i = 0; i < 3; ++i) {
+            NativeNaturalType mode = (mask/maskDivisor[i])%3;
+            if(mode == Ignore)
+                continue;
+            if(mode == Match && match.pos[i] != triple.pos[i])
+                return;
+        }
+        if(resultSet.insertElement(result) && callback)
+            callback(result);
     };
     switch(indexMode) {
         case MonoIndex:
             if(method.subIndex != EAV) {
                 method.subIndex = EAV;
                 method.function = &searchVVV;
-                auto handleNext = (callback) ? Closure<void(Triple)>(monoIndexLambda) : nullptr;
-                (*method.function)(method.subIndex, triple, handleNext);
-                break;
+                (*method.function)(method.subIndex, triple, monoIndexLambda);
+                return resultSet.size();
             }
         case TriIndex:
             if(method.subIndex >= 3) {
@@ -318,9 +339,9 @@ NativeNaturalType query(QueryMask mask, Triple triple = {VoidSymbol, VoidSymbol,
                 method.function = &searchMIV;
             }
         case HexaIndex:
-            count = (*method.function)(method.subIndex, triple, callback);
+            triple = triple.reordered(method.subIndex);
+            return (*method.function)(method.subIndex, triple, callback);
     }
-    return count;
 }
 
 bool valueCountIs(Symbol entity, Symbol attribute, NativeNaturalType size) {
@@ -406,7 +427,8 @@ void eraseSymbol(Pair<Symbol, Symbol[6]>& element, NativeNaturalType alphaIndex,
 
 void tryToReleaseSymbol(Symbol symbol) {
     NativeNaturalType alphaIndex;
-    assert(tripleIndex.find(symbol, alphaIndex));
+    if(!tripleIndex.find(symbol, alphaIndex))
+        return;
     Pair<Symbol, Symbol[6]> element = tripleIndex.readElementAt(alphaIndex);
     forEachSubIndex {
         BlobSet<false, Symbol, Symbol> beta;
@@ -457,7 +479,7 @@ void setSolitary(Triple triple, bool linkVoidSymbol = false) {
     BlobSet<true, Symbol> dirty;
     bool toLink = (linkVoidSymbol || triple.pos[2] != VoidSymbol);
     query(MMV, triple, [&](Triple result) {
-        if((triple.pos[2] == result.pos[2]) && (linkVoidSymbol || result.pos[2] != VoidSymbol))
+        if(triple.pos[2] == result.pos[2])
             toLink = false;
         else
             dirty.insertElement(result.pos[2]);
