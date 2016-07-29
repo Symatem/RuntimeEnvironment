@@ -17,12 +17,11 @@ struct Page {
         valueOffset = Storage::bitsPerPage-valueBits*leafKeyCount;
 
     static constexpr LayerType layersNeeded() {
-        // TODO: Better accuracy by using division instead of log2
+        typedef typename conditional<(keyBits > rankBits), KeyType, RankType>::type type;
         LayerType layerCount = 1;
-        NativeIntegerType addressBits = max(keyBits, rankBits);
-        addressBits -= BitMask<NativeNaturalType>::ceilLog2(leafKeyCount)-1;
-        while(addressBits > 0) {
-            addressBits -= BitMask<NativeNaturalType>::ceilLog2(branchKeyCount)-1;
+        type elementCount = (BitMask<type>::full/leafKeyCount)+1;
+        while(elementCount > 1) {
+            elementCount = (elementCount+branchKeyCount)/(branchKeyCount+1);
             ++layerCount;
         }
         return layerCount;
