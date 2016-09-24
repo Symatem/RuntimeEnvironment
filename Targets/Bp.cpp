@@ -4,9 +4,9 @@ struct TreeType : public Storage::BpTree<NativeNaturalType, NativeNaturalType, a
     typedef Storage::BpTree<NativeNaturalType, NativeNaturalType, architectureSize> Super;
     typedef typename Super::template Iterator<true> SuperIterator;
 
-    template<bool enableCopyOnWrite>
-    struct Iterator : public Super::template Iterator<enableCopyOnWrite, Super::IteratorFrame> {
-        typedef typename Super::template Iterator<enableCopyOnWrite, Super::IteratorFrame> SuperIterator;
+    template<bool enableModification>
+    struct Iterator : public Super::template Iterator<enableModification, Super::IteratorFrame> {
+        typedef typename Super::template Iterator<enableModification, Super::IteratorFrame> SuperIterator;
 
         NativeNaturalType getValue() {
             Super::IteratorFrame* frame = (*this)[0];
@@ -14,7 +14,7 @@ struct TreeType : public Storage::BpTree<NativeNaturalType, NativeNaturalType, a
         }
 
         void setValue(NativeNaturalType value) {
-            static_assert(enableCopyOnWrite);
+            static_assert(enableModification);
             Super::IteratorFrame* frame = (*this)[0];
             Super::getPage(frame->pageRef)->template set<NativeNaturalType, Super::Page::valueOffset>(frame->index, value);
         }

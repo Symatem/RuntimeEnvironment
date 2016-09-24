@@ -7,9 +7,9 @@ struct BpTreeMap : public BpTree<KeyType, VoidType, sizeOfInBits<ValueType>::val
     typedef BpTree<KeyType, VoidType, sizeOfInBits<ValueType>::value> Super;
     typedef typename Super::IteratorFrame FrameType;
 
-    template<bool enableCopyOnWrite>
-    struct Iterator : public Super::template Iterator<enableCopyOnWrite, FrameType> {
-        typedef typename Super::template Iterator<enableCopyOnWrite, FrameType> SuperIterator;
+    template<bool enableModification>
+    struct Iterator : public Super::template Iterator<enableModification, FrameType> {
+        typedef typename Super::template Iterator<enableModification, FrameType> SuperIterator;
 
         Iterator() { }
         Iterator(SuperIterator iter) {
@@ -22,7 +22,7 @@ struct BpTreeMap : public BpTree<KeyType, VoidType, sizeOfInBits<ValueType>::val
         }
 
         void setValue(ValueType value) {
-            static_assert(enableCopyOnWrite);
+            static_assert(enableModification);
             FrameType* frame = (*this)[0];
             Super::getPage(frame->pageRef)->template set<ValueType, Super::Page::valueOffset>(frame->index, value);
         }

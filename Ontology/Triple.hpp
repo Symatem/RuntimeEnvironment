@@ -317,8 +317,8 @@ NativeNaturalType query(QueryMask mask, Triple triple = {VoidSymbol, VoidSymbol,
         for(NativeNaturalType i = 0; i < 3; ++i) {
             NativeNaturalType mode = (mask/maskDivisor[i])%3;
             if(mode == Ignore)
-                continue;
-            if(mode == Match && match.pos[i] != result.pos[i])
+                result.pos[i] = VoidSymbol;
+            else if(mode == Match && match.pos[i] != result.pos[i])
                 return;
         }
         if(resultSet.insertElement(result) && callback)

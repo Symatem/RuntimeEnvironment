@@ -1,4 +1,4 @@
-template<bool enableCopyOnWrite, typename FrameType = IteratorFrame>
+template<bool enableModification, typename FrameType = IteratorFrame>
 struct Iterator {
     LayerType end;
     FrameType stack[maxLayerCount];
@@ -28,9 +28,9 @@ struct Iterator {
         return true;
     }
 
-    template<bool srcEnableCopyOnWrite>
-    void copy(Iterator<srcEnableCopyOnWrite>& src) {
-        static_assert(!enableCopyOnWrite || srcEnableCopyOnWrite);
+    template<bool srcEnableModification>
+    void copy(Iterator<srcEnableModification>& src) {
+        static_assert(!enableModification || srcEnableModification);
         end = src.end;
         for(LayerType layer = 0; layer < src.end; ++layer)
             Storage::bitwiseCopy<-1>(reinterpret_cast<NativeNaturalType*>((*this)[layer]),
@@ -61,7 +61,7 @@ struct Iterator {
                 frame->rank += page->getRank(parentFrame->index-1);
         }
         frame->pageRef = parentPage->getPageRef(parentFrame->index);
-        page = getPage<enableCopyOnWrite>(frame->pageRef);
+        page = getPage<enableModification>(frame->pageRef);
         parentPage->setPageRef(parentFrame->index, frame->pageRef);
     }
 
@@ -123,14 +123,14 @@ struct Iterator {
     }
 
     void setKey(KeyType key) {
-        static_assert(keyBits && enableCopyOnWrite);
+        static_assert(keyBits && enableModification);
         FrameType* frame = (*this)[0];
         getPage(frame->pageRef)->template setKey<true>(frame->index, key);
     }
 };
 
-template<FindMode mode, bool enableCopyOnWrite>
-bool find(Iterator<enableCopyOnWrite>& iter,
+template<FindMode mode, bool enableModification>
+bool find(Iterator<enableModification>& iter,
           typename conditional<mode == Rank, RankType, KeyType>::type keyOrRank = 0,
           Closure<void(Page*)> pageTouchCallback = nullptr) {
     static_assert(mode != Key || keyBits);
@@ -140,7 +140,7 @@ bool find(Iterator<enableCopyOnWrite>& iter,
         return false;
     }
     bool result;
-    Page* page = getPage<enableCopyOnWrite>(rootPageRef);
+    Page* page = getPage<enableModification>(rootPageRef);
     LayerType layer = page->header.layer;
     iter.end = layer+1;
     auto frame = iter[layer];

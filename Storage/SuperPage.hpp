@@ -8,12 +8,11 @@ struct FreePage : public BasePage {
 
 // TODO: Redistribution if there are many almost empty buckets of the same type
 const NativeNaturalType blobBucketTypeCount = 12,
-        blobBucketType[blobBucketTypeCount] = {8, 16, 32, 64, 128, 320, 832, 1344, 2432, 4544, 8064, 16192};
-// Alternative: Use 576 instead of 832 ?
+        blobBucketType[blobBucketTypeCount] = {8, 16, 32, 64, 128, 320, 576, 1344, 2432, 4544, 8064, 16192};
 
 struct SuperPage : public BasePage {
-    Symbol pagesEnd, symbolsEnd;
-    PageRefType freePage;
+    Symbol symbolsEnd;
+    PageRefType pagesEnd, freePage;
     BpTreeSet<Symbol> freeSymbols;
     BpTreeSet<PageRefType> fullBlobBuckets, freeBlobBuckets[blobBucketTypeCount];
     BpTreeMap<Symbol, NativeNaturalType> blobs;

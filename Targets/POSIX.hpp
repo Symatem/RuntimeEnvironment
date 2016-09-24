@@ -32,8 +32,11 @@ void printStatsPartial(struct Storage::Stats& stats) {
 }
 
 void printStats() {
-    struct Storage::Stats metaStructs, fullBuckets, freeBuckets, fragmented;
+    printf("Stats:\n");
+
+    struct Storage::Stats metaStructs, blobIndex, fullBuckets, freeBuckets, fragmented;
     resetStats(metaStructs);
+    resetStats(blobIndex);
     resetStats(fullBuckets);
     resetStats(freeBuckets);
     resetStats(fragmented);
@@ -55,7 +58,7 @@ void printStats() {
         Storage::superPage->freeBlobBuckets[i].generateStats(metaStructs, [&](Storage::BpTreeSet<PageRefType>::Iterator<false>& iter) {
             Storage::dereferencePage<Storage::BlobBucket>(iter.getKey())->generateStats(freeBuckets);
         });
-    Storage::superPage->blobs.generateStats(metaStructs, [&](Storage::BpTreeMap<Symbol, NativeNaturalType>::Iterator<false> iter) {
+    Storage::superPage->blobs.generateStats(blobIndex, [&](Storage::BpTreeMap<Symbol, NativeNaturalType>::Iterator<false> iter) {
         Storage::Blob blob(iter.getKey());
         ++blobInBucketTypes[Storage::BlobBucket::getType(blob.getSize())];
         if(blob.state == Storage::Blob::Fragmented)
@@ -63,11 +66,12 @@ void printStats() {
         ++blobCount;
     });
 
-    printf("Stats:\n");
     printf("  Global            %10llu bits %llu pages\n", totalBits, Storage::superPage->pagesEnd);
     printStatsLine("    Recyclable      ", recyclableBits, totalBits);
     printf("    Meta Structures ");
     printStatsPartial(metaStructs);
+    printf("    Blob Index      ");
+    printStatsPartial(blobIndex);
     printf("    Full Buckets    ");
     printStatsPartial(fullBuckets);
     printf("    Free Buckets    ");
@@ -84,7 +88,7 @@ void printStats() {
     printf("  Triples:          %10llu\n", Ontology::query(Ontology::VVV));
     printf("\n");
 
-    assert(recyclableBits+metaStructs.total+fullBuckets.total+freeBuckets.total+fragmented.total == totalBits);
+    assert(recyclableBits+metaStructs.total+blobIndex.total+fullBuckets.total+freeBuckets.total+fragmented.total == totalBits);
 }
 
 

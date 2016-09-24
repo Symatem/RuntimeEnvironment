@@ -366,10 +366,10 @@ Primitive(BitShift) {
     Symbol direction;
     checkReturn(thread.getGuaranteed(thread.block, Ontology::DirectionSymbol, direction));
     switch(direction) {
-        case Ontology::DivideSymbol:
+        case Ontology::DivisionSymbol:
             op::d(outputValue, countValue);
             break;
-        case Ontology::MultiplySymbol:
+        case Ontology::MultiplicationSymbol:
             op::m(outputValue, countValue);
             break;
         default:
@@ -419,13 +419,13 @@ Primitive(AssociativeCommutativeBitwise) {
     return thread.popCallStack();
 }
 
-struct PrimitiveAdd {
+struct PrimitiveAddition {
     static void n(NativeNaturalType& dst, NativeNaturalType src) { dst += src; };
     static void i(NativeIntegerType& dst, NativeIntegerType src) { dst += src; };
     static void f(NativeFloatType& dst, NativeFloatType src) { dst += src; };
 };
 
-struct PrimitiveMultiply {
+struct PrimitiveMultiplication {
     static void n(NativeNaturalType& dst, NativeNaturalType src) { dst *= src; };
     static void i(NativeIntegerType& dst, NativeIntegerType src) { dst *= src; };
     static void f(NativeFloatType& dst, NativeFloatType src) { dst *= src; };
@@ -483,7 +483,7 @@ Primitive(AssociativeCommutativeArithmetic) {
     return thread.popCallStack();
 }
 
-Primitive(Subtract) {
+Primitive(Subtraction) {
     getSymbolByName(minuend, Minuend)
     getSymbolByName(subtrahend, Subtrahend)
     getSymbolByName(output, Output)
@@ -509,7 +509,7 @@ Primitive(Subtract) {
     return thread.popCallStack();
 }
 
-Primitive(Divide) {
+Primitive(Division) {
     getSymbolByName(dividend, Dividend)
     getSymbolByName(divisor, Divisor)
     Symbol type, _type;
@@ -606,10 +606,10 @@ bool executePrimitive(Thread& thread, Symbol primitive, bool& found) {
         PrimitiveGroup(AssociativeCommutativeBitwise, BitwiseAnd)
         PrimitiveGroup(AssociativeCommutativeBitwise, BitwiseOr)
         PrimitiveGroup(AssociativeCommutativeBitwise, BitwiseXor)
-        PrimitiveGroup(AssociativeCommutativeArithmetic, Add)
-        PrimitiveGroup(AssociativeCommutativeArithmetic, Multiply)
-        PrimitiveEntry(Subtract)
-        PrimitiveEntry(Divide)
+        PrimitiveGroup(AssociativeCommutativeArithmetic, Addition)
+        PrimitiveGroup(AssociativeCommutativeArithmetic, Multiplication)
+        PrimitiveEntry(Subtraction)
+        PrimitiveEntry(Division)
     }
     found = false;
     return true;

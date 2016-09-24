@@ -61,8 +61,8 @@ struct BpTree {
     static const LayerType maxLayerCount = Page::layersNeeded();
 #include "BpIterator.hpp"
 
-    template<bool enableCopyOnWrite = false>
-    static Page* getPage(typename conditional<enableCopyOnWrite, PageRefType&, PageRefType>::type pageRef) {
+    template<bool enableModification = false>
+    static Page* getPage(typename conditional<enableModification, PageRefType&, PageRefType>::type pageRef) {
         return Storage::dereferencePage<Page>(pageRef);
     }
 
