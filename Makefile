@@ -1,7 +1,11 @@
 COMPILER_FLAGS := -O1 -g -std=c++1z -fno-exceptions -fno-stack-protector -fno-rtti -ffreestanding -fvisibility=hidden -Wall -Wsign-compare
 LINKER_FLAGS := #-Wl,-s
-SOURCES := Storage/* Ontology/* Interpreter/* Targets/POSIX.hpp
+SOURCES := Storage/* Ontology/* HRL/* Targets/POSIX.hpp
 PLATFORM = $(shell uname)
+# CC = /Volumes/Media/programming/llvm/bin/clang-3.9
+# -fprofile-instr-generate -fcoverage-mapping -fprofile-sample-use=code.prof
+# llvm-profdata merge -o test.profdata default.profraw
+
 
 
 # Build POSIX Executables
@@ -13,7 +17,7 @@ $(POSIX_BUILD_PATH):
 $(POSIX_BUILD_PATH)SymatemBp: Targets/Bp.cpp $(SOURCES) $(POSIX_BUILD_PATH)
 	$(CC) $(COMPILER_FLAGS) $(LINKER_FLAGS) -o $@ $<
 
-$(POSIX_BUILD_PATH)SymatemHRL: Targets/HRL.cpp $(SOURCES) $(POSIX_BUILD_PATH)
+$(POSIX_BUILD_PATH)SymatemAPI: Targets/API.cpp $(SOURCES) $(POSIX_BUILD_PATH)
 	$(CC) $(COMPILER_FLAGS) $(LINKER_FLAGS) -o $@ $<
 
 ifeq ($(PLATFORM), Linux)
@@ -32,12 +36,11 @@ $(POSIX_BUILD_PATH)SymatemFS: Targets/FS.cpp $(SOURCES) $(POSIX_BUILD_PATH)
 # Test POSIX Executables
 IMAGE_PATH = /dev/zero
 
-testBp: $(POSIX_BUILD_PATH)SymatemBp
+runAPI: $(POSIX_BUILD_PATH)SymatemAPI
 	$< $(IMAGE_PATH)
 
-STD_PATH = ../StandardLibrary/
-testHRL: $(POSIX_BUILD_PATH)SymatemHRL
-	$< $(IMAGE_PATH) $(STD_PATH)Foundation/ -e $(STD_PATH)Tests/
+testBp: $(POSIX_BUILD_PATH)SymatemBp
+	$< $(IMAGE_PATH)
 
 MOUNT_PATH = $(POSIX_BUILD_PATH)mountpoint
 testFS: $(POSIX_BUILD_PATH)SymatemFS
@@ -48,6 +51,9 @@ testFS: $(POSIX_BUILD_PATH)SymatemFS
 
 # WebAssembly
 WASM_BUILD_PATH = ../WebAssembly/build/
+LLVM_BIN = /Volumes/Media/programming/llvm/bin/
+BINARYEN_BIN = /Volumes/Media/programming/WASM/binaryen/bin/
+PROTO_BIN = /Volumes/Media/programming/WASM/sexpr-wasm-prototype/
 
 $(WASM_BUILD_PATH):
 	mkdir -p $(WASM_BUILD_PATH)
@@ -69,9 +75,9 @@ $(WASM_BUILD_PATH)Symatem.wasm: $(WASM_BUILD_PATH)Symatem.wast
 
 # Combined
 
-buildAll: $(POSIX_BUILD_PATH)SymatemBp $(POSIX_BUILD_PATH)SymatemHRL $(POSIX_BUILD_PATH)SymatemFS $(WASM_BUILD_PATH)Symatem.wasm
+buildAll: $(POSIX_BUILD_PATH)SymatemBp $(POSIX_BUILD_PATH)SymatemAPI $(POSIX_BUILD_PATH)SymatemFS $(WASM_BUILD_PATH)Symatem.wasm
 
-testAll: testBp testHRL testFS
+testAll: testBp testFS
 
 clear:
 	rm -Rf build/

@@ -216,6 +216,24 @@ constexpr NativeNaturalType BitMask<Natural64>::ctz(Natural64 value) {
     return __builtin_ctzll(value);
 }
 
+template<typename DataType>
+constexpr static DataType swapedEndian(DataType value);
+
+template<>
+constexpr Natural16 swapedEndian(Natural16 value) {
+    return __builtin_bswap16(value);
+}
+
+template<>
+constexpr Natural32 swapedEndian(Natural32 value) {
+    return __builtin_bswap32(value);
+}
+
+template<>
+constexpr Natural64 swapedEndian(Natural64 value) {
+    return __builtin_bswap64(value);
+}
+
 struct MersenneTwister64 {
     const static Natural64
         mag01 = 0xB5026F5AA96619E9ULL,

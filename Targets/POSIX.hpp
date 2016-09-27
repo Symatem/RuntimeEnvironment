@@ -1,11 +1,16 @@
-#include "../Interpreter/Primitives.hpp"
+#include "../HRL/Deserialize.hpp"
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <signal.h>
+#include <dirent.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <dirent.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netdb.h>
 #include <fcntl.h>
-#include <stdio.h>
 
 extern "C" {
 
@@ -112,7 +117,26 @@ NativeNaturalType bytesForPages(NativeNaturalType pagesEnd) {
     return (pagesEnd*Storage::bitsPerPage+mmapChunkSize-1)/mmapChunkSize*mmapChunkSize/8;
 }
 
+void unloadStorage() {
+    printStats();
+    NativeNaturalType size = Storage::superPage->pagesEnd*Storage::bitsPerPage/8;
+    munmap(Storage::superPage, bytesForPages(Storage::maxPageCount));
+    if(file < 0)
+        return;
+    if(S_ISREG(fileStat.st_mode))
+        assert(ftruncate(file, size) == 0);
+    assert(close(file) == 0);
+    file = -1;
+}
+
+void onExit(int signo) {
+    unloadStorage();
+    exit(0);
+}
+
 void loadStorage(const char* path) {
+    assert(signal(SIGINT, onExit) != SIG_ERR);
+
     assert(file < 0);
     Integer32 mmapFlags = MAP_FIXED;
     if(Storage::substrEqual(path, "/dev/zero")) {
@@ -144,18 +168,6 @@ void loadStorage(const char* path) {
         Storage::superPage->pagesEnd = Storage::minPageCount;
     else if(S_ISREG(fileStat.st_mode))
         assert(Storage::superPage->pagesEnd*Storage::bitsPerPage/8 == static_cast<NativeNaturalType>(fileStat.st_size));
-}
-
-void unloadStorage() {
-    printStats();
-    NativeNaturalType size = Storage::superPage->pagesEnd*Storage::bitsPerPage/8;
-    munmap(Storage::superPage, bytesForPages(Storage::maxPageCount));
-    if(file < 0)
-        return;
-    if(S_ISREG(fileStat.st_mode))
-        assert(ftruncate(file, size) == 0);
-    assert(close(file) == 0);
-    file = -1;
 }
 
 }

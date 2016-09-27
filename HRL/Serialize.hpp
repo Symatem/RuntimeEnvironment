@@ -1,9 +1,12 @@
-#include "Thread.hpp"
+#include "../Ontology/Triple.hpp"
+
+#define checkReturn(expression) \
+    if(!(expression)) \
+        return false;
 
 const char* HRLRawBegin = "raw:";
 
 struct Serializer {
-    Thread& thread;
     Symbol symbol;
 
     void put(Natural8 src) {
@@ -24,6 +27,7 @@ struct Serializer {
     template<typename NumberType>
     void serializeNumber(NumberType number) {
         // TODO Last digits of float numbers are incorrect (rounding error)
+        // https://github.com/lattera/glibc/blob/a2f34833b1042d5d8eeb263b4cf4caaea138c4ad/stdio-common/printf_fp.c
         const NumberType base = 10;
         if(number == 0) {
             put('0');
@@ -49,11 +53,11 @@ struct Serializer {
         }
     }
 
-    Serializer(Thread& _thread, Symbol _symbol) :thread(_thread), symbol(_symbol) {
+    Serializer(Symbol _symbol) :symbol(_symbol) {
         Ontology::setSolitary({symbol, Ontology::BlobTypeSymbol, Ontology::TextSymbol});
     }
 
-    Serializer(Thread& _thread) :Serializer(_thread, Storage::createSymbol()) {}
+    Serializer() :Serializer(Storage::createSymbol()) {}
 
     void serializeBlob(Symbol src) {
         Storage::Blob srcBlob(src);
