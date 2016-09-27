@@ -26,4 +26,5 @@ before_install:
   - chmod 400 travis/travis_id_rsa
 deploy:
   - provider: script
+    skip_cleanup: true
     script: scp -i travis/travis_id_rsa ./build/SymatemAPI mfelten_de@mfelten.de:/home/mfelten_de/docroot/Symatem/
