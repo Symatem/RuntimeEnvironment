@@ -27,4 +27,5 @@ before_install:
 deploy:
   - provider: script
     skip_cleanup: true
-    script: scp -i travis/travis_id_rsa ./build/SymatemAPI mfelten_de@mfelten.de:/home/mfelten_de/docroot/Symatem/
+    script: (cd ./build;tar cvf Symatem_$(uname).tar *) 
+    script: scp -i travis/travis_id_rsa ./build/Symatem_${uname).tar mfelten_de@mfelten.de:/home/mfelten_de/docroot/Symatem/
