@@ -2,77 +2,6 @@
 
 extern "C" {
 
-Symbol createFromFile(const char* path) {
-    Integer32 fd = open(path, O_RDONLY);
-    if(fd < 0)
-        return Ontology::VoidSymbol;
-    Symbol dstSymbol = Storage::createSymbol();
-    Ontology::link({dstSymbol, Ontology::BlobTypeSymbol, Ontology::TextSymbol});
-    NativeNaturalType length = lseek(fd, 0, SEEK_END);
-    Storage::Blob dstBlob(dstSymbol);
-    dstBlob.increaseSize(0, length*8);
-    lseek(fd, 0, SEEK_SET);
-    Natural8 src[512];
-    NativeNaturalType dstIndex = 0;
-    while(length > 0) {
-        NativeNaturalType count = min(static_cast<NativeNaturalType>(sizeof(src)), length);
-        read(fd, src, count);
-        dstBlob.externalOperate<true>(src, dstIndex*8, count*8);
-        dstIndex += count;
-        length -= count;
-    }
-    close(fd);
-    Storage::modifiedBlob(dstSymbol);
-    return dstSymbol;
-}
-
-void loadFromPath(Symbol parentPackage, char* path) {
-    NativeNaturalType pathLen = strlen(path);
-    if(path[pathLen-1] == '/')
-        path[pathLen-1] = 0;
-    struct stat s;
-    char buffer[64];
-    if(stat(path, &s) != 0)
-        return;
-    if(s.st_mode & S_IFDIR) {
-        DIR* dp = opendir(path);
-        assert(dp);
-        NativeNaturalType slashIndex = 0;
-        for(NativeNaturalType i = pathLen-1; i > 0; --i)
-            if(path[i] == '/') {
-                slashIndex = i+1;
-                break;
-            }
-        Storage::bitwiseCopy(reinterpret_cast<NativeNaturalType*>(buffer),
-                             reinterpret_cast<NativeNaturalType*>(path),
-                             0, slashIndex*8, (pathLen-slashIndex)*8);
-        buffer[pathLen-slashIndex] = 0;
-        Symbol package = Ontology::createFromString(const_cast<const char*>(buffer));
-        Ontology::blobIndex.insertElement(package);
-        if(parentPackage == Ontology::VoidSymbol)
-            parentPackage = package;
-        Ontology::link({package, Ontology::HoldsSymbol, parentPackage});
-        struct dirent* entry;
-        while((entry = readdir(dp)))
-            if(entry->d_name[0] != '.') {
-                sprintf(buffer, "%s/%s", path, entry->d_name);
-                loadFromPath(package, buffer);
-            }
-        closedir(dp);
-    } else if(s.st_mode & S_IFREG) {
-        if(!Storage::substrEqual<true>(path, ".sym"))
-            return;
-        Deserializer deserializer;
-        deserializer.input = createFromFile(path);
-        deserializer.package = parentPackage;
-        assert(deserializer.input != Ontology::VoidSymbol);
-        if(!deserializer.deserialize()) {
-            printf("Exception occurred while deserializing file %s.\n", path);
-            exit(2);
-        }
-    }
-}
-
 int sockfd;
 struct addrinfo conf, *addressInfo;
 Natural8 buffer[128];
@@ -94,7 +23,7 @@ bool trySend(Natural8 count) {
     return false;
 }
 
-Natural64 readNatural() {
+NativeNaturalType readNatural() {
     tryRead(1);
     switch(buffer[0]) {
         case 0xCC:
@@ -118,7 +47,7 @@ Natural64 readNatural() {
     }
 }
 
-bool sendNatural(Natural64 value) {
+bool sendNatural(NativeNaturalType value) {
     if(value < 0x80) {
         buffer[0] = 0x80|value;
         return trySend(1);
@@ -154,7 +83,7 @@ bool sendNil() {
     return trySend(1);
 }
 
-bool sendArrayHeader(Natural64 size) {
+bool sendArrayHeader(NativeNaturalType size) {
     if(size <= 0xF) {
         buffer[0] = 0x90|size;
         return trySend(1);
@@ -174,15 +103,12 @@ bool sendArrayHeader(Natural64 size) {
 }
 
 Integer32 main(Integer32 argc, Integer8** argv) {
-    if(argc < 2) {
+    if(argc != 2) {
         printf("Expected path argument.\n");
-        exit(4);
+        return 1;
     }
     loadStorage(argv[1]);
     Ontology::tryToFillPreDefined();
-
-    for(NativeNaturalType i = 2; i < static_cast<NativeNaturalType>(argc); ++i)
-        loadFromPath(Ontology::VoidSymbol, argv[i]);
 
     memset(&conf, 0, sizeof(conf));
     conf.ai_flags = AI_V4MAPPED|AI_PASSIVE;
@@ -190,20 +116,20 @@ Integer32 main(Integer32 argc, Integer8** argv) {
     conf.ai_socktype = SOCK_STREAM;
     if(getaddrinfo("::", "1337", &conf, &addressInfo) < 0) {
         perror("getaddrinfo");
-        return 1;
+        return 2;
     }
     sockfd = socket(addressInfo->ai_family, addressInfo->ai_socktype, addressInfo->ai_protocol);
     if(sockfd < 0) {
         perror("socket");
-        return 2;
+        return 3;
     }
     if(bind(sockfd, addressInfo->ai_addr, addressInfo->ai_addrlen) < 0) {
         perror("bind");
-        return 3;
+        return 4;
     }
     if(listen(sockfd, 1) < 0) {
         perror("listen");
-        return 4;
+        return 5;
     }
     freeaddrinfo(addressInfo);
     printf("Listening ...\n");
@@ -232,22 +158,22 @@ Integer32 main(Integer32 argc, Integer8** argv) {
             assert(parameterCount == 1);
             Ontology::unlink(readNatural());
             sendNil();
-        } else ifIsCommand("getSize") {
+        } else ifIsCommand("getBlobSize") {
             assert(parameterCount == 1);
             sendNatural(Storage::Blob(readNatural()).getSize());
-        } else ifIsCommand("setSize") {
+        } else ifIsCommand("setBlobSize") {
             assert(parameterCount == 2);
             Storage::Blob(readNatural()).setSize(readNatural());
             sendNil();
-        } else ifIsCommand("decreaseSize") {
+        } else ifIsCommand("decreaseBlobSize") {
             assert(parameterCount == 3);
             Storage::Blob(readNatural()).decreaseSize(readNatural(), readNatural());
             sendNil();
-        } else ifIsCommand("increaseSize") {
+        } else ifIsCommand("increaseBlobSize") {
             assert(parameterCount == 3);
             Storage::Blob(readNatural()).increaseSize(readNatural(), readNatural());
             sendNil();
-        } else ifIsCommand("read") {
+        } else ifIsCommand("readBlob") {
             assert(parameterCount == 3);
             Storage::Blob blob(readNatural());
             Natural64 offset = readNatural(), length = readNatural();
@@ -262,7 +188,7 @@ Integer32 main(Integer32 argc, Integer8** argv) {
                 length -= segmentLength;
                 trySend((segmentLength+7)/8);
             }
-        } else ifIsCommand("write") {
+        } else ifIsCommand("writeBlob") {
             assert(parameterCount == 4);
             Storage::Blob blob(readNatural());
             Natural64 offset = readNatural(), length = readNatural(), payloadLength = 0;
@@ -290,6 +216,12 @@ Integer32 main(Integer32 argc, Integer8** argv) {
                 length -= segmentLength;
             }
             sendNil();
+        } else ifIsCommand("deserializeBlob") {
+            assert(parameterCount == 2);
+            Deserializer deserializer;
+            deserializer.input = readNatural();
+            deserializer.package = readNatural();
+            sendNatural(deserializer.deserialize());
         } /*else ifIsCommand("compare") {
             // TODO
         } else ifIsCommand("slice") {

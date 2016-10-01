@@ -541,7 +541,7 @@ Symbol createFromSlice(Symbol src, NativeNaturalType srcOffset, NativeNaturalTyp
 }
 
 void stringToBlob(const char* src, NativeNaturalType length, Symbol dstSymbol) {
-    link({dstSymbol, BlobTypeSymbol, TextSymbol});
+    link({dstSymbol, BlobTypeSymbol, UTF8Symbol});
     Storage::Blob dstBlob(dstSymbol);
     dstBlob.increaseSize(0, length*8);
     dstBlob.externalOperate<true>(const_cast<Integer8*>(src), 0, length*8);

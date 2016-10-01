@@ -1,9 +1,5 @@
 #include "../Ontology/Triple.hpp"
 
-#define checkReturn(expression) \
-    if(!(expression)) \
-        return false;
-
 const char* HRLRawBegin = "raw:";
 
 struct Serializer {
@@ -54,7 +50,7 @@ struct Serializer {
     }
 
     Serializer(Symbol _symbol) :symbol(_symbol) {
-        Ontology::setSolitary({symbol, Ontology::BlobTypeSymbol, Ontology::TextSymbol});
+        Ontology::setSolitary({symbol, Ontology::BlobTypeSymbol, Ontology::UTF8Symbol});
     }
 
     Serializer() :Serializer(Storage::createSymbol()) {}
@@ -66,7 +62,7 @@ struct Serializer {
             Symbol type = Ontology::VoidSymbol;
             Ontology::getUncertain(src, Ontology::BlobTypeSymbol, type);
             switch(type) {
-                case Ontology::TextSymbol: {
+                case Ontology::UTF8Symbol: {
                     len /= 8;
                     bool spaces = false;
                     for(NativeNaturalType i = 0; i < len; ++i) {
