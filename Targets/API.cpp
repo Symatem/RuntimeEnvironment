@@ -228,15 +228,14 @@ Integer32 main(Integer32 argc, Integer8** argv) {
             Deserializer deserializer;
             deserializer.input = readNatural();
             deserializer.package = readNatural();
-            Symbol symbol = deserializer.deserialize();
-            if(symbol == Ontology::VoidSymbol) {
+            Symbol exception = deserializer.deserialize();
+            if(exception == Ontology::VoidSymbol) {
                 sendArrayHeader(deserializer.queue.size());
                 deserializer.queue.iterate([](Symbol symbol) {
                     sendNatural(symbol);
                 });
             } else
-                sendNatural(symbol);
-            Ontology::unlink(deserializer.queue.symbol);
+                sendNatural(exception);
         } /*else ifIsCommand("compare") {
             // TODO
         } else ifIsCommand("slice") {

@@ -7,8 +7,7 @@
 struct Deserializer {
     Symbol input, package, parentEntry, currentEntry;
     Ontology::BlobIndex<true> locals;
-    Ontology::BlobVector<true, Symbol> stack;
-    Ontology::BlobVector<false, Symbol> queue;
+    Ontology::BlobVector<true, Symbol> stack, queue;
     NativeNaturalType tokenBegin, pos, end, row, column;
 
     bool tokenBeginsWithString(const char* str) {
