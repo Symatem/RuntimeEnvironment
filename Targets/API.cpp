@@ -23,6 +23,11 @@ bool trySend(Natural8 count) {
     return false;
 }
 
+bool readBoolean() {
+    tryRead(1);
+    return buffer[0] == 0xC3;
+}
+
 NativeNaturalType readNatural() {
     tryRead(1);
     switch(buffer[0]) {
@@ -49,7 +54,7 @@ NativeNaturalType readNatural() {
 
 bool sendNatural(NativeNaturalType value) {
     if(value < 0x80) {
-        buffer[0] = 0x80|value;
+        buffer[0] = value;
         return trySend(1);
     } else if(value <= 0xFF) {
         buffer[0] = 0xCC;
@@ -79,7 +84,7 @@ bool sendNatural(NativeNaturalType value) {
 }
 
 bool sendNil() {
-    buffer[0] = 0xC0;
+    buffer[0] = 0x90; // 0xC0 TODO: Workaround
     return trySend(1);
 }
 
@@ -137,6 +142,8 @@ Integer32 main(Integer32 argc, Integer8** argv) {
     unsigned int addrSize = sizeof(remoteAddr);
     sockfd = accept(sockfd, reinterpret_cast<struct sockaddr*>(&remoteAddr), &addrSize);
     assert(sockfd >= 0);
+    // Natural32 flag = 1;
+    // assert(setsockopt(sockfd, IPPROTO_TCP, TCP_NODELAY, reinterpret_cast<Integer8*>(&flag), sizeof(Natural32)) >= 0);
     printf("Connected\n");
 
     while(sockfd) {
@@ -221,7 +228,15 @@ Integer32 main(Integer32 argc, Integer8** argv) {
             Deserializer deserializer;
             deserializer.input = readNatural();
             deserializer.package = readNatural();
-            sendNatural(deserializer.deserialize());
+            Symbol symbol = deserializer.deserialize();
+            if(symbol == Ontology::VoidSymbol) {
+                sendArrayHeader(deserializer.queue.size());
+                deserializer.queue.iterate([](Symbol symbol) {
+                    sendNatural(symbol);
+                });
+            } else
+                sendNatural(symbol);
+            Ontology::unlink(deserializer.queue.symbol);
         } /*else ifIsCommand("compare") {
             // TODO
         } else ifIsCommand("slice") {
@@ -231,6 +246,7 @@ Integer32 main(Integer32 argc, Integer8** argv) {
         }*/ else ifIsCommand("query") {
             // TODO: Return count only flag
             assert(parameterCount == 4);
+            bool countOnly = readBoolean();
             auto mask = readNatural();
             Ontology::Triple triple = {readNatural(), readNatural(), readNatural()};
             Ontology::QueryMode mode[3] = {
@@ -239,15 +255,19 @@ Integer32 main(Integer32 argc, Integer8** argv) {
                 static_cast<Ontology::QueryMode>((mask/9)%3)
             };
             Ontology::BlobVector<true, Symbol> result;
-            Ontology::query(static_cast<Ontology::QueryMask>(mask), triple, [&](Ontology::Triple triple) {
+            auto count = Ontology::query(static_cast<Ontology::QueryMask>(mask), triple, [&](Ontology::Triple triple) {
                 for(NativeNaturalType i = 0; i < 3; ++i)
                     if(mode[i] == Ontology::Varying)
                         result.push_back(triple.pos[i]);
             });
-            sendArrayHeader(result.size());
-            result.iterate([](Symbol symbol) {
-                sendNatural(symbol);
-            });
+            if(countOnly)
+                sendNatural(count);
+            else {
+                sendArrayHeader(result.size());
+                result.iterate([](Symbol symbol) {
+                    sendNatural(symbol);
+                });
+            }
         } else ifIsCommand("link") {
             assert(parameterCount == 3);
             Ontology::link({readNatural(), readNatural(), readNatural()});
@@ -259,6 +279,7 @@ Integer32 main(Integer32 argc, Integer8** argv) {
         } else
             assert(false);
     }
+    close(sockfd);
 
     unloadStorage();
     return 0;

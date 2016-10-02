@@ -259,9 +259,6 @@ struct Deserializer {
             return throwException("Missing closing bracket");
         if(!Ontology::valueCountIs(currentEntry, Ontology::UnnestEntitySymbol, 0))
             return throwException("Unnesting failed");
-        if(queue.empty())
-            return throwException("Empty Input");
-        Ontology::unlink(currentEntry);
         return Ontology::VoidSymbol;
     }
 };
