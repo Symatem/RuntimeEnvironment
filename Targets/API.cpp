@@ -243,8 +243,7 @@ Integer32 main(Integer32 argc, Integer8** argv) {
         } else ifIsCommand("deepCopy") {
             // TODO
         }*/ else ifIsCommand("query") {
-            // TODO: Return count only flag
-            assert(parameterCount == 4);
+            assert(parameterCount == 5);
             bool countOnly = readBoolean();
             auto mask = readNatural();
             Ontology::Triple triple = {readNatural(), readNatural(), readNatural()};
