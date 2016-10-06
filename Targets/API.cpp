@@ -58,10 +58,8 @@ bool sendNatural(NativeNaturalType value) {
         return trySend(1);
     } else if(value <= 0xFF) {
         buffer[0] = 0xCC;
-        if(!trySend(1))
-            return false;
-        buffer[0] = value;
-        return trySend(1);
+        buffer[1] = value;
+        return trySend(2);
     } else if(value <= 0xFFFF) {
         buffer[0] = 0xCD;
         if(!trySend(1))
@@ -86,6 +84,26 @@ bool sendNatural(NativeNaturalType value) {
 bool sendNil() {
     buffer[0] = 0x90; // 0xC0 TODO: Workaround
     return trySend(1);
+}
+
+bool sendBinaryHeader(NativeNaturalType size) {
+    if(size <= 0xFF) {
+        buffer[0] = 0xC4;
+        buffer[1] = size;
+        return trySend(2);
+    } else if(size <= 0xFFFF) {
+        buffer[0] = 0xC5;
+        if(!trySend(1))
+            return false;
+        reinterpret_cast<Natural16&>(buffer) = swapedEndian(static_cast<Natural16>(size));
+        return trySend(2);
+    } else {
+        buffer[0] = 0xC6;
+        if(!trySend(1))
+            return false;
+        reinterpret_cast<Natural32&>(buffer) = swapedEndian(static_cast<Natural32>(size));
+        return trySend(4);
+    }
 }
 
 bool sendArrayHeader(NativeNaturalType size) {
@@ -181,13 +199,11 @@ Integer32 main(Integer32 argc, Integer8** argv) {
             Storage::Blob(readNatural()).increaseSize(readNatural(), readNatural());
             sendNil();
         } else ifIsCommand("readBlob") {
-            assert(parameterCount == 3);
+            assert(parameterCount >= 1 && parameterCount <= 3);
             Storage::Blob blob(readNatural());
-            Natural64 offset = readNatural(), length = readNatural();
-            buffer[0] = 0xC6;
-            trySend(1);
-            reinterpret_cast<Natural32&>(buffer) = swapedEndian((length+7)/8);
-            trySend(4);
+            Natural64 offset = (parameterCount >= 2) ? readNatural() : 0,
+                      length = (parameterCount >= 3) ? readNatural() : blob.getSize();
+            sendBinaryHeader((length+7)/8);
             while(length > 0) {
                 Natural64 segmentLength = min(length, sizeof(buffer)*8ULL);
                 blob.externalOperate<false>(buffer, offset, segmentLength);
