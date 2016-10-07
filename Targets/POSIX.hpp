@@ -110,7 +110,7 @@ void assertFailed(const char* str) {
 #define MMAP_FUNC mmap64
 #endif
 
-Integer32 file = -1;
+Integer32 file = -1, sockfd = -1;
 struct stat fileStat;
 
 NativeNaturalType bytesForPages(NativeNaturalType pagesEnd) {
@@ -119,6 +119,10 @@ NativeNaturalType bytesForPages(NativeNaturalType pagesEnd) {
 }
 
 void unloadStorage() {
+    if(sockfd >= 0) {
+        close(sockfd);
+        sockfd = -1;
+    }
     printStats();
     NativeNaturalType size = Storage::superPage->pagesEnd*Storage::bitsPerPage/8;
     munmap(Storage::superPage, bytesForPages(Storage::maxPageCount));

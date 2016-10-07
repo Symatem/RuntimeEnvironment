@@ -5,13 +5,13 @@
         return false;
 
 struct Deserializer {
-    Symbol input, package, parentEntry, currentEntry;
+    Symbol parentEntry, currentEntry, input, package = Ontology::VoidSymbol;
     Ontology::BlobIndex<true> locals;
     Ontology::BlobVector<true, Symbol> stack, queue;
-    NativeNaturalType tokenBegin, pos, end, row, column;
+    NativeNaturalType tokenBegin, tokenEnd, inputEnd, row, column;
 
     bool tokenBeginsWithString(const char* str) {
-        if(strlen(str) > pos-tokenBegin)
+        if(strlen(str) > tokenEnd-tokenBegin)
             return false;
         for(NativeNaturalType i = 0; i < strlen(str); ++i)
             if(Storage::Blob(input).readAt<Natural8>(tokenBegin+i) != str[i])
@@ -48,11 +48,11 @@ struct Deserializer {
     }
 
     Symbol sliceText() {
-        return Ontology::createFromSlice(input, tokenBegin*8, (pos-tokenBegin)*8);
+        return Ontology::createFromSlice(input, tokenBegin*8, (tokenEnd-tokenBegin)*8);
     }
 
     Symbol parseToken(bool isText = false) {
-        if(pos > tokenBegin) {
+        if(tokenEnd > tokenBegin) {
             Storage::Blob srcBlob(input);
             Natural8 src = srcBlob.readAt<Natural8>(tokenBegin);
             Symbol symbol;
@@ -63,7 +63,7 @@ struct Deserializer {
                 locals.insertElement(symbol);
             } else if(tokenBeginsWithString(HRLRawBegin)) {
                 tokenBegin += strlen(HRLRawBegin);
-                NativeNaturalType nibbleCount = pos-tokenBegin;
+                NativeNaturalType nibbleCount = tokenEnd-tokenBegin;
                 if(nibbleCount == 0)
                     return throwException("Empty raw data");
                 if(nibbleCount%2 == 1)
@@ -73,7 +73,7 @@ struct Deserializer {
                 dstBlob.increaseSize(0, nibbleCount*4);
                 Natural8 nibble, byte;
                 NativeNaturalType at = 0;
-                while(tokenBegin < pos) {
+                while(tokenBegin < tokenEnd) {
                     src = srcBlob.readAt<Natural8>(tokenBegin);
                     if(src >= '0' && src <= '9')
                         nibble = src-'0';
@@ -92,13 +92,13 @@ struct Deserializer {
                 }
                 Storage::modifiedBlob(symbol);
             } else {
-                NativeNaturalType mantissa = 0, devisor = 0;
+                NativeNaturalType mantissa = 0, devisor = 0, pos = tokenBegin;
                 bool isNumber = true, negative = (src == '-');
                 if(negative)
-                    ++tokenBegin;
+                    ++pos;
                 // TODO What if too long, precision loss?
-                while(tokenBegin < pos) {
-                    src = srcBlob.readAt<Natural8>(tokenBegin);
+                while(pos < tokenEnd) {
+                    src = srcBlob.readAt<Natural8>(pos);
                     devisor *= 10;
                     if(src >= '0' && src <= '9') {
                         mantissa *= 10;
@@ -113,9 +113,9 @@ struct Deserializer {
                         isNumber = false;
                         break;
                     }
-                    ++tokenBegin;
+                    ++pos;
                 }
-                if(isNumber && devisor != 1) {
+                if(isNumber) {
                     if(devisor > 0) {
                         NativeFloatType value = mantissa;
                         value /= devisor;
@@ -132,7 +132,7 @@ struct Deserializer {
             }
             checkReturn(nextSymbol(currentEntry, symbol, package));
         }
-        tokenBegin = pos+1;
+        tokenBegin = tokenEnd+1;
         return Ontology::VoidSymbol;
     }
 
@@ -186,9 +186,9 @@ struct Deserializer {
         queue.symbol = currentEntry;
         row = column = 1;
         Storage::Blob srcBlob(input);
-        end = srcBlob.getSize()/8;
-        for(tokenBegin = pos = 0; pos < end; ++pos) {
-            Natural8 src = srcBlob.readAt<Natural8>(pos);
+        inputEnd = srcBlob.getSize()/8;
+        for(tokenBegin = tokenEnd = 0; tokenEnd < inputEnd; ++tokenEnd) {
+            Natural8 src = srcBlob.readAt<Natural8>(tokenEnd);
             switch(src) {
                 case '\n':
                     checkReturn(parseToken());
@@ -201,13 +201,13 @@ struct Deserializer {
                     checkReturn(parseToken());
                     break;
                 case '"':
-                    tokenBegin = pos+1;
+                    tokenBegin = tokenEnd+1;
                     while(true) {
-                        if(pos == end)
+                        if(tokenEnd == inputEnd)
                             return throwException("Unterminated text");
                         bool prev = (src != '\\');
-                        ++pos;
-                        src = srcBlob.readAt<Natural8>(pos);
+                        ++tokenEnd;
+                        src = srcBlob.readAt<Natural8>(tokenEnd);
                         if(prev) {
                             if(src == '\\')
                                 continue;

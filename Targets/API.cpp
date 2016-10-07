@@ -2,7 +2,6 @@
 
 extern "C" {
 
-int sockfd;
 struct addrinfo conf, *addressInfo;
 Natural8 buffer[128];
 
@@ -240,10 +239,10 @@ Integer32 main(Integer32 argc, Integer8** argv) {
             }
             sendNil();
         } else ifIsCommand("deserializeBlob") {
-            assert(parameterCount == 2);
+            assert(parameterCount == 1 || parameterCount == 2);
             Deserializer deserializer;
             deserializer.input = readNatural();
-            deserializer.package = readNatural();
+            deserializer.package = (parameterCount >= 2) ? readNatural() : Ontology::VoidSymbol;
             Symbol exception = deserializer.deserialize();
             if(exception == Ontology::VoidSymbol) {
                 sendArrayHeader(deserializer.queue.size());
@@ -293,7 +292,6 @@ Integer32 main(Integer32 argc, Integer8** argv) {
         } else
             assert(false);
     }
-    close(sockfd);
 
     unloadStorage();
     return 0;
