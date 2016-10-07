@@ -29,7 +29,9 @@ struct Deserializer {
         return exception;
     }
 
-    Symbol nextSymbol(Symbol stackEntry, Symbol symbol) {
+    Symbol nextSymbol(Symbol stackEntry, Symbol symbol, Symbol package = Ontology::VoidSymbol) {
+        if(package != Ontology::VoidSymbol)
+            Ontology::link({package, Ontology::HoldsSymbol, symbol});
         if(Ontology::valueCountIs(stackEntry, Ontology::UnnestEntitySymbol, 0)) {
             queue.symbol = stackEntry;
             queue.insert(0, symbol);
@@ -128,8 +130,7 @@ struct Deserializer {
                     symbol = sliceText();
                 Ontology::blobIndex.insertElement(symbol);
             }
-            Ontology::link({package, Ontology::HoldsSymbol, symbol});
-            checkReturn(nextSymbol(currentEntry, symbol));
+            checkReturn(nextSymbol(currentEntry, symbol, package));
         }
         tokenBegin = pos+1;
         return Ontology::VoidSymbol;
@@ -139,8 +140,7 @@ struct Deserializer {
         if(entity == Ontology::VoidSymbol) {
             entity = Storage::createSymbol();
             Ontology::link({currentEntry, Ontology::EntitySymbol, entity});
-            Ontology::link({package, Ontology::HoldsSymbol, entity});
-            checkReturn(nextSymbol(parentEntry, entity));
+            checkReturn(nextSymbol(parentEntry, entity, package));
         }
         return Ontology::VoidSymbol;
     }
