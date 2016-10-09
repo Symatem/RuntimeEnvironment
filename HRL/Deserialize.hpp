@@ -48,7 +48,9 @@ struct Deserializer {
     }
 
     Symbol sliceText() {
-        return Ontology::createFromSlice(input, tokenBegin*8, (tokenEnd-tokenBegin)*8);
+        Symbol dstSymbol = Ontology::createFromSlice(input, tokenBegin*8, (tokenEnd-tokenBegin)*8);
+        Ontology::link({dstSymbol, Ontology::BlobTypeSymbol, Ontology::UTF8Symbol});
+        return dstSymbol;
     }
 
     Symbol parseToken(bool isText = false) {

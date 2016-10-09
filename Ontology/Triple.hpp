@@ -533,11 +533,11 @@ Symbol createFromData(DataType src) {
 }
 
 Symbol createFromSlice(Symbol src, NativeNaturalType srcOffset, NativeNaturalType length) {
-    Symbol dst = Storage::createSymbol();
-    Storage::Blob dstBlob(dst);
+    Symbol dstSymbol = Storage::createSymbol();
+    Storage::Blob dstBlob(dstSymbol);
     dstBlob.increaseSize(0, length);
     dstBlob.slice(Storage::Blob(src), 0, srcOffset, length);
-    return dst;
+    return dstSymbol;
 }
 
 void stringToBlob(const char* src, NativeNaturalType length, Symbol dstSymbol) {
