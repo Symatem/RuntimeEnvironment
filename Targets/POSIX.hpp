@@ -15,8 +15,24 @@
 
 extern "C" {
 
+#ifdef __LP64__
+#define PrintFormatNatural "llu"
+#ifdef __APPLE__
+#define MMAP_FUNC mmap
+#else
+#define MMAP_FUNC mmap64
+#endif
+auto const mmapBaseAddress = reinterpret_cast<void*>(0x200000000);
+const NativeNaturalType maxPageCount = 1<<22;
+#else
+#define PrintFormatNatural "u"
+#define MMAP_FUNC mmap
+auto const mmapBaseAddress = reinterpret_cast<void*>(0x10000000);
+const NativeNaturalType maxPageCount = 1<<12;
+#endif
+
 #define printStatsLine(name, amount, total) \
-    printf(name "%10llu bits %2.2f %%\n", amount, 100.0*(amount)/(total))
+    printf(name "%10" PrintFormatNatural " bits %2.2f %%\n", amount, 100.0*(amount)/(total))
 
 void resetStats(struct Storage::Stats& stats) {
     stats.uninhabitable = 0;
@@ -72,7 +88,7 @@ void printStats() {
         ++blobCount;
     });
 
-    printf("  Global            %10llu bits %llu pages\n", totalBits, Storage::superPage->pagesEnd);
+    printf("  Global            %10" PrintFormatNatural " bits %" PrintFormatNatural " pages\n", totalBits, Storage::superPage->pagesEnd);
     printStatsLine("    Recyclable      ", recyclableBits, totalBits);
     printf("    Meta Structures ");
     printStatsPartial(metaStructs);
@@ -84,14 +100,14 @@ void printStats() {
     printStatsPartial(freeBuckets);
     printf("    Fragmented      ");
     printStatsPartial(fragmented);
-    printf("  Symbols           %10llu\n", Storage::superPage->symbolsEnd);
-    printf("    Recyclable      %10llu\n", recyclableSymbolCount);
-    printf("    Empty           %10llu\n", Storage::superPage->symbolsEnd-recyclableSymbolCount-blobCount);
-    printf("    Blobs           %10llu\n", blobCount);
+    printf("  Symbols           %10" PrintFormatNatural "\n", Storage::superPage->symbolsEnd);
+    printf("    Recyclable      %10" PrintFormatNatural "\n", recyclableSymbolCount);
+    printf("    Empty           %10" PrintFormatNatural "\n", Storage::superPage->symbolsEnd-recyclableSymbolCount-blobCount);
+    printf("    Blobs           %10" PrintFormatNatural "\n", blobCount);
     for(NativeNaturalType i = 0; i < Storage::blobBucketTypeCount; ++i)
-        printf("      %10llu    %10llu\n", Storage::blobBucketType[i], blobInBucketTypes[i]);
-    printf("      Fragmented    %10llu\n", blobInBucketTypes[Storage::blobBucketTypeCount]);
-    printf("  Triples:          %10llu\n", Ontology::query(Ontology::VVV));
+        printf("      %10" PrintFormatNatural "    %10" PrintFormatNatural "\n", Storage::blobBucketType[i], blobInBucketTypes[i]);
+    printf("      Fragmented    %10" PrintFormatNatural "\n", blobInBucketTypes[Storage::blobBucketTypeCount]);
+    printf("  Triples:          %10" PrintFormatNatural "\n", Ontology::query(Ontology::VVV));
     printf("\n");
 
     assert(recyclableBits+metaStructs.total+blobIndex.total+fullBuckets.total+freeBuckets.total+fragmented.total == totalBits);
@@ -103,12 +119,6 @@ void assertFailed(const char* str) {
     puts(str);
     exit(1);
 }
-
-#ifdef __APPLE__
-#define MMAP_FUNC mmap
-#else
-#define MMAP_FUNC mmap64
-#endif
 
 Integer32 file = -1, sockfd = -1;
 struct stat fileStat;
@@ -125,7 +135,7 @@ void unloadStorage() {
     }
     printStats();
     NativeNaturalType size = Storage::superPage->pagesEnd*Storage::bitsPerPage/8;
-    munmap(Storage::superPage, bytesForPages(Storage::maxPageCount));
+    munmap(Storage::superPage, bytesForPages(maxPageCount));
     if(file < 0)
         return;
     if(S_ISREG(fileStat.st_mode))
@@ -167,8 +177,8 @@ void loadStorage(const char* path) {
         }
     }
 
-    Storage::superPage = reinterpret_cast<Storage::SuperPage*>(0x200000000);
-    assert(MMAP_FUNC(Storage::superPage, bytesForPages(Storage::maxPageCount), PROT_READ|PROT_WRITE, mmapFlags, file, 0) != MAP_FAILED);
+    Storage::superPage = reinterpret_cast<Storage::SuperPage*>(MMAP_FUNC(mmapBaseAddress, bytesForPages(maxPageCount), PROT_READ|PROT_WRITE, mmapFlags, file, 0));
+    assert(Storage::superPage != MAP_FAILED);
     if(file < 0 || fileStat.st_size == 0)
         Storage::superPage->pagesEnd = Storage::minPageCount;
     else if(S_ISREG(fileStat.st_mode))

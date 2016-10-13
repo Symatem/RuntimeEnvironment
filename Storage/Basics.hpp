@@ -134,8 +134,7 @@ void bitwiseCopySwap<true>(const NativeNaturalType* aPtr, NativeNaturalType* bPt
 
 const NativeNaturalType
       bitsPerPage = 1<<15,
-      minPageCount = 1,
-      maxPageCount = 1<<22;
+      minPageCount = 1;
 
 struct Stats {
     NativeNaturalType total,

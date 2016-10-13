@@ -31,6 +31,14 @@ typedef double Float64;
 // typedef long double Float128;
 
 const Natural8 architectureSize = sizeof(void*)*8;
+#if __BYTE_ORDER != __LITTLE_ENDIAN
+#error Must be compiled with little endian
+#endif
+#ifdef __LP64__
+static_assert(architectureSize == 64);
+#else
+static_assert(architectureSize == 32);
+#endif
 typedef conditional<architectureSize == 32, Natural32, Natural64>::type NativeNaturalType;
 typedef conditional<architectureSize == 32, Integer32, Integer64>::type NativeIntegerType;
 typedef conditional<architectureSize == 32, Float32, Float64>::type NativeFloatType;
@@ -105,7 +113,7 @@ extern "C" {
     void __cxa_deleted_virtual() {}
 }
 
-inline void* operator new(conditional<architectureSize == 32, NativeNaturalType, unsigned long>::type, void* ptr) noexcept {
+inline void* operator new(__SIZE_TYPE__, void* ptr) noexcept {
     return ptr;
 }
 
