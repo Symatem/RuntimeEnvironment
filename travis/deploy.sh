@@ -1,6 +1,7 @@
 #!/bin/bash
 
-ARCHIVE_NAME=Symatem_$(uname -s)_$(uname -p).tar
+PLATFORM=$(uname -m)-$(uname -s)-macho
+ARCHIVE_NAME=Symatem-${PLATFORM}.tar
 PRIVATE_KEY=travis/travis_id_rsa
 
 chmod 400 $PRIVATE_KEY
