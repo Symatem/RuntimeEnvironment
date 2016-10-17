@@ -124,19 +124,50 @@ bool sendArrayHeader(NativeNaturalType size) {
     }
 }
 
+int getOption(Integer32 argc, Integer8** argv, const Integer8 *option, Integer8 **value)
+{
+    for(int i = 1; i < argc; i++) {
+      for(const Integer8 *v = argv[i], *s = option; *v == *s;) {
+        if(*v == 0) {
+          *value = argv[i + 1];
+          return i + 2;
+        }
+
+        v++;
+        s++;
+      }
+    }
+
+    *value = NULL;
+    return 1;
+}
+
 Integer32 main(Integer32 argc, Integer8** argv) {
-    if(argc != 2) {
+    Integer8 *port;
+    int nextArg = getOption(argc, argv, "--port", &port);
+    int expectedArgCount = 2;
+
+    if(port != NULL) {
+        expectedArgCount += 2;
+    }
+    else
+    {
+        port = (Integer8*)"1337";
+    }
+
+    if(argc != expectedArgCount) {
         printf("Expected path argument.\n");
         return 1;
     }
-    loadStorage(argv[1]);
+
+    loadStorage(argv[nextArg]);
     Ontology::tryToFillPreDefined();
 
     memset(&conf, 0, sizeof(conf));
     conf.ai_flags = AI_V4MAPPED|AI_PASSIVE;
     conf.ai_family = AF_INET6;
     conf.ai_socktype = SOCK_STREAM;
-    if(getaddrinfo("::", "1337", &conf, &addressInfo) < 0) {
+    if(getaddrinfo("::", port, &conf, &addressInfo) < 0) {
         perror("getaddrinfo");
         return 2;
     }
