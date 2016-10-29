@@ -124,43 +124,17 @@ bool sendArrayHeader(NativeNaturalType size) {
     }
 }
 
-int getOption(Integer32 argc, Integer8** argv, const Integer8 *option, Integer8 **value)
-{
-    for(int i = 1; i < argc; i++) {
-      for(const Integer8 *v = argv[i], *s = option; *v == *s;) {
-        if(*v == 0) {
-          *value = argv[i + 1];
-          return i + 2;
-        }
-
-        v++;
-        s++;
-      }
-    }
-
-    *value = NULL;
-    return 1;
-}
-
 Integer32 main(Integer32 argc, Integer8** argv) {
-    Integer8 *port;
-    int nextArg = getOption(argc, argv, "--port", &port);
-    int expectedArgCount = 2;
+    const Integer8 *port = "1337", *path = "/dev/zero";
 
-    if(port != NULL) {
-        expectedArgCount += 2;
-    }
-    else
-    {
-        port = (Integer8*)"1337";
+    for(Integer32 i = 1; i < argc-1; ++i) {
+        if(Storage::substrEqual(argv[i], "--port"))
+            port = argv[i+1];
+        else if(Storage::substrEqual(argv[i], "--path"))
+            path = argv[i+1];
     }
 
-    if(argc != expectedArgCount) {
-        printf("Expected path argument.\n");
-        return 1;
-    }
-
-    loadStorage(argv[nextArg]);
+    loadStorage(path);
     Ontology::tryToFillPreDefined();
 
     memset(&conf, 0, sizeof(conf));

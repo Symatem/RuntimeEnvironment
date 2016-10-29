@@ -33,7 +33,7 @@ $(POSIX_BUILD_PATH)SymatemFS: Targets/FS.cpp $(SOURCES) $(POSIX_BUILD_PATH)
 IMAGE_PATH = /dev/zero
 
 runAPI: $(POSIX_BUILD_PATH)SymatemAPI
-	$< $(IMAGE_PATH)
+	$< --path $(IMAGE_PATH)
 
 testBp: $(POSIX_BUILD_PATH)SymatemBp
 	$< $(IMAGE_PATH)
@@ -62,6 +62,7 @@ $(WASM_BUILD_PATH)Symatem.wast: $(WASM_BUILD_PATH)Symatem.s
 
 $(WASM_BUILD_PATH)Symatem.wasm: $(WASM_BUILD_PATH)Symatem.wast
 	$(BINARYEN_BIN)wasm-as -o $@ $<
+
 
 
 # Combined
