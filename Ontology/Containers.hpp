@@ -1,4 +1,4 @@
-#include "../Storage/Blob.hpp"
+#include <Storage/Blob.hpp>
 
 namespace Ontology {
 

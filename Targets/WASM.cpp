@@ -1,4 +1,4 @@
-#include "../HRL/Deserialize.hpp"
+#include <HRL/Deserialize.hpp>
 
 const NativeNaturalType bitsPerChunk = 1<<19;
 

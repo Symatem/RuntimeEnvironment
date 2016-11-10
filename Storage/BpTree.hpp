@@ -1,4 +1,4 @@
-#include "Basics.hpp"
+#include <Storage/Basics.hpp>
 
 namespace Storage {
 
@@ -57,9 +57,9 @@ struct BpTree {
         NativeNaturalType pageCount;
     };
 
-#include "BpPage.hpp"
+#include <Storage/BpPage.hpp>
     static const LayerType maxLayerCount = Page::layersNeeded();
-#include "BpIterator.hpp"
+#include <Storage/BpIterator.hpp>
 
     template<bool enableModification = false>
     static Page* getPage(typename conditional<enableModification, PageRefType&, PageRefType>::type pageRef) {

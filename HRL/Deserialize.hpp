@@ -1,4 +1,4 @@
-#include "Serialize.hpp"
+#include <HRL/Serialize.hpp>
 
 #define checkReturn(expression) \
     if((expression) != Ontology::VoidSymbol) \

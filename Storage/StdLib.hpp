@@ -84,6 +84,7 @@ struct sizeOfInBits<VoidType> {
 };
 
 extern "C" {
+#define IMPORT extern
 #define EXPORT __attribute__((visibility("default")))
 #define DO_NOT_INLINE __attribute__((noinline))
 #define tokenToString(x) #x

@@ -1,16 +1,16 @@
-#include "Containers.hpp"
+#include <Ontology/Containers.hpp>
 
 namespace Ontology {
 
 #define Wrapper(token) token##Symbol
 enum PreDefinedSymbols {
-#include "Symbols.hpp"
+#include <Ontology/Symbols.hpp>
 };
 #undef Wrapper
 
 #define Wrapper(token) #token
 const char* PreDefinedSymbols[] = {
-#include "Symbols.hpp"
+#include <Ontology/Symbols.hpp>
 };
 #undef Wrapper
 

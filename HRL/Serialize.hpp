@@ -1,4 +1,4 @@
-#include "../Ontology/Triple.hpp"
+#include <Ontology/Triple.hpp>
 
 const char* HRLRawBegin = "raw:";
 
