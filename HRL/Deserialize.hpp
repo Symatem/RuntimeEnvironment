@@ -47,8 +47,13 @@ struct Deserializer {
         return Ontology::VoidSymbol;
     }
 
+    template<bool local>
     Symbol sliceText() {
         Symbol dstSymbol = Ontology::createFromSlice(input, tokenBegin*8, (tokenEnd-tokenBegin)*8);
+        if(local)
+            locals.insertElement(dstSymbol);
+        else
+            Ontology::blobIndex.insertElement(dstSymbol);
         Ontology::link({dstSymbol, Ontology::BlobTypeSymbol, Ontology::UTF8Symbol});
         return dstSymbol;
     }
@@ -59,11 +64,10 @@ struct Deserializer {
             Natural8 src = srcBlob.readAt<Natural8>(tokenBegin);
             Symbol symbol;
             if(isText)
-                symbol = sliceText();
-            else if(src == '#') {
-                symbol = sliceText();
-                locals.insertElement(symbol);
-            } else if(tokenBeginsWithString(HRLRawBegin)) {
+                symbol = sliceText<false>();
+            else if(src == '#')
+                symbol = sliceText<true>();
+            else if(tokenBeginsWithString(HRLRawBegin)) {
                 tokenBegin += strlen(HRLRawBegin);
                 NativeNaturalType nibbleCount = tokenEnd-tokenBegin;
                 if(nibbleCount == 0)
@@ -128,9 +132,9 @@ struct Deserializer {
                         symbol = Ontology::createFromData(-static_cast<NativeIntegerType>(mantissa));
                     else
                         symbol = Ontology::createFromData(mantissa);
+                    Ontology::blobIndex.insertElement(symbol);
                 } else
-                    symbol = sliceText();
-                Ontology::blobIndex.insertElement(symbol);
+                    symbol = sliceText<false>();
             }
             checkReturn(nextSymbol(currentEntry, symbol, package));
         }
@@ -183,9 +187,9 @@ struct Deserializer {
     Symbol deserialize() {
         if(!Ontology::tripleExists({input, Ontology::BlobTypeSymbol, Ontology::UTF8Symbol}))
             return throwException("Invalid Blob Type");
-        currentEntry = Storage::createSymbol();
+        queue.activate();
+        currentEntry = queue.symbol;
         stack.push_back(currentEntry);
-        queue.symbol = currentEntry;
         row = column = 1;
         Storage::Blob srcBlob(input);
         inputEnd = srcBlob.getSize()/8;
