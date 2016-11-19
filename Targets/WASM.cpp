@@ -110,6 +110,10 @@ EXPORT NativeNaturalType query(Ontology::QueryMask mask, Symbol entity, Symbol a
     return count;
 }
 
+EXPORT void setSolitary(Symbol entity, Symbol attribute, Symbol value) {
+    Ontology::setSolitary({entity, attribute, value});
+}
+
 EXPORT bool link(Symbol entity, Symbol attribute, Symbol value) {
     return Ontology::link({entity, attribute, value});
 }
