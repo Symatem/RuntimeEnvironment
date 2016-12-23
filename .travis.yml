@@ -5,13 +5,13 @@ matrix:
     - env: CLANG_VERSION=4.0 CPP=1z
       os: linux
       addons: *clang40
-
     - os: osx
       osx_image: xcode8.2
       compiler: clang
 addons:
   ssh_known_hosts: mfelten.de
 before_install:
+  - if [ -n "$CLANG_VERSION" ]; then export CXX="clang++-${CLANG_VERSION}" CC="clang-${CLANG_VERSION}"; fi
   - openssl aes-256-cbc -K $encrypted_778e046e3e91_key -iv $encrypted_778e046e3e91_iv -in travis/travis_id_rsa.enc -out travis/travis_id_rsa -d
 deploy:
   - provider: script
