@@ -7,7 +7,7 @@ PRIVATE_KEY=travis/travis_id_rsa
 chmod 400 $PRIVATE_KEY
 
 rm -f build/$ARCHIVE_NAME
-(cd ./build;tar cvf $ARCHIVE_NAME SymatemAPI)
+(cd ./build;tar cvf $ARCHIVE_NAME SymatemMP)
 
 echo "uploading $ARCHIVE_NAME ..."
 
