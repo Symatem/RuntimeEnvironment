@@ -4,7 +4,14 @@ matrix:
   include:
     - env: CLANG_VERSION=4.0 CPP=1z
       os: linux
-      addons: *clang40
+      addons: &clang40
+        apt:
+          packages:
+            - util-linux
+            - clang-4.0
+          sources:
+            - ubuntu-toolchain-r-test
+            - llvm-toolchain-precise
     - os: osx
       osx_image: xcode8.2
       compiler: clang
