@@ -1,6 +1,14 @@
 #!/bin/bash
 
-PLATFORM=$(uname -m)-$(uname -s)-macho
+case $(uname -s) in
+Darwin)
+  PLATFORM=$(uname -m)-$(uname -s)-macho
+  ;;
+*)
+  PLATFORM=$(uname -m)-$(uname -s)-elf
+  ;;
+esac
+
 ARCHIVE_NAME=Symatem-${PLATFORM}.tar
 PRIVATE_KEY=travis/travis_id_rsa
 
