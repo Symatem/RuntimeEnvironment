@@ -1,4 +1,4 @@
-COMPILER_FLAGS := -O3 -std=c++1z -fno-exceptions -fno-stack-protector -fno-rtti -ffreestanding -fvisibility=hidden -Wall -Wsign-compare -I.
+COMPILER_FLAGS := -O3 -std=c++1z -fno-exceptions -fno-stack-protector -fno-rtti -ffreestanding -fvisibility=hidden -Wall -Wsign-compare -I. -DGIT_REF=$(git rev-parse HEAD)
 LINKER_FLAGS := #-Wl,-s
 SOURCES := Storage/* Ontology/* HRL/* Targets/POSIX.hpp
 PLATFORM = $(shell uname)
