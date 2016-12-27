@@ -19,4 +19,4 @@ rm -f build/$ARCHIVE_NAME
 
 echo "uploading $ARCHIVE_NAME ..."
 
-scp -i $PRIVATE_KEY ./build/$ARCHIVE_NAME mfelten_de@mfelten.de:/home/mfelten_de/docroot/Symatem/
+scp -o StrictHostKeyChecking=no -i $PRIVATE_KEY ./build/$ARCHIVE_NAME mfelten_de@mfelten.de:/home/mfelten_de/docroot/Symatem/
