@@ -16,7 +16,15 @@ extern "C" {
 
 Natural8 stack[bitsPerChunk/8];
 
-EXPORT void setStackPointer(NativeNaturalType ptr) {
+IMPORT void consoleLogString(const Integer8* basePtr, Natural32 length);
+IMPORT void consoleLogInteger(NativeNaturalType value);
+IMPORT void consoleLogFloat(Float64 value);
+
+void puts(const Integer8* message) {
+    consoleLogString(message, strlen(message));
+}
+
+DO_NOT_INLINE EXPORT void setStackPointer(NativeNaturalType ptr) {
     asm volatile(
         "i32.const $push0=, 0\n\t"
         "i32.store __stack_pointer($pop0), $0\n"
@@ -24,7 +32,7 @@ EXPORT void setStackPointer(NativeNaturalType ptr) {
     );
 }
 
-EXPORT NativeNaturalType getStackPointer() {
+DO_NOT_INLINE EXPORT NativeNaturalType getStackPointer() {
     NativeNaturalType result;
     asm volatile(
         "i32.const $push0=, 0\n\t"
@@ -35,6 +43,7 @@ EXPORT NativeNaturalType getStackPointer() {
 }
 
 void assertFailed(const char* str) {
+    puts(str);
     __builtin_unreachable();
 }
 

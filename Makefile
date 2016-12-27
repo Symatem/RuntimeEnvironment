@@ -1,4 +1,4 @@
-COMPILER_FLAGS := -O1 -std=c++1z -fno-exceptions -fno-stack-protector -fno-rtti -ffreestanding -fvisibility=hidden -Wall -Wsign-compare -I.
+COMPILER_FLAGS := -O3 -std=c++1z -fno-exceptions -fno-stack-protector -fno-rtti -ffreestanding -fvisibility=hidden -Wall -Wsign-compare -I.
 LINKER_FLAGS := #-Wl,-s
 SOURCES := Storage/* Ontology/* HRL/* Targets/POSIX.hpp
 PLATFORM = $(shell uname)
@@ -45,10 +45,11 @@ runFS: $(BUILD_PATH)SymatemFS
 
 
 # WebAssembly
+WASM_TARGET = wasm32
 
 $(BUILD_PATH)Symatem.s: Targets/WASM.cpp $(SOURCES) $(BUILD_PATH)
-	$(LLVM_BIN)clang $(COMPILER_FLAGS) -target wasm32 -c -emit-llvm -o $(BUILD_PATH)Symatem.bc $<
-	$(LLVM_BIN)llc -march=wasm32 -filetype=asm -o $(BUILD_PATH)Symatem.preAsm $(BUILD_PATH)Symatem.bc
+	$(LLVM_BIN)clang $(COMPILER_FLAGS) -target $(WASM_TARGET) -S -emit-llvm -o $(BUILD_PATH)Symatem.bc $<
+	$(LLVM_BIN)llc -march=$(WASM_TARGET) -filetype=asm -o $(BUILD_PATH)Symatem.preAsm $(BUILD_PATH)Symatem.bc
 	perl -pe 's/\.weak/# \.weak/g;' $(BUILD_PATH)Symatem.preAsm > $@
 	rm $(BUILD_PATH)Symatem.bc $(BUILD_PATH)Symatem.preAsm
 

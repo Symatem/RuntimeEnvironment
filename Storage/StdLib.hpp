@@ -99,15 +99,15 @@ extern "C" {
         for(pos = str; *pos; ++pos);
         return pos-str;
     }
-    NativeNaturalType memcpy(void* dst, void* src, NativeNaturalType len) {
+    void* memcpy(void* dst, void* src, NativeNaturalType len) {
         for(NativeNaturalType i = 0; i < len; ++i)
             reinterpret_cast<char*>(dst)[i] = reinterpret_cast<char*>(src)[i];
-        return 0;
+        return dst;
     }
-    NativeNaturalType memset(void* dst, NativeNaturalType value, NativeNaturalType len) {
+    void* memset(void* dst, NativeNaturalType value, NativeNaturalType len) {
         for(NativeNaturalType i = 0; i < len; ++i)
             reinterpret_cast<char*>(dst)[i] = value;
-        return 0;
+        return dst;
     }
     void __cxa_atexit(void(*)(void*), void*, void*) {}
     void __cxa_pure_virtual() {}

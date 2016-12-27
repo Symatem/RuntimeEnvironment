@@ -166,7 +166,6 @@ Integer32 main(Integer32 argc, Integer8** argv) {
     assert(sockfd >= 0);
     Natural32 flag = 1;
     assert(setsockopt(sockfd, IPPROTO_TCP, TCP_NODELAY, reinterpret_cast<Integer8*>(&flag), sizeof(Natural32)) >= 0);
-    assert(setsockopt(sockfd, SOL_SOCKET, SO_REUSEPORT, reinterpret_cast<Integer8*>(&flag), sizeof(Natural32)) >= 0);
     assert(setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<Integer8*>(&flag), sizeof(Natural32)) >= 0);
     printf("Connected\n");
 

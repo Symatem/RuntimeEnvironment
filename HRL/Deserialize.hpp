@@ -185,12 +185,12 @@ struct Deserializer {
     }
 
     Symbol deserialize() {
+        row = column = 1;
         if(!Ontology::tripleExists({input, Ontology::BlobTypeSymbol, Ontology::UTF8Symbol}))
             return throwException("Invalid Blob Type");
         queue.activate();
         currentEntry = queue.symbol;
         stack.push_back(currentEntry);
-        row = column = 1;
         Storage::Blob srcBlob(input);
         inputEnd = srcBlob.getSize()/8;
         for(tokenBegin = tokenEnd = 0; tokenEnd < inputEnd; ++tokenEnd) {
@@ -242,7 +242,6 @@ struct Deserializer {
                         return throwException("Unmatched closing bracket");
                     checkReturn(seperateTokens(false));
                     if(stack.size() == 2 && Ontology::valueCountIs(parentEntry, Ontology::UnnestEntitySymbol, 0)) {
-                        locals.clear();
                         Symbol entity;
                         if(!Ontology::getUncertain(currentEntry, Ontology::EntitySymbol, entity) ||
                            Ontology::query(Ontology::MVV, {entity, Ontology::VoidSymbol, Ontology::VoidSymbol}) == 0)

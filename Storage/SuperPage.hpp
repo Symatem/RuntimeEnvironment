@@ -11,6 +11,8 @@ const NativeNaturalType blobBucketTypeCount = 12,
         blobBucketType[blobBucketTypeCount] = {8, 16, 32, 64, 128, 320, 576, 1344, 2432, 4544, 8064, 16192};
 
 struct SuperPage : public BasePage {
+    Natural8 architectureSize;
+    NativeNaturalType version;
     Symbol symbolsEnd;
     PageRefType pagesEnd, freePage;
     BpTreeSet<Symbol> freeSymbols;
