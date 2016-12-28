@@ -99,9 +99,9 @@ extern "C" {
         for(pos = str; *pos; ++pos);
         return pos-str;
     }
-    void* memcpy(void* dst, void* src, NativeNaturalType len) {
+    void* memcpy(void* dst, const void* src, NativeNaturalType len) {
         for(NativeNaturalType i = 0; i < len; ++i)
-            reinterpret_cast<char*>(dst)[i] = reinterpret_cast<char*>(src)[i];
+            reinterpret_cast<char*>(dst)[i] = reinterpret_cast<const char*>(src)[i];
         return dst;
     }
     void* memset(void* dst, NativeNaturalType value, NativeNaturalType len) {
@@ -112,6 +112,7 @@ extern "C" {
     void __cxa_atexit(void(*)(void*), void*, void*) {}
     void __cxa_pure_virtual() {}
     void __cxa_deleted_virtual() {}
+    const char* gitRef = "git:" macroToString(GIT_REF);
 }
 
 inline void* operator new(__SIZE_TYPE__, void* ptr) noexcept {
