@@ -19,4 +19,5 @@ rm -f build/$ARCHIVE_NAME
 
 echo "uploading $ARCHIVE_NAME ..."
 
-scp -o StrictHostKeyChecking=no -i $PRIVATE_KEY ./build/$ARCHIVE_NAME mfelten_de@mfelten.de:/home/mfelten_de/docroot/Symatem/
+scp -o StrictHostKeyChecking=no -i $PRIVATE_KEY ./build/$ARCHIVE_NAME mfelten_de@mfelten.de:/home/mfelten_de/docroot/Symatem/Symatem-${PLATFORM}.latest.tar
+scp -o StrictHostKeyChecking=no -i $PRIVATE_KEY ./build/$ARCHIVE_NAME mfelten_de@mfelten.de:/home/mfelten_de/docroot/Symatem/Symatem-${PLATFORM}.$(git rev-parse --short HEAD).tar
