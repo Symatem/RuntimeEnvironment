@@ -11,8 +11,8 @@ const NativeNaturalType blobBucketTypeCount = 12,
         blobBucketType[blobBucketTypeCount] = {8, 16, 32, 64, 128, 320, 576, 1344, 2432, 4544, 8064, 16192};
 
 struct SuperPage : public BasePage {
-    Natural8 architectureSize;
-    NativeNaturalType version;
+    Natural64 version;
+    Natural8 architectureSize, gitRef[44];
     Symbol symbolsEnd;
     PageRefType pagesEnd, freePage;
     BpTreeSet<Symbol> freeSymbols;
@@ -68,6 +68,12 @@ NativeNaturalType countFreePages() {
         ++count;
     }
     return count;
+}
+
+void setSuperPageMetaData() {
+    Storage::superPage->version = 0;
+    Storage::superPage->architectureSize = architectureSize;
+    memcpy(Storage::superPage->gitRef, gitRef, sizeof(Storage::superPage->gitRef));
 }
 
 };

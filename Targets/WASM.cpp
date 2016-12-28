@@ -24,6 +24,11 @@ void puts(const Integer8* message) {
     consoleLogString(message, strlen(message));
 }
 
+void assertFailed(const char* str) {
+    puts(str);
+    __builtin_unreachable();
+}
+
 DO_NOT_INLINE EXPORT void setStackPointer(NativeNaturalType ptr) {
     asm volatile(
         "i32.const $push0=, 0\n\t"
@@ -42,19 +47,9 @@ DO_NOT_INLINE EXPORT NativeNaturalType getStackPointer() {
     return result;
 }
 
-void assertFailed(const char* str) {
-    puts(str);
-    __builtin_unreachable();
+EXPORT void saveImage() {
+    Storage::setSuperPageMetaData();
 }
-
-struct Main {
-    Main() {
-        setStackPointer(reinterpret_cast<NativeNaturalType>(stack)+sizeof(stack));
-        Storage::superPage = reinterpret_cast<Storage::SuperPage*>(__builtin_wasm_current_memory()*bitsPerChunk/8);
-        Storage::resizeMemory(Storage::minPageCount);
-        Ontology::tryToFillPreDefined();
-    };
-} main;
 
 EXPORT Symbol createSymbol() {
     return Storage::createSymbol();
@@ -90,7 +85,7 @@ EXPORT void writeBlob(Symbol symbol, NativeNaturalType offset, NativeNaturalType
     Storage::Blob(symbol).externalOperate<true>(buffer, offset, length);
 }
 
-EXPORT Symbol deserializeBlob(Symbol inputSymbol, Symbol outputSymbol, Symbol packageSymbol) {
+EXPORT Symbol deserializeHRL(Symbol inputSymbol, Symbol outputSymbol, Symbol packageSymbol) {
     Deserializer deserializer;
     deserializer.input = inputSymbol;
     deserializer.queue.symbol = outputSymbol;
@@ -130,5 +125,14 @@ EXPORT bool link(Symbol entity, Symbol attribute, Symbol value) {
 EXPORT bool unlink(Symbol entity, Symbol attribute, Symbol value) {
     return Ontology::unlink({entity, attribute, value});
 }
+
+struct Main {
+    Main() {
+        setStackPointer(reinterpret_cast<NativeNaturalType>(stack)+sizeof(stack));
+        Storage::superPage = reinterpret_cast<Storage::SuperPage*>(__builtin_wasm_current_memory()*bitsPerChunk/8);
+        Storage::resizeMemory(Storage::minPageCount);
+        Ontology::tryToFillPreDefined();
+    };
+} main;
 
 }
