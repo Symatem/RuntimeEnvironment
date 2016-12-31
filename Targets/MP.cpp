@@ -244,7 +244,7 @@ Integer32 main(Integer32 argc, Integer8** argv) {
                 length -= segmentLength;
             }
             sendNil();
-        } else ifIsCommand("deserializeBlob") {
+        } else ifIsCommand("deserializeHRL") {
             assert(parameterCount == 1 || parameterCount == 2);
             Deserializer deserializer;
             deserializer.input = readNatural();
@@ -257,13 +257,7 @@ Integer32 main(Integer32 argc, Integer8** argv) {
                 });
             } else
                 sendNatural(exception);
-        } /*else ifIsCommand("compare") {
-            // TODO
-        } else ifIsCommand("slice") {
-            // TODO
-        } else ifIsCommand("deepCopy") {
-            // TODO
-        }*/ else ifIsCommand("query") {
+        } else ifIsCommand("query") {
             assert(parameterCount == 5);
             bool countOnly = readBoolean();
             auto mask = readNatural();

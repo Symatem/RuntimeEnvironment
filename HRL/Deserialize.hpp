@@ -52,9 +52,10 @@ struct Deserializer {
         Symbol dstSymbol = Ontology::createFromSlice(input, tokenBegin*8, (tokenEnd-tokenBegin)*8);
         if(local)
             locals.insertElement(dstSymbol);
-        else
+        else {
             Ontology::blobIndex.insertElement(dstSymbol);
-        Ontology::link({dstSymbol, Ontology::BlobTypeSymbol, Ontology::UTF8Symbol});
+            Ontology::link({dstSymbol, Ontology::BlobTypeSymbol, Ontology::UTF8Symbol});
+        }
         return dstSymbol;
     }
 
@@ -263,6 +264,9 @@ struct Deserializer {
             return throwException("Missing closing bracket");
         if(!Ontology::valueCountIs(currentEntry, Ontology::UnnestEntitySymbol, 0))
             return throwException("Unnesting failed");
+        locals.iterate([](Symbol local) {
+            Storage::Blob(local).setSize(0);
+        });
         return Ontology::VoidSymbol;
     }
 };
