@@ -87,12 +87,12 @@ EXPORT void writeBlob(Symbol symbol, NativeNaturalType offset, NativeNaturalType
 
 EXPORT Symbol deserializeHRL(Symbol inputSymbol, Symbol outputSymbol, Symbol packageSymbol) {
     Deserializer deserializer;
+    deserializer.queue.symbol = (outputSymbol == Ontology::VoidSymbol) ? Storage::createSymbol() : outputSymbol;
     deserializer.input = inputSymbol;
-    deserializer.queue.symbol = outputSymbol;
     deserializer.package = packageSymbol;
     Symbol exception = deserializer.deserialize();
-    if(outputSymbol != Ontology::VoidSymbol)
-        deserializer.queue.symbol = Ontology::VoidSymbol;
+    if(outputSymbol == Ontology::VoidSymbol)
+        Ontology::unlink(deserializer.queue.symbol);
     return exception;
 }
 

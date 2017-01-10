@@ -12,7 +12,7 @@ struct BlobVector {
 
     ~BlobVector() {
         if(guarded && symbol)
-            Ontology::unlink(symbol);
+            Storage::releaseSymbol(symbol);
     }
 
     bool empty() const {

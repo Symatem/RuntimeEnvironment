@@ -247,6 +247,7 @@ Integer32 main(Integer32 argc, Integer8** argv) {
         } else ifIsCommand("deserializeHRL") {
             assert(parameterCount == 1 || parameterCount == 2);
             Deserializer deserializer;
+            deserializer.queue.symbol = Storage::createSymbol();
             deserializer.input = readNatural();
             deserializer.package = (parameterCount >= 2) ? readNatural() : Ontology::VoidSymbol;
             Symbol exception = deserializer.deserialize();
@@ -257,6 +258,7 @@ Integer32 main(Integer32 argc, Integer8** argv) {
                 });
             } else
                 sendNatural(exception);
+            Ontology::unlink(deserializer.queue.symbol);
         } else ifIsCommand("query") {
             assert(parameterCount == 5);
             bool countOnly = readBoolean();

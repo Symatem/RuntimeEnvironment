@@ -5,9 +5,10 @@
         return false;
 
 struct Deserializer {
-    Symbol parentEntry, currentEntry, input, package = Ontology::VoidSymbol;
+    Symbol parentEntry, input, package = Ontology::VoidSymbol;
     Ontology::BlobIndex<true> locals;
-    Ontology::BlobVector<true, Symbol> stack, queue;
+    Ontology::BlobVector<true, Symbol> stack;
+    Ontology::BlobVector<false, Symbol> queue;
     NativeNaturalType tokenBegin, tokenEnd, inputEnd, row, column;
 
     bool tokenBeginsWithString(const char* str) {
@@ -33,9 +34,9 @@ struct Deserializer {
         if(package != Ontology::VoidSymbol)
             Ontology::link({package, Ontology::HoldsSymbol, symbol});
         if(Ontology::valueCountIs(stackEntry, Ontology::UnnestEntitySymbol, 0)) {
-            queue.symbol = stackEntry;
-            queue.insert(0, symbol);
-            queue.symbol = currentEntry;
+            Ontology::BlobVector<false, Symbol> stackEntrysQueue;
+            stackEntrysQueue.symbol = stackEntry;
+            stackEntrysQueue.insert(0, symbol);
         } else {
             Symbol entity, attribute;
             if(!Ontology::getUncertain(stackEntry, Ontology::UnnestEntitySymbol, entity) ||
@@ -137,7 +138,7 @@ struct Deserializer {
                 } else
                     symbol = sliceText<false>();
             }
-            checkReturn(nextSymbol(currentEntry, symbol, package));
+            checkReturn(nextSymbol(queue.symbol, symbol, package));
         }
         tokenBegin = tokenEnd+1;
         return Ontology::VoidSymbol;
@@ -146,7 +147,7 @@ struct Deserializer {
     Symbol fillInAnonymous(Symbol& entity) {
         if(entity == Ontology::VoidSymbol) {
             entity = Storage::createSymbol();
-            Ontology::link({currentEntry, Ontology::EntitySymbol, entity});
+            Ontology::link({queue.symbol, Ontology::EntitySymbol, entity});
             checkReturn(nextSymbol(parentEntry, entity, package));
         }
         return Ontology::VoidSymbol;
@@ -155,7 +156,7 @@ struct Deserializer {
     Symbol seperateTokens(bool semicolon) {
         checkReturn(parseToken());
         Symbol entity = Ontology::VoidSymbol;
-        Ontology::getUncertain(currentEntry, Ontology::EntitySymbol, entity);
+        Ontology::getUncertain(queue.symbol, Ontology::EntitySymbol, entity);
         if(queue.empty()) {
             if(semicolon) {
                 if(entity != Ontology::VoidSymbol)
@@ -167,7 +168,7 @@ struct Deserializer {
         if(semicolon && queue.size() == 1) {
             if(entity == Ontology::VoidSymbol) {
                 entity = queue.pop_back();
-                Ontology::link({currentEntry, Ontology::EntitySymbol, entity});
+                Ontology::link({queue.symbol, Ontology::EntitySymbol, entity});
                 checkReturn(nextSymbol(parentEntry, entity));
             } else
                 Ontology::link({entity, queue.pop_back(), entity});
@@ -189,9 +190,7 @@ struct Deserializer {
         row = column = 1;
         if(!Ontology::tripleExists({input, Ontology::BlobTypeSymbol, Ontology::UTF8Symbol}))
             return throwException("Invalid Blob Type");
-        queue.activate();
-        currentEntry = queue.symbol;
-        stack.push_back(currentEntry);
+        stack.push_back(queue.symbol);
         Storage::Blob srcBlob(input);
         inputEnd = srcBlob.getSize()/8;
         for(tokenBegin = tokenEnd = 0; tokenEnd < inputEnd; ++tokenEnd) {
@@ -226,16 +225,15 @@ struct Deserializer {
                     break;
                 case '(':
                     checkReturn(parseToken());
-                    parentEntry = currentEntry;
-                    currentEntry = Storage::createSymbol();
-                    stack.push_back(currentEntry);
-                    queue.symbol = currentEntry;
+                    parentEntry = queue.symbol;
+                    queue.symbol = Storage::createSymbol();
+                    stack.push_back(queue.symbol);
                     break;
                 case ';':
                     if(stack.size() == 1)
                         return throwException("Semicolon outside of any brackets");
                     checkReturn(seperateTokens(true));
-                    if(!Ontology::valueCountIs(currentEntry, Ontology::UnnestEntitySymbol, 0))
+                    if(!Ontology::valueCountIs(queue.symbol, Ontology::UnnestEntitySymbol, 0))
                         return throwException("Unnesting failed");
                     break;
                 case ')': {
@@ -244,16 +242,15 @@ struct Deserializer {
                     checkReturn(seperateTokens(false));
                     if(stack.size() == 2 && Ontology::valueCountIs(parentEntry, Ontology::UnnestEntitySymbol, 0)) {
                         Symbol entity;
-                        if(!Ontology::getUncertain(currentEntry, Ontology::EntitySymbol, entity) ||
+                        if(!Ontology::getUncertain(queue.symbol, Ontology::EntitySymbol, entity) ||
                            Ontology::query(Ontology::MVV, {entity, Ontology::VoidSymbol, Ontology::VoidSymbol}) == 0)
                             return throwException("Nothing declared");
                     }
-                    if(!Ontology::valueCountIs(currentEntry, Ontology::UnnestEntitySymbol, 0))
+                    if(!Ontology::valueCountIs(queue.symbol, Ontology::UnnestEntitySymbol, 0))
                         return throwException("Unnesting failed");
-                    Ontology::unlink(currentEntry);
+                    Ontology::unlink(queue.symbol);
                     stack.pop_back();
-                    currentEntry = parentEntry;
-                    queue.symbol = currentEntry;
+                    queue.symbol = parentEntry;
                     parentEntry = (stack.size() < 2) ? Ontology::VoidSymbol : stack.readElementAt(stack.size()-2);
                 }   break;
             }
@@ -262,7 +259,7 @@ struct Deserializer {
         checkReturn(parseToken());
         if(stack.size() != 1)
             return throwException("Missing closing bracket");
-        if(!Ontology::valueCountIs(currentEntry, Ontology::UnnestEntitySymbol, 0))
+        if(!Ontology::valueCountIs(queue.symbol, Ontology::UnnestEntitySymbol, 0))
             return throwException("Unnesting failed");
         locals.iterate([](Symbol local) {
             Storage::Blob(local).setSize(0);
