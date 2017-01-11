@@ -33,9 +33,9 @@ struct Iterator {
         static_assert(!enableModification || srcEnableModification);
         end = src.end;
         for(LayerType layer = 0; layer < src.end; ++layer)
-            Storage::bitwiseCopy<-1>(reinterpret_cast<NativeNaturalType*>((*this)[layer]),
-                                     reinterpret_cast<const NativeNaturalType*>(src[layer]),
-                                     0, 0, sizeOfInBits<IteratorFrame>::value);
+            bitwiseCopy<-1>(reinterpret_cast<NativeNaturalType*>((*this)[layer]),
+                            reinterpret_cast<const NativeNaturalType*>(src[layer]),
+                            0, 0, sizeOfInBits<IteratorFrame>::value);
     }
 
     NativeIntegerType compare(Iterator& other) {

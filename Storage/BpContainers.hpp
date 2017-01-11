@@ -1,7 +1,5 @@
 #include <Storage/BpTree.hpp>
 
-namespace Storage {
-
 template<typename KeyType, typename ValueType>
 struct BpTreeMap : public BpTree<KeyType, VoidType, sizeOfInBits<ValueType>::value> {
     typedef BpTree<KeyType, VoidType, sizeOfInBits<ValueType>::value> Super;
@@ -79,6 +77,4 @@ struct BpTreeSet : public BpTree<KeyType, VoidType, 0> {
 
 struct BpTreeBlob : public BpTree<VoidType, NativeNaturalType, 1> {
     typedef BpTree<VoidType, NativeNaturalType, 1> Super;
-};
-
 };

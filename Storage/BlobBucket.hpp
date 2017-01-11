@@ -1,7 +1,5 @@
 #include <Storage/SuperPage.hpp>
 
-namespace Storage {
-
 struct BlobBucketHeader : public BasePage {
     Natural16 type, count, freeIndex;
 };
@@ -103,28 +101,28 @@ struct BlobBucket {
     }
 
     void setSize(NativeNaturalType index, NativeNaturalType size) {
-        Storage::bitwiseCopy<-1>(reinterpret_cast<NativeNaturalType*>(this),
+        bitwiseCopy<-1>(reinterpret_cast<NativeNaturalType*>(this),
                                  reinterpret_cast<const NativeNaturalType*>(&size),
                                  getSizeOffset()+index*getSizeBits(), 0, getSizeBits());
     }
 
     NativeNaturalType getSize(NativeNaturalType index) const {
         NativeNaturalType size = 0;
-        Storage::bitwiseCopy<-1>(reinterpret_cast<NativeNaturalType*>(&size),
+        bitwiseCopy<-1>(reinterpret_cast<NativeNaturalType*>(&size),
                                  reinterpret_cast<const NativeNaturalType*>(this),
                                  0, getSizeOffset()+index*getSizeBits(), getSizeBits());
         return size;
     }
 
     void setSymbol(NativeNaturalType index, NativeNaturalType symbol) {
-        Storage::bitwiseCopy<-1>(reinterpret_cast<NativeNaturalType*>(this),
+        bitwiseCopy<-1>(reinterpret_cast<NativeNaturalType*>(this),
                                  reinterpret_cast<const NativeNaturalType*>(&symbol),
                                  getSymbolOffset()+index*architectureSize, 0, architectureSize);
     }
 
     NativeNaturalType getSymbol(NativeNaturalType index) const {
         Symbol symbol;
-        Storage::bitwiseCopy<-1>(reinterpret_cast<NativeNaturalType*>(&symbol),
+        bitwiseCopy<-1>(reinterpret_cast<NativeNaturalType*>(&symbol),
                                  reinterpret_cast<const NativeNaturalType*>(this),
                                  0, getSymbolOffset()+index*architectureSize, architectureSize);
         return symbol;
@@ -139,6 +137,4 @@ struct BlobBucket {
     static bool isBucketAllocatable(NativeNaturalType size) {
         return size <= blobBucketType[blobBucketTypeCount-1];
     }
-};
-
 };

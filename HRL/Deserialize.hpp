@@ -1,68 +1,68 @@
 #include <HRL/Serialize.hpp>
 
 #define checkReturn(expression) \
-    if((expression) != Ontology::VoidSymbol) \
+    if((expression) != VoidSymbol) \
         return false;
 
 struct Deserializer {
-    Symbol parentEntry, input, package = Ontology::VoidSymbol;
-    Ontology::BlobIndex<true> locals;
-    Ontology::BlobVector<true, Symbol> stack;
-    Ontology::BlobVector<false, Symbol> queue;
+    Symbol parentEntry, input, package = VoidSymbol;
+    BlobIndex<true> locals;
+    BlobVector<true, Symbol> stack;
+    BlobVector<false, Symbol> queue;
     NativeNaturalType tokenBegin, tokenEnd, inputEnd, row, column;
 
     bool tokenBeginsWithString(const char* str) {
         if(strlen(str) > tokenEnd-tokenBegin)
             return false;
         for(NativeNaturalType i = 0; i < strlen(str); ++i)
-            if(Storage::Blob(input).readAt<Natural8>(tokenBegin+i) != str[i])
+            if(Blob(input).readAt<Natural8>(tokenBegin+i) != str[i])
                 return false;
         return true;
     }
 
     Symbol throwException(const char* message) {
-        Symbol exception = Storage::createSymbol(),
-               rowSymbol = Ontology::createFromData(row),
-               columnSymbol = Ontology::createFromData(column);
-        Ontology::link({exception, Ontology::RowSymbol, rowSymbol});
-        Ontology::link({exception, Ontology::ColumnSymbol, columnSymbol});
-        Ontology::link({exception, Ontology::MessageSymbol, Ontology::createFromString(message)});
+        Symbol exception = createSymbol(),
+               rowSymbol = createFromData(row),
+               columnSymbol = createFromData(column);
+        link({exception, RowSymbol, rowSymbol});
+        link({exception, ColumnSymbol, columnSymbol});
+        link({exception, MessageSymbol, createFromString(message)});
         return exception;
     }
 
-    Symbol nextSymbol(Symbol stackEntry, Symbol symbol, Symbol package = Ontology::VoidSymbol) {
-        if(package != Ontology::VoidSymbol)
-            Ontology::link({package, Ontology::HoldsSymbol, symbol});
-        if(Ontology::valueCountIs(stackEntry, Ontology::UnnestEntitySymbol, 0)) {
-            Ontology::BlobVector<false, Symbol> stackEntrysQueue;
+    Symbol nextSymbol(Symbol stackEntry, Symbol symbol, Symbol package = VoidSymbol) {
+        if(package != VoidSymbol)
+            link({package, HoldsSymbol, symbol});
+        if(valueCountIs(stackEntry, UnnestEntitySymbol, 0)) {
+            BlobVector<false, Symbol> stackEntrysQueue;
             stackEntrysQueue.symbol = stackEntry;
             stackEntrysQueue.insert(0, symbol);
         } else {
             Symbol entity, attribute;
-            if(!Ontology::getUncertain(stackEntry, Ontology::UnnestEntitySymbol, entity) ||
-               !Ontology::getUncertain(stackEntry, Ontology::UnnestAttributeSymbol, attribute))
+            if(!getUncertain(stackEntry, UnnestEntitySymbol, entity) ||
+               !getUncertain(stackEntry, UnnestAttributeSymbol, attribute))
                 return throwException("Unnesting failed");
-            Ontology::link({entity, attribute, symbol});
-            Ontology::setSolitary({stackEntry, Ontology::UnnestEntitySymbol, Ontology::VoidSymbol});
+            link({entity, attribute, symbol});
+            setSolitary({stackEntry, UnnestEntitySymbol, VoidSymbol});
         }
-        return Ontology::VoidSymbol;
+        return VoidSymbol;
     }
 
     template<bool local>
     Symbol sliceText() {
-        Symbol dstSymbol = Ontology::createFromSlice(input, tokenBegin*8, (tokenEnd-tokenBegin)*8);
+        Symbol dstSymbol = createFromSlice(input, tokenBegin*8, (tokenEnd-tokenBegin)*8);
         if(local)
             locals.insertElement(dstSymbol);
         else {
-            Ontology::blobIndex.insertElement(dstSymbol);
-            Ontology::link({dstSymbol, Ontology::BlobTypeSymbol, Ontology::UTF8Symbol});
+            blobIndex.insertElement(dstSymbol);
+            link({dstSymbol, BlobTypeSymbol, UTF8Symbol});
         }
         return dstSymbol;
     }
 
     Symbol parseToken(bool isText = false) {
         if(tokenEnd > tokenBegin) {
-            Storage::Blob srcBlob(input);
+            Blob srcBlob(input);
             Natural8 src = srcBlob.readAt<Natural8>(tokenBegin);
             Symbol symbol;
             if(isText)
@@ -76,8 +76,8 @@ struct Deserializer {
                     return throwException("Empty raw data");
                 if(nibbleCount%2 == 1)
                     return throwException("Count of nibbles must be even");
-                symbol = Storage::createSymbol();
-                Storage::Blob dstBlob(symbol);
+                symbol = createSymbol();
+                Blob dstBlob(symbol);
                 dstBlob.increaseSize(0, nibbleCount*4);
                 Natural8 nibble, byte;
                 NativeNaturalType at = 0;
@@ -98,7 +98,7 @@ struct Deserializer {
                     ++at;
                     ++tokenBegin;
                 }
-                Storage::modifiedBlob(symbol);
+                modifiedBlob(symbol);
             } else {
                 NativeNaturalType mantissa = 0, devisor = 0, pos = tokenBegin;
                 bool isNumber = true, negative = (src == '-');
@@ -129,69 +129,69 @@ struct Deserializer {
                         value /= devisor;
                         if(negative)
                             value *= -1;
-                        symbol = Ontology::createFromData(value);
+                        symbol = createFromData(value);
                     } else if(negative)
-                        symbol = Ontology::createFromData(-static_cast<NativeIntegerType>(mantissa));
+                        symbol = createFromData(-static_cast<NativeIntegerType>(mantissa));
                     else
-                        symbol = Ontology::createFromData(mantissa);
-                    Ontology::blobIndex.insertElement(symbol);
+                        symbol = createFromData(mantissa);
+                    blobIndex.insertElement(symbol);
                 } else
                     symbol = sliceText<false>();
             }
             checkReturn(nextSymbol(queue.symbol, symbol, package));
         }
         tokenBegin = tokenEnd+1;
-        return Ontology::VoidSymbol;
+        return VoidSymbol;
     }
 
     Symbol fillInAnonymous(Symbol& entity) {
-        if(entity == Ontology::VoidSymbol) {
-            entity = Storage::createSymbol();
-            Ontology::link({queue.symbol, Ontology::EntitySymbol, entity});
+        if(entity == VoidSymbol) {
+            entity = createSymbol();
+            link({queue.symbol, EntitySymbol, entity});
             checkReturn(nextSymbol(parentEntry, entity, package));
         }
-        return Ontology::VoidSymbol;
+        return VoidSymbol;
     }
 
     Symbol seperateTokens(bool semicolon) {
         checkReturn(parseToken());
-        Symbol entity = Ontology::VoidSymbol;
-        Ontology::getUncertain(queue.symbol, Ontology::EntitySymbol, entity);
+        Symbol entity = VoidSymbol;
+        getUncertain(queue.symbol, EntitySymbol, entity);
         if(queue.empty()) {
             if(semicolon) {
-                if(entity != Ontology::VoidSymbol)
+                if(entity != VoidSymbol)
                     return throwException("Pointless semicolon");
                 checkReturn(fillInAnonymous(entity));
             }
-            return Ontology::VoidSymbol;
+            return VoidSymbol;
         }
         if(semicolon && queue.size() == 1) {
-            if(entity == Ontology::VoidSymbol) {
+            if(entity == VoidSymbol) {
                 entity = queue.pop_back();
-                Ontology::link({queue.symbol, Ontology::EntitySymbol, entity});
+                link({queue.symbol, EntitySymbol, entity});
                 checkReturn(nextSymbol(parentEntry, entity));
             } else
-                Ontology::link({entity, queue.pop_back(), entity});
-            return Ontology::VoidSymbol;
+                link({entity, queue.pop_back(), entity});
+            return VoidSymbol;
         }
         checkReturn(fillInAnonymous(entity));
         if(semicolon)
-            Ontology::setSolitary({parentEntry, Ontology::UnnestEntitySymbol, Ontology::VoidSymbol});
+            setSolitary({parentEntry, UnnestEntitySymbol, VoidSymbol});
         else
-            Ontology::setSolitary({parentEntry, Ontology::UnnestEntitySymbol, entity}, true);
+            setSolitary({parentEntry, UnnestEntitySymbol, entity}, true);
         Symbol attribute = queue.pop_back();
-        Ontology::setSolitary({parentEntry, Ontology::UnnestAttributeSymbol, attribute}, true);
+        setSolitary({parentEntry, UnnestAttributeSymbol, attribute}, true);
         while(!queue.empty())
-            Ontology::link({entity, attribute, queue.pop_back()});
-        return Ontology::VoidSymbol;
+            link({entity, attribute, queue.pop_back()});
+        return VoidSymbol;
     }
 
     Symbol deserialize() {
         row = column = 1;
-        if(!Ontology::tripleExists({input, Ontology::BlobTypeSymbol, Ontology::UTF8Symbol}))
+        if(!tripleExists({input, BlobTypeSymbol, UTF8Symbol}))
             return throwException("Invalid Blob Type");
         stack.push_back(queue.symbol);
-        Storage::Blob srcBlob(input);
+        Blob srcBlob(input);
         inputEnd = srcBlob.getSize()/8;
         for(tokenBegin = tokenEnd = 0; tokenEnd < inputEnd; ++tokenEnd) {
             Natural8 src = srcBlob.readAt<Natural8>(tokenEnd);
@@ -226,32 +226,32 @@ struct Deserializer {
                 case '(':
                     checkReturn(parseToken());
                     parentEntry = queue.symbol;
-                    queue.symbol = Storage::createSymbol();
+                    queue.symbol = createSymbol();
                     stack.push_back(queue.symbol);
                     break;
                 case ';':
                     if(stack.size() == 1)
                         return throwException("Semicolon outside of any brackets");
                     checkReturn(seperateTokens(true));
-                    if(!Ontology::valueCountIs(queue.symbol, Ontology::UnnestEntitySymbol, 0))
+                    if(!valueCountIs(queue.symbol, UnnestEntitySymbol, 0))
                         return throwException("Unnesting failed");
                     break;
                 case ')': {
                     if(stack.size() == 1)
                         return throwException("Unmatched closing bracket");
                     checkReturn(seperateTokens(false));
-                    if(stack.size() == 2 && Ontology::valueCountIs(parentEntry, Ontology::UnnestEntitySymbol, 0)) {
+                    if(stack.size() == 2 && valueCountIs(parentEntry, UnnestEntitySymbol, 0)) {
                         Symbol entity;
-                        if(!Ontology::getUncertain(queue.symbol, Ontology::EntitySymbol, entity) ||
-                           Ontology::query(Ontology::MVV, {entity, Ontology::VoidSymbol, Ontology::VoidSymbol}) == 0)
+                        if(!getUncertain(queue.symbol, EntitySymbol, entity) ||
+                           query(MVV, {entity, VoidSymbol, VoidSymbol}) == 0)
                             return throwException("Nothing declared");
                     }
-                    if(!Ontology::valueCountIs(queue.symbol, Ontology::UnnestEntitySymbol, 0))
+                    if(!valueCountIs(queue.symbol, UnnestEntitySymbol, 0))
                         return throwException("Unnesting failed");
-                    Ontology::unlink(queue.symbol);
+                    unlink(queue.symbol);
                     stack.pop_back();
                     queue.symbol = parentEntry;
-                    parentEntry = (stack.size() < 2) ? Ontology::VoidSymbol : stack.readElementAt(stack.size()-2);
+                    parentEntry = (stack.size() < 2) ? VoidSymbol : stack.readElementAt(stack.size()-2);
                 }   break;
             }
             ++column;
@@ -259,11 +259,11 @@ struct Deserializer {
         checkReturn(parseToken());
         if(stack.size() != 1)
             return throwException("Missing closing bracket");
-        if(!Ontology::valueCountIs(queue.symbol, Ontology::UnnestEntitySymbol, 0))
+        if(!valueCountIs(queue.symbol, UnnestEntitySymbol, 0))
             return throwException("Unnesting failed");
         locals.iterate([](Symbol local) {
-            Storage::Blob(local).setSize(0);
+            Blob(local).setSize(0);
         });
-        return Ontology::VoidSymbol;
+        return VoidSymbol;
     }
 };

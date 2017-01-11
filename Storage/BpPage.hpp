@@ -9,12 +9,12 @@ struct Page {
     static const NativeNaturalType
         headerBits = sizeOfInBits<PageHeader>::value,
         keyOffset = architecturePadding(headerBits),
-        bodyBits = Storage::bitsPerPage-keyOffset,
+        bodyBits = bitsPerPage-keyOffset,
         branchKeyCount = (bodyBits-rankBits-pageRefBits)/(keyBits+rankBits+pageRefBits),
         leafKeyCount = bodyBits/(keyBits+valueBits),
         rankOffset = keyOffset+keyBits*branchKeyCount,
-        pageRefOffset = Storage::bitsPerPage-pageRefBits*(branchKeyCount+1),
-        valueOffset = Storage::bitsPerPage-valueBits*leafKeyCount;
+        pageRefOffset = bitsPerPage-pageRefBits*(branchKeyCount+1),
+        valueOffset = bitsPerPage-valueBits*leafKeyCount;
 
     static constexpr LayerType layersNeeded() {
         typedef typename conditional<(keyBits > rankBits), KeyType, RankType>::type type;
@@ -115,16 +115,16 @@ struct Page {
         if(n == 0)
             return;
         if(rankBits)
-            Storage::bitwiseCopy<dir>(reinterpret_cast<NativeNaturalType*>(dstPage),
-                                      reinterpret_cast<const NativeNaturalType*>(srcPage),
-                                      rankOffset+dstIndex*rankBits,
-                                      rankOffset+srcIndex*rankBits,
-                                      n*rankBits);
-        Storage::bitwiseCopy<dir>(reinterpret_cast<NativeNaturalType*>(dstPage),
-                                  reinterpret_cast<const NativeNaturalType*>(srcPage),
-                                  pageRefOffset+dstIndex*pageRefBits,
-                                  pageRefOffset+srcIndex*pageRefBits,
-                                  n*pageRefBits);
+            bitwiseCopy<dir>(reinterpret_cast<NativeNaturalType*>(dstPage),
+                             reinterpret_cast<const NativeNaturalType*>(srcPage),
+                             rankOffset+dstIndex*rankBits,
+                             rankOffset+srcIndex*rankBits,
+                             n*rankBits);
+        bitwiseCopy<dir>(reinterpret_cast<NativeNaturalType*>(dstPage),
+                         reinterpret_cast<const NativeNaturalType*>(srcPage),
+                         pageRefOffset+dstIndex*pageRefBits,
+                         pageRefOffset+srcIndex*pageRefBits,
+                         n*pageRefBits);
         if(frontKey) {
             assert(dstIndex > 0 && srcIndex > 0);
             --dstIndex;
@@ -134,11 +134,11 @@ struct Page {
         else
             return;
         if(keyBits > 0)
-            Storage::bitwiseCopy<dir>(reinterpret_cast<NativeNaturalType*>(dstPage),
-                                      reinterpret_cast<const NativeNaturalType*>(srcPage),
-                                      keyOffset+dstIndex*keyBits,
-                                      keyOffset+srcIndex*keyBits,
-                                      n*keyBits);
+            bitwiseCopy<dir>(reinterpret_cast<NativeNaturalType*>(dstPage),
+                             reinterpret_cast<const NativeNaturalType*>(srcPage),
+                             keyOffset+dstIndex*keyBits,
+                             keyOffset+srcIndex*keyBits,
+                             n*keyBits);
     }
 
     template<NativeIntegerType dir = -1>
@@ -148,17 +148,17 @@ struct Page {
         if(n == 0)
             return;
         if(keyBits > 0)
-            Storage::bitwiseCopy<dir>(reinterpret_cast<NativeNaturalType*>(dstPage),
-                                      reinterpret_cast<const NativeNaturalType*>(srcPage),
-                                      keyOffset+dstIndex*keyBits,
-                                      keyOffset+srcIndex*keyBits,
-                                      n*keyBits);
+            bitwiseCopy<dir>(reinterpret_cast<NativeNaturalType*>(dstPage),
+                             reinterpret_cast<const NativeNaturalType*>(srcPage),
+                             keyOffset+dstIndex*keyBits,
+                             keyOffset+srcIndex*keyBits,
+                             n*keyBits);
         if(valueBits > 0)
-            Storage::bitwiseCopy<dir>(reinterpret_cast<NativeNaturalType*>(dstPage),
-                                      reinterpret_cast<const NativeNaturalType*>(srcPage),
-                                      valueOffset+dstIndex*valueBits,
-                                      valueOffset+srcIndex*valueBits,
-                                      n*valueBits);
+            bitwiseCopy<dir>(reinterpret_cast<NativeNaturalType*>(dstPage),
+                             reinterpret_cast<const NativeNaturalType*>(srcPage),
+                             valueOffset+dstIndex*valueBits,
+                             valueOffset+srcIndex*valueBits,
+                             n*valueBits);
     }
 
     template<bool dstIsLeaf, bool srcIsLeaf>
@@ -166,10 +166,10 @@ struct Page {
                         OffsetType dstIndex, OffsetType srcIndex) {
         if(keyBits == 0)
             return;
-        Storage::bitwiseCopy<-1>(reinterpret_cast<NativeNaturalType*>(dstPage),
-                                 reinterpret_cast<const NativeNaturalType*>(srcPage),
-                                 keyOffset+dstIndex*keyBits, keyOffset+srcIndex*keyBits,
-                                 keyBits);
+        bitwiseCopy<-1>(reinterpret_cast<NativeNaturalType*>(dstPage),
+                        reinterpret_cast<const NativeNaturalType*>(srcPage),
+                        keyOffset+dstIndex*keyBits, keyOffset+srcIndex*keyBits,
+                        keyBits);
     }
 
     static void swapKeyInParent(Page* parent, Page* dstPage, Page* srcPage,

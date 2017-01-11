@@ -1,7 +1,7 @@
 #include <Targets/POSIX.hpp>
 
-struct TreeType : public Storage::BpTree<NativeNaturalType, NativeNaturalType, architectureSize> {
-    typedef Storage::BpTree<NativeNaturalType, NativeNaturalType, architectureSize> Super;
+struct TreeType : public BpTree<NativeNaturalType, NativeNaturalType, architectureSize> {
+    typedef BpTree<NativeNaturalType, NativeNaturalType, architectureSize> Super;
     typedef typename Super::template Iterator<true> SuperIterator;
 
     template<bool enableModification>
@@ -44,7 +44,7 @@ void testUsingPermutation() {
         permutationIndex = permutation[sectionIndex];
         elementKey = sectionElementCountMin*permutationIndex;
         sectionElementCount = (permutationIndex < sectionCount-1) ? sectionElementCountMin : sectionElementCountMax;
-        tree.find<Storage::Key>(iterA, elementKey);
+        tree.find<Key>(iterA, elementKey);
         flagField[permutationIndex] = insert;
 
         printf("[%010llu, %010llu] %04llu %3.2f%% %hhd\n", elementKey, elementKey+sectionElementCount, permutationIndex, 100.0*sectionIndex/sectionCount, tree.getLayerCount());
@@ -58,7 +58,7 @@ void testUsingPermutation() {
                 }
             });
         } else {
-            tree.find<Storage::Key>(iterB, elementKey+sectionElementCount-1);
+            tree.find<Key>(iterB, elementKey+sectionElementCount-1);
             tree.erase(iterA, iterB);
         }
 
@@ -66,7 +66,7 @@ void testUsingPermutation() {
         for(NativeNaturalType sectionToCheck = 0; sectionToCheck < sectionCount; ++sectionToCheck) {
             elementKey = sectionElementCountMin*sectionToCheck;
             sectionElementCount = (sectionToCheck < sectionCount-1) ? sectionElementCountMin : sectionElementCountMax;
-            tree.find<Storage::Key>(iterA, elementKey);
+            tree.find<Key>(iterA, elementKey);
             if(!flagField[sectionToCheck])
                 continue;
             printf("[%010llu, %010llu]\n", elementKey, elementKey+sectionElementCount);
@@ -112,7 +112,7 @@ Integer32 main(Integer32 argc, Integer8** argv) {
     sectionCount = sizeof(erasePermutation)/sizeof(NativeNaturalType);
     testUsingPermutation<false>();
 
-    assert(tree.empty() && Storage::superPage->pagesEnd == Storage::countFreePages()+1);
+    assert(tree.empty() && superPage->pagesEnd == countFreePages()+1);
     unloadStorage();
     return 0;
 }

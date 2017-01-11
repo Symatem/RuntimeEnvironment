@@ -6,18 +6,18 @@ struct Serializer {
     Symbol symbol;
 
     void put(Natural8 src) {
-        Storage::Blob dstBlob(symbol);
+        Blob dstBlob(symbol);
         NativeNaturalType offset = dstBlob.getSize();
         dstBlob.increaseSize(offset, 8);
         dstBlob.writeAt<Natural8>(offset/8, src);
     }
 
     void puts(const char* src) {
-        Storage::Blob dstBlob(symbol);
+        Blob dstBlob(symbol);
         NativeNaturalType offset = dstBlob.getSize(), length = strlen(src)*8;
         dstBlob.increaseSize(offset, length);
         dstBlob.externalOperate<true>(const_cast<Integer8*>(src), offset, length);
-        Storage::modifiedBlob(symbol);
+        modifiedBlob(symbol);
     }
 
     template<typename NumberType>
@@ -50,19 +50,19 @@ struct Serializer {
     }
 
     Serializer(Symbol _symbol) :symbol(_symbol) {
-        Ontology::setSolitary({symbol, Ontology::BlobTypeSymbol, Ontology::UTF8Symbol});
+        setSolitary({symbol, BlobTypeSymbol, UTF8Symbol});
     }
 
-    Serializer() :Serializer(Storage::createSymbol()) {}
+    Serializer() :Serializer(createSymbol()) {}
 
     void serializeBlob(Symbol src) {
-        Storage::Blob srcBlob(src);
+        Blob srcBlob(src);
         NativeNaturalType len = srcBlob.getSize();
         if(len) {
-            Symbol type = Ontology::VoidSymbol;
-            Ontology::getUncertain(src, Ontology::BlobTypeSymbol, type);
+            Symbol type = VoidSymbol;
+            getUncertain(src, BlobTypeSymbol, type);
             switch(type) {
-                case Ontology::UTF8Symbol: {
+                case UTF8Symbol: {
                     len /= 8;
                     bool spaces = false;
                     for(NativeNaturalType i = 0; i < len; ++i) {
@@ -79,13 +79,13 @@ struct Serializer {
                     if(spaces)
                         put('"');
                 }   break;
-                case Ontology::NaturalSymbol:
+                case NaturalSymbol:
                     serializeNumber(srcBlob.readAt<NativeNaturalType>());
                     break;
-                case Ontology::IntegerSymbol:
+                case IntegerSymbol:
                     serializeNumber(srcBlob.readAt<NativeIntegerType>());
                     break;
-                case Ontology::FloatSymbol:
+                case FloatSymbol:
                     serializeNumber(srcBlob.readAt<NativeFloatType>());
                     break;
                 default: {
@@ -109,26 +109,26 @@ struct Serializer {
 
     void serializeEntity(Symbol entity, Closure<Symbol(Symbol)> followCallback = nullptr) {
         while(true) {
-            Symbol followAttribute, followEntity = Ontology::VoidSymbol;
+            Symbol followAttribute, followEntity = VoidSymbol;
             if(followCallback)
                 followAttribute = followCallback(entity);
             puts("(\n\t");
             serializeBlob(entity);
             puts(";\n");
-            Ontology::query(Ontology::MVI, {entity, Ontology::VoidSymbol, Ontology::VoidSymbol}, [&](Ontology::Triple result) {
+            query(MVI, {entity, VoidSymbol, VoidSymbol}, [&](Triple result) {
                 if(followCallback && result.pos[1] == followAttribute) {
-                    Ontology::getUncertain(entity, followAttribute, followEntity);
+                    getUncertain(entity, followAttribute, followEntity);
                     return;
                 }
                 put('\t');
                 serializeBlob(result.pos[1]);
-                Ontology::query(Ontology::MMV, {entity, result.pos[1], Ontology::VoidSymbol}, [&](Ontology::Triple resultB) {
+                query(MMV, {entity, result.pos[1], VoidSymbol}, [&](Triple resultB) {
                     put(' ');
                     serializeBlob(resultB.pos[2]);
                 });
                 puts(";\n");
             });
-            if(!followCallback || followEntity == Ontology::VoidSymbol) {
+            if(!followCallback || followEntity == VoidSymbol) {
                 put(')');
                 return;
             }

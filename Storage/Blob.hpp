@@ -1,7 +1,5 @@
 #include <Storage/BlobBucket.hpp>
 
-namespace Storage {
-
 Symbol createSymbol() {
     /* TODO: Fix scrutinizeExistence
     if(freeSymbols.elementCount)
@@ -360,5 +358,3 @@ void releaseSymbol(Symbol symbol) {
     else
         superPage->freeSymbols.insert(symbol); */
 }
-
-};

@@ -1,7 +1,5 @@
 #include <Ontology/Containers.hpp>
 
-namespace Ontology {
-
 #define Wrapper(token) token##Symbol
 enum PreDefinedSymbols {
 #include <Ontology/Symbols.hpp>
@@ -100,7 +98,7 @@ bool linkInSubIndex(Triple triple) {
     if(beta.find(triple.pos[1], betaIndex))
         gamma.symbol = beta.readElementAt(betaIndex).value;
     else {
-        gamma.symbol = Storage::createSymbol();
+        gamma.symbol = createSymbol();
         beta.insert(betaIndex, {triple.pos[1], gamma.symbol});
     }
     return gamma.insertElement(triple.pos[2]);
@@ -112,7 +110,7 @@ bool linkTriplePartial(Triple triple, NativeNaturalType subIndex) {
     if(!tripleIndex.find(triple.pos[subIndex], alphaIndex)) {
         element.key = triple.pos[subIndex];
         for(NativeNaturalType i = 0; i < 6; ++i)
-            element.value[i] = Storage::createSymbol();
+            element.value[i] = createSymbol();
         tripleIndex.insert(alphaIndex, element);
     } else
         element = tripleIndex.readElementAt(alphaIndex);
@@ -128,7 +126,7 @@ bool link(Triple triple) {
         if(!linkTriplePartial(triple, subIndex))
             return false;
     if(triple.pos[1] == BlobTypeSymbol)
-        Storage::modifiedBlob(triple.pos[0]);
+        modifiedBlob(triple.pos[0]);
     return true;
 }
 
@@ -365,7 +363,7 @@ void setIndexMode(IndexMode _indexMode) {
                 BlobSet<false, Symbol, Symbol> beta;
                 beta.symbol = alphaResult.value[subIndex];
                 beta.iterate([&](Pair<Symbol, Symbol> betaResult) {
-                    Storage::releaseSymbol(betaResult.value);
+                    releaseSymbol(betaResult.value);
                 });
                 beta.clear();
             }
@@ -386,7 +384,7 @@ bool unlinkInSubIndex(Triple triple) {
     gamma.erase(gammaIndex);
     if(gamma.empty()) {
         beta.erase(betaIndex);
-        Storage::releaseSymbol(gamma.symbol);
+        releaseSymbol(gamma.symbol);
     }
     return true;
 }
@@ -405,7 +403,7 @@ bool unlinkWithoutReleasing(Triple triple, bool skipEnabled = false, Symbol skip
             assert(unlinkInSubIndex(triple.invertedIndex(element.value, subIndex)));
     }
     if(triple.pos[1] == BlobTypeSymbol)
-        Storage::modifiedBlob(triple.pos[0]);
+        modifiedBlob(triple.pos[0]);
     return true;
 }
 
@@ -414,12 +412,12 @@ void eraseSymbol(Pair<Symbol, Symbol[6]>& element, NativeNaturalType alphaIndex,
         BlobSet<false, Symbol, Symbol> beta;
         beta.symbol = element.value[subIndex];
         beta.iterate([&](Pair<Symbol, Symbol> betaResult) {
-            Storage::releaseSymbol(betaResult.value);
+            releaseSymbol(betaResult.value);
         });
-        Storage::releaseSymbol(beta.symbol);
+        releaseSymbol(beta.symbol);
     }
     tripleIndex.erase(alphaIndex);
-    Storage::releaseSymbol(symbol);
+    releaseSymbol(symbol);
 }
 
 void tryToReleaseSymbol(Symbol symbol) {
@@ -447,7 +445,7 @@ bool unlink(Triple triple) {
 bool unlink(Symbol symbol) {
     NativeNaturalType alphaIndex;
     if(!tripleIndex.find(symbol, alphaIndex)) {
-        Storage::releaseSymbol(symbol);
+        releaseSymbol(symbol);
         return false;
     }
     Pair<Symbol, Symbol[6]> element = tripleIndex.readElementAt(alphaIndex);
@@ -500,7 +498,7 @@ bool getUncertain(Symbol entity, Symbol attribute, Symbol& value) {
     }) == 1);
 }
 
-void scrutinizeExistence(Symbol symbol) {
+/*void scrutinizeExistence(Symbol symbol) {
     BlobSet<true, Symbol> symbols;
     symbols.insertElement(symbol);
     while(!symbols.empty()) {
@@ -512,7 +510,7 @@ void scrutinizeExistence(Symbol symbol) {
         });
         unlink(symbol); // TODO
     }
-}
+}*/
 
 template<typename DataType>
 Symbol createFromData(DataType src) {
@@ -526,30 +524,30 @@ Symbol createFromData(DataType src) {
         blobType = FloatSymbol;
     else
         assert(false);
-    Symbol symbol = Storage::createSymbol();
+    Symbol symbol = createSymbol();
     link({symbol, BlobTypeSymbol, blobType});
-    Storage::Blob(symbol).write(src);
+    Blob(symbol).write(src);
     return symbol;
 }
 
 Symbol createFromSlice(Symbol src, NativeNaturalType srcOffset, NativeNaturalType length) {
-    Symbol dstSymbol = Storage::createSymbol();
-    Storage::Blob dstBlob(dstSymbol);
+    Symbol dstSymbol = createSymbol();
+    Blob dstBlob(dstSymbol);
     dstBlob.increaseSize(0, length);
-    dstBlob.slice(Storage::Blob(src), 0, srcOffset, length);
+    dstBlob.slice(Blob(src), 0, srcOffset, length);
     return dstSymbol;
 }
 
 void stringToBlob(const char* src, NativeNaturalType length, Symbol dstSymbol) {
     link({dstSymbol, BlobTypeSymbol, UTF8Symbol});
-    Storage::Blob dstBlob(dstSymbol);
+    Blob dstBlob(dstSymbol);
     dstBlob.increaseSize(0, length*8);
     dstBlob.externalOperate<true>(const_cast<Integer8*>(src), 0, length*8);
-    Storage::modifiedBlob(dstSymbol);
+    modifiedBlob(dstSymbol);
 }
 
 Symbol createFromString(const char* src) {
-    Symbol dst = Storage::createSymbol();
+    Symbol dst = createSymbol();
     stringToBlob(src, strlen(src), dst);
     return dst;
 }
@@ -560,7 +558,7 @@ bool tryToFillPreDefined(NativeNaturalType additionalSymbols = 0) {
     blobIndex.symbol = preDefinedSymbolsEnd+1;
     if(!tripleIndex.empty())
         return false;
-    Storage::superPage->symbolsEnd = preDefinedSymbolsEnd+2+additionalSymbols;
+    superPage->symbolsEnd = preDefinedSymbolsEnd+2+additionalSymbols;
     for(Symbol symbol = 0; symbol < preDefinedSymbolsEnd; ++symbol) {
         const char* str = PreDefinedSymbols[symbol];
         stringToBlob(str, strlen(str), symbol);
@@ -572,5 +570,3 @@ bool tryToFillPreDefined(NativeNaturalType additionalSymbols = 0) {
     link({RunTimeEnvironmentSymbol, ArchitectureSizeSymbol, ArchitectureSize});
     return true;
 }
-
-};

@@ -1,6 +1,59 @@
-#include <Storage/StdLib.hpp>
+#include <Foundation/Lambda.hpp>
 
-namespace Storage {
+template<typename DataType>
+struct BitMask {
+    const static NativeNaturalType bits = sizeOfInBits<DataType>::value;
+    const static DataType empty = 0, one = 1, full = ~empty;
+    constexpr static DataType fillLSBs(NativeNaturalType len) {
+        return (len == bits) ? full : (one<<len)-one;
+    }
+    constexpr static DataType fillMSBs(NativeNaturalType len) {
+        return (len == 0) ? empty : ~((one<<(bits-len))-one);
+    }
+    constexpr static NativeNaturalType clz(DataType value);
+    constexpr static NativeNaturalType ctz(DataType value);
+    constexpr static NativeNaturalType ceilLog2(DataType value) {
+        return bits-clz(value);
+    }
+};
+
+template<>
+constexpr NativeNaturalType BitMask<Natural32>::clz(Natural32 value) {
+    return __builtin_clzl(value);
+}
+
+template<>
+constexpr NativeNaturalType BitMask<Natural32>::ctz(Natural32 value) {
+    return __builtin_ctzl(value);
+}
+
+template<>
+constexpr NativeNaturalType BitMask<Natural64>::clz(Natural64 value) {
+    return __builtin_clzll(value);
+}
+
+template<>
+constexpr NativeNaturalType BitMask<Natural64>::ctz(Natural64 value) {
+    return __builtin_ctzll(value);
+}
+
+template<typename DataType>
+constexpr static DataType swapedEndian(DataType value);
+
+template<>
+constexpr Natural16 swapedEndian(Natural16 value) {
+    return __builtin_bswap16(value);
+}
+
+template<>
+constexpr Natural32 swapedEndian(Natural32 value) {
+    return __builtin_bswap32(value);
+}
+
+template<>
+constexpr Natural64 swapedEndian(Natural64 value) {
+    return __builtin_bswap64(value);
+}
 
 template<NativeIntegerType dir>
 NativeNaturalType readSegmentFrom(const NativeNaturalType* src, NativeNaturalType& srcOffset, NativeNaturalType length) {
@@ -36,22 +89,6 @@ NativeIntegerType bitwiseCompare(const NativeNaturalType* a, const NativeNatural
         length -= segment;
     }
     return 0;
-}
-
-template<bool atEnd = false>
-bool substrEqual(const char* a, const char* b) {
-    NativeNaturalType aOffset, aLen = strlen(a), bLen = strlen(b);
-    if(atEnd) {
-        if(aLen < bLen)
-            return false;
-        aOffset = (aLen-bLen)*8;
-    } else if(aLen != bLen)
-        return false;
-    else
-        aOffset = 0;
-    return bitwiseCompare(reinterpret_cast<const NativeNaturalType*>(a),
-                          reinterpret_cast<const NativeNaturalType*>(b),
-                          aOffset, 0, bLen*8) == 0;
 }
 
 template<NativeIntegerType dir>
@@ -131,30 +168,3 @@ void bitwiseCopySwap<true>(const NativeNaturalType* aPtr, NativeNaturalType* bPt
                            NativeNaturalType aOffset, NativeNaturalType bOffset, NativeNaturalType length) {
     bitwiseCopy<-1>(bPtr, aPtr, bOffset, aOffset, length);
 }
-
-const NativeNaturalType
-      bitsPerPage = 1<<15,
-      minPageCount = 1;
-
-struct Stats {
-    NativeNaturalType total,
-                      uninhabitable,
-                      totalMetaData,
-                      totalPayload,
-                      inhabitedMetaData,
-                      inhabitedPayload;
-};
-
-struct BasePage {
-    NativeNaturalType transaction;
-};
-
-void resizeMemory(NativeNaturalType pagesEnd);
-
-template<typename PageType>
-PageType* dereferencePage(PageRefType pageRef);
-PageRefType referenceOfPage(void* page);
-PageRefType acquirePage();
-void releasePage(PageRefType pageRef);
-
-};

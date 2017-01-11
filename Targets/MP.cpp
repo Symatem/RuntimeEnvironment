@@ -6,7 +6,7 @@ struct addrinfo conf, *addressInfo;
 Natural8 buffer[128];
 
 #define ifIsCommand(str) \
-    if(Storage::substrEqual(reinterpret_cast<Integer8*>(buffer), str))
+    if(substrEqual(reinterpret_cast<Integer8*>(buffer), str))
 
 bool tryRead(Natural8 count) {
     if(recv(sockfd, buffer, count, 0) > 0)
@@ -128,14 +128,14 @@ Integer32 main(Integer32 argc, Integer8** argv) {
     const Integer8 *port = "1337", *path = "/dev/zero";
 
     for(Integer32 i = 1; i < argc-1; ++i) {
-        if(Storage::substrEqual(argv[i], "--port"))
+        if(substrEqual(argv[i], "--port"))
             port = argv[i+1];
-        else if(Storage::substrEqual(argv[i], "--path"))
+        else if(substrEqual(argv[i], "--path"))
             path = argv[i+1];
     }
 
     loadStorage(path);
-    Ontology::tryToFillPreDefined();
+    tryToFillPreDefined();
 
     memset(&conf, 0, sizeof(conf));
     conf.ai_flags = AI_V4MAPPED|AI_PASSIVE;
@@ -183,29 +183,29 @@ Integer32 main(Integer32 argc, Integer8** argv) {
         buffer[commandStrLen] = 0;
         ifIsCommand("createSymbol") {
             assert(parameterCount == 0);
-            sendNatural(Storage::createSymbol());
+            sendNatural(createSymbol());
         } else ifIsCommand("releaseSymbol") {
             assert(parameterCount == 1);
-            Ontology::unlink(readNatural());
+            unlink(readNatural());
             sendNil();
         } else ifIsCommand("getBlobSize") {
             assert(parameterCount == 1);
-            sendNatural(Storage::Blob(readNatural()).getSize());
+            sendNatural(Blob(readNatural()).getSize());
         } else ifIsCommand("setBlobSize") {
             assert(parameterCount == 2);
-            Storage::Blob(readNatural()).setSize(readNatural());
+            Blob(readNatural()).setSize(readNatural());
             sendNil();
         } else ifIsCommand("decreaseBlobSize") {
             assert(parameterCount == 3);
-            Storage::Blob(readNatural()).decreaseSize(readNatural(), readNatural());
+            Blob(readNatural()).decreaseSize(readNatural(), readNatural());
             sendNil();
         } else ifIsCommand("increaseBlobSize") {
             assert(parameterCount == 3);
-            Storage::Blob(readNatural()).increaseSize(readNatural(), readNatural());
+            Blob(readNatural()).increaseSize(readNatural(), readNatural());
             sendNil();
         } else ifIsCommand("readBlob") {
             assert(parameterCount >= 1 && parameterCount <= 3);
-            Storage::Blob blob(readNatural());
+            Blob blob(readNatural());
             Natural64 offset = (parameterCount >= 2) ? readNatural() : 0,
                       length = (parameterCount >= 3) ? readNatural() : blob.getSize();
             sendBinaryHeader((length+7)/8);
@@ -218,7 +218,7 @@ Integer32 main(Integer32 argc, Integer8** argv) {
             }
         } else ifIsCommand("writeBlob") {
             assert(parameterCount == 4);
-            Storage::Blob blob(readNatural());
+            Blob blob(readNatural());
             Natural64 offset = readNatural(), length = readNatural(), payloadLength = 0;
             tryRead(1);
             switch(buffer[0]) {
@@ -247,32 +247,32 @@ Integer32 main(Integer32 argc, Integer8** argv) {
         } else ifIsCommand("deserializeHRL") {
             assert(parameterCount == 1 || parameterCount == 2);
             Deserializer deserializer;
-            deserializer.queue.symbol = Storage::createSymbol();
+            deserializer.queue.symbol = createSymbol();
             deserializer.input = readNatural();
-            deserializer.package = (parameterCount >= 2) ? readNatural() : Ontology::VoidSymbol;
+            deserializer.package = (parameterCount >= 2) ? readNatural() : VoidSymbol;
             Symbol exception = deserializer.deserialize();
-            if(exception == Ontology::VoidSymbol) {
+            if(exception == VoidSymbol) {
                 sendArrayHeader(deserializer.queue.size());
                 deserializer.queue.iterate([](Symbol symbol) {
                     sendNatural(symbol);
                 });
             } else
                 sendNatural(exception);
-            Ontology::unlink(deserializer.queue.symbol);
+            unlink(deserializer.queue.symbol);
         } else ifIsCommand("query") {
             assert(parameterCount == 5);
             bool countOnly = readBoolean();
             auto mask = readNatural();
-            Ontology::Triple triple = {readNatural(), readNatural(), readNatural()};
-            Ontology::QueryMode mode[3] = {
-                static_cast<Ontology::QueryMode>(mask%3),
-                static_cast<Ontology::QueryMode>((mask/3)%3),
-                static_cast<Ontology::QueryMode>((mask/9)%3)
+            Triple triple = {readNatural(), readNatural(), readNatural()};
+            QueryMode mode[3] = {
+                static_cast<QueryMode>(mask%3),
+                static_cast<QueryMode>((mask/3)%3),
+                static_cast<QueryMode>((mask/9)%3)
             };
-            Ontology::BlobVector<true, Symbol> result;
-            auto count = Ontology::query(static_cast<Ontology::QueryMask>(mask), triple, [&](Ontology::Triple triple) {
+            BlobVector<true, Symbol> result;
+            auto count = query(static_cast<QueryMask>(mask), triple, [&](Triple triple) {
                 for(NativeNaturalType i = 0; i < 3; ++i)
-                    if(mode[i] == Ontology::Varying)
+                    if(mode[i] == Varying)
                         result.push_back(triple.pos[i]);
             });
             if(countOnly)
@@ -285,11 +285,11 @@ Integer32 main(Integer32 argc, Integer8** argv) {
             }
         } else ifIsCommand("link") {
             assert(parameterCount == 3);
-            Ontology::link({readNatural(), readNatural(), readNatural()});
+            link({readNatural(), readNatural(), readNatural()});
             sendNil();
         } else ifIsCommand("unlink") {
             assert(parameterCount == 3);
-            Ontology::unlink({readNatural(), readNatural(), readNatural()});
+            unlink({readNatural(), readNatural(), readNatural()});
             sendNil();
         } else
             assert(false);

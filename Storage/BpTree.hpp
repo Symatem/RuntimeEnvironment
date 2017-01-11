@@ -1,6 +1,4 @@
-#include <Storage/Basics.hpp>
-
-namespace Storage {
+#include <Storage/BasePage.hpp>
 
 enum FindMode {
     First,
@@ -63,7 +61,7 @@ struct BpTree {
 
     template<bool enableModification = false>
     static Page* getPage(typename conditional<enableModification, PageRefType&, PageRefType>::type pageRef) {
-        return Storage::dereferencePage<Page>(pageRef);
+        return dereferencePage<Page>(pageRef);
     }
 
     void generateStats(struct Stats& stats, Closure<void(Iterator<false>&)> callback = nullptr) {
@@ -87,12 +85,12 @@ struct BpTree {
         while(iter.template advance<1>(1, 1, pageTouch) == 0);
         NativeNaturalType uninhabitable = Page::valueOffset-keyBits*Page::leafKeyCount-Page::headerBits;
         stats.uninhabitable += uninhabitable*leafPageCount;
-        stats.totalPayload += (Storage::bitsPerPage-uninhabitable-Page::headerBits)*leafPageCount;
+        stats.totalPayload += (bitsPerPage-uninhabitable-Page::headerBits)*leafPageCount;
         stats.totalMetaData += Page::headerBits*leafPageCount;
         stats.inhabitedMetaData += Page::headerBits*leafPageCount;
         uninhabitable = Page::keyOffset+Page::pageRefOffset-Page::rankOffset-rankBits*(Page::branchKeyCount+1)-Page::headerBits;
         stats.uninhabitable += uninhabitable*branchPageCount;
-        stats.totalMetaData += (Storage::bitsPerPage-uninhabitable)*branchPageCount;
+        stats.totalMetaData += (bitsPerPage-uninhabitable)*branchPageCount;
         stats.inhabitedMetaData += Page::headerBits*branchPageCount;
     }
 
@@ -129,24 +127,24 @@ struct BpTree {
                 Page::template insert<isLeaf>(frame, lowerOuter, data.elementCount);
             } else {
                 frame->endIndex = data.elementCount-(frame->pageCount-1)*frame->elementsPerPage;
-                frame->higherOuterPageRef = Storage::acquirePage();
+                frame->higherOuterPageRef = acquirePage();
                 switch(frame->pageCount) {
                     case 1:
                         frame->lowerInnerPageRef = frame->higherOuterPageRef;
                         frame->higherInnerPageRef = frame->pageRef;
                         break;
                     case 2:
-                        frame->lowerInnerPageRef = Storage::acquirePage();
+                        frame->lowerInnerPageRef = acquirePage();
                         frame->higherInnerPageRef = frame->lowerInnerPageRef;
                         break;
                     default:
-                        frame->lowerInnerPageRef = Storage::acquirePage();
-                        frame->higherInnerPageRef = Storage::acquirePage();
+                        frame->lowerInnerPageRef = acquirePage();
+                        frame->higherInnerPageRef = acquirePage();
                         break;
                 }
             }
         } else {
-            frame->pageRef = Storage::acquirePage();
+            frame->pageRef = acquirePage();
             lowerOuter = getPage(frame->pageRef);
             lowerOuter->header.layer = data.layer;
             if(!isLeaf)
@@ -159,13 +157,13 @@ struct BpTree {
                 if(frame->pageCount <= 1)
                     frame->higherInnerPageRef = 0;
                 else {
-                    frame->higherInnerPageRef = Storage::acquirePage();
+                    frame->higherInnerPageRef = acquirePage();
                     frame->higherInnerEndIndex = frame->elementsPerPage;
                     Page* higherInner = getPage(frame->higherInnerPageRef);
                     higherInner->header.count = frame->elementsPerPage;
                     higherInner->header.layer = data.layer;
                 }
-                frame->higherOuterPageRef = Storage::acquirePage();
+                frame->higherOuterPageRef = acquirePage();
                 Page* higherOuter = getPage(frame->higherOuterPageRef);
                 higherOuter->header.layer = data.layer;
                 Page::distributeCount(lowerOuter, higherOuter, data.elementCount-(frame->pageCount-1)*frame->elementsPerPage);
@@ -252,7 +250,7 @@ struct BpTree {
                 return page;
             }
         }
-        frame->pageRef = Storage::acquirePage();
+        frame->pageRef = acquirePage();
         frame->rank = frame->index = 0;
         frame->endIndex = frame->elementsPerPage;
         Page* page = getPage(frame->pageRef);
@@ -402,7 +400,7 @@ struct BpTree {
             rootPageRef = lowerInner->getPageRef(0);
         else if(lowerInner->header.count > 1)
             return;
-        Storage::releasePage(data.from[data.layer]->pageRef);
+        releasePage(data.from[data.layer]->pageRef);
         data.spareLowerInner = false;
         data.eraseHigherInner = true;
         lowerInner = nullptr;
@@ -443,14 +441,14 @@ struct BpTree {
             data.to.getParentFrame(data.layer, higherInnerParent, higherInnerParentIndex);
             if(Page::template erase2<isLeaf>(lowerInnerParent, higherInnerParent, lowerInner, higherInner,
                                              lowerInnerParentIndex, higherInnerParentIndex, lowerInnerIndex, higherInnerIndex)) {
-                Storage::releasePage(data.to[data.layer]->pageRef);
+                releasePage(data.to[data.layer]->pageRef);
                 data.eraseHigherInner = true;
                 higherInner = nullptr;
             }
             data.iter.copy(data.to);
             while(data.iter.template advance<-1>(data.layer+1) == 0 &&
                   data.iter[data.layer]->pageRef != data.from[data.layer]->pageRef)
-                Storage::releasePage(data.iter[data.layer]->pageRef);
+                releasePage(data.iter[data.layer]->pageRef);
         }
         OffsetType lowerInnerKeyParentIndex, higherOuterKeyParentIndex;
         Page *lowerInnerKeyParent, *higherOuterKeyParent, *lowerOuter, *higherOuter;
@@ -463,7 +461,7 @@ struct BpTree {
                    Page::template redistribute<isLeaf>(lowerInnerKeyParent, higherOuterKeyParent,
                                                        lowerOuter, lowerInner, higherOuter,
                                                        lowerInnerKeyParentIndex, higherOuterKeyParentIndex)) {
-                    Storage::releasePage(data.from[data.layer]->pageRef);
+                    releasePage(data.from[data.layer]->pageRef);
                     data.spareLowerInner = false;
                     data.eraseHigherInner = true;
                     lowerInner = nullptr;
@@ -514,6 +512,4 @@ struct BpTree {
         erase(iter);
         return true;
     }
-};
-
 };

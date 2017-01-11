@@ -1,7 +1,5 @@
 #include <Storage/BpContainers.hpp>
 
-namespace Storage {
-
 struct FreePage : public BasePage {
     PageRefType next;
 };
@@ -71,9 +69,7 @@ NativeNaturalType countFreePages() {
 }
 
 void setSuperPageMetaData() {
-    Storage::superPage->version = 0;
-    Storage::superPage->architectureSize = architectureSize;
-    memcpy(Storage::superPage->gitRef, gitRef, sizeof(Storage::superPage->gitRef));
+    superPage->version = 0;
+    superPage->architectureSize = architectureSize;
+    memcpy(superPage->gitRef, gitRef, sizeof(superPage->gitRef));
 }
-
-};

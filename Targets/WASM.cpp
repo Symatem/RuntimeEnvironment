@@ -2,10 +2,10 @@
 
 const NativeNaturalType bitsPerChunk = 1<<19;
 
-void Storage::resizeMemory(NativeNaturalType pagesEnd) {
-    NativeNaturalType newChunkCount = (pagesEnd*Storage::bitsPerPage+bitsPerChunk-1)/bitsPerChunk,
+void resizeMemory(NativeNaturalType pagesEnd) {
+    NativeNaturalType newChunkCount = (pagesEnd*bitsPerPage+bitsPerChunk-1)/bitsPerChunk,
                       size = __builtin_wasm_current_memory()*bitsPerChunk,
-                      pad = reinterpret_cast<NativeNaturalType>(Storage::superPage)*8,
+                      pad = reinterpret_cast<NativeNaturalType>(superPage)*8,
                       oldChunkCount = (size > pad) ? (size-pad+bitsPerChunk-1)/bitsPerChunk : 0;
     if(newChunkCount > oldChunkCount)
         __builtin_wasm_grow_memory(newChunkCount-oldChunkCount);
@@ -48,86 +48,86 @@ DO_NOT_INLINE EXPORT NativeNaturalType getStackPointer() {
 }
 
 EXPORT void saveImage() {
-    Storage::setSuperPageMetaData();
+    setSuperPageMetaData();
 }
 
-EXPORT Symbol createSymbol() {
-    return Storage::createSymbol();
+EXPORT Symbol _createSymbol() {
+    return createSymbol();
 }
 
-EXPORT void releaseSymbol(Symbol symbol) {
-    Ontology::unlink(symbol);
+EXPORT void _releaseSymbol(Symbol symbol) {
+    releaseSymbol(symbol);
 }
 
 EXPORT NativeNaturalType getBlobSize(Symbol symbol) {
-    return Storage::Blob(symbol).getSize();
+    return Blob(symbol).getSize();
 }
 
 EXPORT void setBlobSize(Symbol symbol, NativeNaturalType size) {
-    Storage::Blob(symbol).setSize(size);
+    Blob(symbol).setSize(size);
 }
 
 EXPORT void decreaseBlobSize(Symbol symbol, NativeNaturalType offset, NativeNaturalType length) {
-    Storage::Blob(symbol).decreaseSize(offset, length);
+    Blob(symbol).decreaseSize(offset, length);
 }
 
 EXPORT void increaseBlobSize(Symbol symbol, NativeNaturalType offset, NativeNaturalType length) {
-    Storage::Blob(symbol).decreaseSize(offset, length);
+    Blob(symbol).decreaseSize(offset, length);
 }
 
 EXPORT void readBlob(Symbol symbol, NativeNaturalType offset, NativeNaturalType length) {
     Natural8 buffer[4096];
-    Storage::Blob(symbol).externalOperate<false>(buffer, offset, length);
+    Blob(symbol).externalOperate<false>(buffer, offset, length);
 }
 
 EXPORT void writeBlob(Symbol symbol, NativeNaturalType offset, NativeNaturalType length) {
     Natural8 buffer[4096];
-    Storage::Blob(symbol).externalOperate<true>(buffer, offset, length);
+    Blob(symbol).externalOperate<true>(buffer, offset, length);
 }
 
 EXPORT Symbol deserializeHRL(Symbol inputSymbol, Symbol outputSymbol, Symbol packageSymbol) {
     Deserializer deserializer;
-    deserializer.queue.symbol = (outputSymbol == Ontology::VoidSymbol) ? Storage::createSymbol() : outputSymbol;
+    deserializer.queue.symbol = (outputSymbol == VoidSymbol) ? createSymbol() : outputSymbol;
     deserializer.input = inputSymbol;
     deserializer.package = packageSymbol;
     Symbol exception = deserializer.deserialize();
-    if(outputSymbol == Ontology::VoidSymbol)
-        Ontology::unlink(deserializer.queue.symbol);
+    if(outputSymbol == VoidSymbol)
+        unlink(deserializer.queue.symbol);
     return exception;
 }
 
-EXPORT NativeNaturalType query(Ontology::QueryMask mask, Symbol entity, Symbol attribute, Symbol value, Symbol resultSymbol) {
-    Ontology::QueryMode mode[3] = {
-        static_cast<Ontology::QueryMode>(mask%3),
-        static_cast<Ontology::QueryMode>((mask/3)%3),
-        static_cast<Ontology::QueryMode>((mask/9)%3)
+EXPORT NativeNaturalType query(QueryMask mask, Symbol entity, Symbol attribute, Symbol value, Symbol resultSymbol) {
+    QueryMode mode[3] = {
+        static_cast<QueryMode>(mask%3),
+        static_cast<QueryMode>((mask/3)%3),
+        static_cast<QueryMode>((mask/9)%3)
     };
-    Ontology::BlobVector<true, Symbol> result;
+    BlobVector<true, Symbol> result;
     result.symbol = resultSymbol;
-    auto count = Ontology::query(mask, {entity, attribute, value}, [&](Ontology::Triple triple) {
+    auto count = query(mask, {entity, attribute, value}, [&](Triple triple) {
         for(NativeNaturalType i = 0; i < 3; ++i)
-            if(mode[i] == Ontology::Varying)
+            if(mode[i] == Varying)
                 result.push_back(triple.pos[i]);
     });
     if(resultSymbol)
-        result.symbol = Ontology::VoidSymbol;
+        result.symbol = VoidSymbol;
     return count;
 }
 
 EXPORT bool link(Symbol entity, Symbol attribute, Symbol value) {
-    return Ontology::link({entity, attribute, value});
+    return link({entity, attribute, value});
 }
 
 EXPORT bool unlink(Symbol entity, Symbol attribute, Symbol value) {
-    return Ontology::unlink({entity, attribute, value});
+    return unlink({entity, attribute, value});
 }
 
 struct Main {
     Main() {
         setStackPointer(reinterpret_cast<NativeNaturalType>(stack)+sizeof(stack));
-        Storage::superPage = reinterpret_cast<Storage::SuperPage*>(__builtin_wasm_current_memory()*bitsPerChunk/8);
-        Storage::resizeMemory(Storage::minPageCount);
-        Ontology::tryToFillPreDefined();
+        superPage = reinterpret_cast<SuperPage*>(__builtin_wasm_current_memory()*bitsPerChunk/8);
+        resizeMemory(minPageCount);
+        tryToFillPreDefined();
     };
 } main;
 
