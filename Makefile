@@ -1,6 +1,6 @@
 COMPILER_FLAGS := -O3 -std=c++1z -fno-exceptions -fno-stack-protector -fno-rtti -ffreestanding -fvisibility=hidden -Wall -Wsign-compare -I. -DGIT_REF=$(shell git rev-parse HEAD | tr '[:lower:]' '[:upper:]')
 LINKER_FLAGS := #-Wl,-s
-SOURCES := Foundation/* Storage/* Ontology/* HRL/* Targets/POSIX.hpp
+SOURCES := Foundation/* Storage/* Ontology/* External/*
 PLATFORM = $(shell uname)
 
 BUILD_PATH = build/

@@ -158,7 +158,7 @@ NativeNaturalType searchMMV(NativeNaturalType subIndex, Triple triple, Closure<v
     BlobSet<false, Symbol> gamma;
     gamma.symbol = beta.readElementAt(betaIndex).value;
     if(callback)
-        gamma.iterate([&](Pair<Symbol, NativeNaturalType[0]> gammaResult) {
+        gamma.iterateKeys([&](Symbol gammaResult) {
             triple.pos[2] = gammaResult;
             callback(triple.normalized(subIndex));
         });
@@ -176,7 +176,7 @@ NativeNaturalType searchMVV(NativeNaturalType subIndex, Triple triple, Closure<v
         gamma.symbol = betaResult.value;
         if(callback) {
             triple.pos[1] = betaResult.key;
-            gamma.iterate([&](Pair<Symbol, NativeNaturalType[0]> gammaResult) {
+            gamma.iterateKeys([&](Symbol gammaResult) {
                 triple.pos[2] = gammaResult;
                 callback(triple.normalized(subIndex));
             });
@@ -196,7 +196,7 @@ NativeNaturalType searchMIV(NativeNaturalType subIndex, Triple triple, Closure<v
     beta.iterate([&](Pair<Symbol, Symbol> betaResult) {
         BlobSet<false, Symbol> gamma;
         gamma.symbol = betaResult.value;
-        gamma.iterate([&](Pair<Symbol, NativeNaturalType[0]> gammaResult) {
+        gamma.iterateKeys([&](Symbol gammaResult) {
             result.insertElement(gammaResult);
         });
     });
@@ -259,7 +259,7 @@ NativeNaturalType searchVVV(NativeNaturalType subIndex, Triple triple, Closure<v
             gamma.symbol = betaResult.value;
             if(callback) {
                 triple.pos[1] = betaResult.key;
-                gamma.iterate([&](Pair<Symbol, NativeNaturalType[0]> gammaResult) {
+                gamma.iterateKeys([&](Symbol gammaResult) {
                     triple.pos[2] = gammaResult;
                     callback(triple);
                 });
@@ -457,9 +457,9 @@ bool unlink(Symbol symbol) {
             dirty.insertElement(betaResult.key);
             BlobSet<false, Symbol> gamma;
             gamma.symbol = betaResult.value;
-            gamma.iterate([&](Pair<Symbol, NativeNaturalType[0]> gammaResult) {
-                dirty.insertElement(gammaResult.key);
-                unlinkWithoutReleasing(Triple(symbol, betaResult.key, gammaResult.key).normalized(subIndex), true, symbol);
+            gamma.iterate([&](Symbol gammaResult) {
+                dirty.insertElement(gammaResult);
+                unlinkWithoutReleasing(Triple(symbol, betaResult.key, gammaResult).normalized(subIndex), true, symbol);
             });
         });
     }
@@ -498,7 +498,7 @@ bool getUncertain(Symbol entity, Symbol attribute, Symbol& value) {
     }) == 1);
 }
 
-/*void scrutinizeExistence(Symbol symbol) {
+void scrutinizeExistence(Symbol symbol) {
     BlobSet<true, Symbol> symbols;
     symbols.insertElement(symbol);
     while(!symbols.empty()) {
@@ -510,7 +510,7 @@ bool getUncertain(Symbol entity, Symbol attribute, Symbol& value) {
         });
         unlink(symbol); // TODO
     }
-}*/
+}
 
 template<typename DataType>
 Symbol createFromData(DataType src) {

@@ -19,22 +19,22 @@ struct BitMask {
 
 template<>
 constexpr NativeNaturalType BitMask<Natural32>::clz(Natural32 value) {
-    return __builtin_clzl(value);
+    return (value == 0) ? bits : __builtin_clzl(value);
 }
 
 template<>
 constexpr NativeNaturalType BitMask<Natural32>::ctz(Natural32 value) {
-    return __builtin_ctzl(value);
+    return (value == 0) ? bits : __builtin_ctzl(value);
 }
 
 template<>
 constexpr NativeNaturalType BitMask<Natural64>::clz(Natural64 value) {
-    return __builtin_clzll(value);
+    return (value == 0) ? bits : __builtin_clzll(value);
 }
 
 template<>
 constexpr NativeNaturalType BitMask<Natural64>::ctz(Natural64 value) {
-    return __builtin_ctzll(value);
+    return (value == 0) ? bits : __builtin_ctzll(value);
 }
 
 template<typename DataType>

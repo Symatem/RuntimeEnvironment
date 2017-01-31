@@ -1,4 +1,4 @@
-#include <HRL/Deserialize.hpp>
+#include <External/HrlDeserialize.hpp>
 
 const NativeNaturalType bitsPerChunk = 1<<19;
 
@@ -86,7 +86,7 @@ EXPORT void writeBlob(Symbol symbol, NativeNaturalType offset, NativeNaturalType
 }
 
 EXPORT Symbol deserializeHRL(Symbol inputSymbol, Symbol outputSymbol, Symbol packageSymbol) {
-    Deserializer deserializer;
+    HrlDeserializer deserializer;
     deserializer.queue.symbol = (outputSymbol == VoidSymbol) ? createSymbol() : outputSymbol;
     deserializer.input = inputSymbol;
     deserializer.package = packageSymbol;

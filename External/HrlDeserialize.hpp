@@ -1,10 +1,10 @@
-#include <HRL/Serialize.hpp>
+#include <External/HrlSerialize.hpp>
 
 #define checkReturn(expression) \
     if((expression) != VoidSymbol) \
         return false;
 
-struct Deserializer {
+struct HrlDeserializer {
     Symbol parentEntry, input, package = VoidSymbol;
     BlobIndex<true> locals;
     BlobVector<true, Symbol> stack;

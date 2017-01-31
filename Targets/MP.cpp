@@ -246,7 +246,7 @@ Integer32 main(Integer32 argc, Integer8** argv) {
             sendNil();
         } else ifIsCommand("deserializeHRL") {
             assert(parameterCount == 1 || parameterCount == 2);
-            Deserializer deserializer;
+            HrlDeserializer deserializer;
             deserializer.queue.symbol = createSymbol();
             deserializer.input = readNatural();
             deserializer.package = (parameterCount >= 2) ? readNatural() : VoidSymbol;

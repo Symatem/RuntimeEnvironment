@@ -31,6 +31,14 @@ struct BlobVector {
         Blob(symbol).writeAt<ElementType>(offset, element);
     }
 
+    void swapElementsAt(NativeNaturalType a, NativeNaturalType b) const {
+        assert(a < size() && b < size());
+        ElementType A = readElementAt(a),
+                    B = readElementAt(b);
+        writeElementAt(a, B);
+        writeElementAt(b, A);
+    }
+
     ElementType front() const {
         return readElementAt(0);
     }
@@ -51,9 +59,13 @@ struct BlobVector {
         }
     }
 
+    void reserve(NativeNaturalType size) {
+        activate();
+        Blob(symbol).setSize(size*sizeOfInBits<ElementType>::value);
+    }
+
     void clear() {
-        if(symbol)
-            Blob(symbol).setSize(0);
+        reserve(0);
     }
 
     void insert(NativeNaturalType offset, ElementType element) {
@@ -84,7 +96,7 @@ struct BlobVector {
     }
 };
 
-template<typename KeyType, typename ValueType>
+template<typename KeyType, typename ValueType = VoidType[0]>
 struct Pair {
     KeyType key;
     ValueType value;
@@ -96,10 +108,126 @@ struct Pair {
     }
 };
 
-template<bool guarded, typename KeyType, typename ValueType = NativeNaturalType[0]>
-struct BlobSet : public BlobVector<guarded, Pair<KeyType, ValueType>> {
+template<bool guarded, typename KeyType, typename ValueType>
+struct BlobMap : public BlobVector<guarded, Pair<KeyType, ValueType>> {
     typedef Pair<KeyType, ValueType> ElementType;
     typedef BlobVector<guarded, ElementType> Super;
+
+    BlobMap() :Super() {}
+
+    void iterateKeys(Closure<void(KeyType)> callback) const {
+        for(NativeNaturalType at = 0; at < Super::size(); ++at)
+            callback(Super::readElementAt(at).key);
+    }
+
+    KeyType&& key(NativeNaturalType at) const {
+        assert(Super::symbol && at < Super::size());
+        KeyType key;
+        Blob(Super::symbol).externalOperate<false>(&key, at*sizeOfInBits<ElementType>::value, sizeOfInBits<KeyType>::value);
+        return reinterpret_cast<ValueType&&>(key);
+    }
+
+    ValueType&& value(NativeNaturalType at) const {
+        assert(Super::symbol && at < Super::size());
+        ValueType value;
+        Blob(Super::symbol).externalOperate<false>(&value, at*sizeOfInBits<ElementType>::value+sizeOfInBits<KeyType>::value, sizeOfInBits<ValueType>::value);
+        return reinterpret_cast<ValueType&&>(value);
+    }
+
+    bool writeKeyAt(NativeNaturalType at, KeyType key) const {
+        assert(Super::symbol && at < Super::size());
+        Blob(Super::symbol).externalOperate<true>(&key, at*sizeOfInBits<ElementType>::value, sizeOfInBits<KeyType>::value);
+        return true;
+    }
+
+    bool writeValueAt(NativeNaturalType at, ValueType value) const {
+        assert(Super::symbol && at < Super::size());
+        Blob(Super::symbol).externalOperate<true>(&value, at*sizeOfInBits<ElementType>::value+sizeOfInBits<KeyType>::value, sizeOfInBits<ValueType>::value);
+        return true;
+    }
+};
+
+template<bool guarded, typename KeyType, typename ValueType = VoidType[0]>
+struct BlobHeap : public BlobMap<guarded, KeyType, ValueType> {
+    typedef BlobMap<guarded, KeyType, ValueType> Super;
+    typedef typename Super::ElementType ElementType;
+
+    BlobHeap() :Super() {}
+
+    void siftToLeaves(NativeNaturalType at, NativeNaturalType size) {
+        while(true) {
+            NativeNaturalType left = 2*at+1,
+                              right = 2*at+2,
+                              min = at;
+            if(left < size && Super::key(left) < Super::key(min))
+                min = left;
+            if(right < size && Super::key(right) < Super::key(min))
+                min = right;
+            if(min == at)
+                break;
+            Super::swapElementsAt(at, min);
+            at = min;
+        }
+    }
+
+    void siftToLeaves(NativeNaturalType at) {
+        siftToLeaves(at, Super::size());
+    }
+
+    void build() {
+        for(NativeIntegerType i = Super::size()/2-1; i >= 0; --i)
+            siftToLeaves(i);
+    }
+
+    void sort() {
+        build();
+        NativeNaturalType size = Super::size();
+        while(size > 1) {
+            --size;
+            Super::swapElementsAt(0, size);
+            siftToLeaves(0, size);
+        }
+    }
+
+    void siftToRoot(NativeNaturalType at) {
+        while(at > 0) {
+            NativeNaturalType parent = (at-1)/2;
+            if(Super::key(parent) <= Super::key(at))
+                break;
+            Super::swapElementsAt(at, parent);
+            at = parent;
+        }
+    }
+
+    void insertElement(ElementType element) {
+        Super::push_back(element);
+        siftToRoot(Super::size()-1);
+    }
+
+    void erase(NativeNaturalType at) {
+        NativeNaturalType last = Super::size()-1;
+        if(at != last)
+            Super::writeElementAt(at, Super::readElementAt(last));
+        Super::pop_back();
+        if(at != last) {
+            if(at == 0 || Super::key((at-1)/2) < Super::key(at))
+                siftToLeaves(at);
+            else
+                siftToRoot(at);
+        }
+    }
+
+    bool writeKeyAt(NativeNaturalType at, KeyType key) const {
+        Super::writeKeyAt(at, key);
+        siftToRoot(at);
+        return true;
+    }
+};
+
+template<bool guarded, typename KeyType, typename ValueType = VoidType[0]>
+struct BlobSet : public BlobMap<guarded, KeyType, ValueType> {
+    typedef BlobMap<guarded, KeyType, ValueType> Super;
+    typedef typename Super::ElementType ElementType;
 
     BlobSet() :Super() {}
 
@@ -127,6 +255,17 @@ struct BlobSet : public BlobVector<guarded, Pair<KeyType, ValueType>> {
         if(!find(element.key, at))
             return false;
         Super::erase(at);
+        return true;
+    }
+
+    bool writeKeyAt(NativeNaturalType at, KeyType key) const {
+        assert(Super::symbol && at < Super::size());
+        NativeNaturalType newAt;
+        ValueType value = Super::value(at);
+        if(find(key, newAt))
+            return false;
+        Super::erase(at);
+        Super::insert(newAt, {key, value});
         return true;
     }
 };

@@ -1,8 +1,8 @@
-#include <Ontology/Triple.hpp>
+#include <External/BinaryCodec.hpp>
 
 const char* HRLRawBegin = "raw:";
 
-struct Serializer {
+struct HrlSerializer {
     Symbol symbol;
 
     void put(Natural8 src) {
@@ -49,11 +49,11 @@ struct Serializer {
         }
     }
 
-    Serializer(Symbol _symbol) :symbol(_symbol) {
+    HrlSerializer(Symbol _symbol) :symbol(_symbol) {
         setSolitary({symbol, BlobTypeSymbol, UTF8Symbol});
     }
 
-    Serializer() :Serializer(createSymbol()) {}
+    HrlSerializer() :HrlSerializer(createSymbol()) {}
 
     void serializeBlob(Symbol src) {
         Blob srcBlob(src);
