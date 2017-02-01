@@ -84,12 +84,21 @@ struct BlobVector {
         erase(at, 1);
     }
 
+    void push_front(ElementType element) {
+        insert(0, element);
+    }
+
     void push_back(ElementType element) {
         insert(size(), element);
     }
 
+    ElementType pop_front() {
+        ElementType element = front();
+        erase(0);
+        return element;
+    }
+
     ElementType pop_back() {
-        assert(!empty());
         ElementType element = back();
         erase(size()-1);
         return element;
@@ -120,14 +129,14 @@ struct BlobMap : public BlobVector<guarded, Pair<KeyType, ValueType>> {
             callback(Super::readElementAt(at).key);
     }
 
-    KeyType&& key(NativeNaturalType at) const {
+    KeyType&& readKeyAt(NativeNaturalType at) const {
         assert(Super::symbol && at < Super::size());
         KeyType key;
         Blob(Super::symbol).externalOperate<false>(&key, at*sizeOfInBits<ElementType>::value, sizeOfInBits<KeyType>::value);
         return reinterpret_cast<ValueType&&>(key);
     }
 
-    ValueType&& value(NativeNaturalType at) const {
+    ValueType&& readValueAt(NativeNaturalType at) const {
         assert(Super::symbol && at < Super::size());
         ValueType value;
         Blob(Super::symbol).externalOperate<false>(&value, at*sizeOfInBits<ElementType>::value+sizeOfInBits<KeyType>::value, sizeOfInBits<ValueType>::value);
@@ -159,9 +168,9 @@ struct BlobHeap : public BlobMap<guarded, KeyType, ValueType> {
             NativeNaturalType left = 2*at+1,
                               right = 2*at+2,
                               min = at;
-            if(left < size && Super::key(left) < Super::key(min))
+            if(left < size && Super::readKeyAt(left) < Super::readKeyAt(min))
                 min = left;
-            if(right < size && Super::key(right) < Super::key(min))
+            if(right < size && Super::readKeyAt(right) < Super::readKeyAt(min))
                 min = right;
             if(min == at)
                 break;
@@ -192,7 +201,7 @@ struct BlobHeap : public BlobMap<guarded, KeyType, ValueType> {
     void siftToRoot(NativeNaturalType at) {
         while(at > 0) {
             NativeNaturalType parent = (at-1)/2;
-            if(Super::key(parent) <= Super::key(at))
+            if(Super::readKeyAt(parent) <= Super::readKeyAt(at))
                 break;
             Super::swapElementsAt(at, parent);
             at = parent;
@@ -210,7 +219,7 @@ struct BlobHeap : public BlobMap<guarded, KeyType, ValueType> {
             Super::writeElementAt(at, Super::readElementAt(last));
         Super::pop_back();
         if(at != last) {
-            if(at == 0 || Super::key((at-1)/2) < Super::key(at))
+            if(at == 0 || Super::readKeyAt((at-1)/2) < Super::readKeyAt(at))
                 siftToLeaves(at);
             else
                 siftToRoot(at);
@@ -221,6 +230,12 @@ struct BlobHeap : public BlobMap<guarded, KeyType, ValueType> {
         Super::writeKeyAt(at, key);
         siftToRoot(at);
         return true;
+    }
+
+    ElementType pop_front() {
+        ElementType element = Super::front();
+        erase(0);
+        return element;
     }
 };
 
@@ -261,7 +276,7 @@ struct BlobSet : public BlobMap<guarded, KeyType, ValueType> {
     bool writeKeyAt(NativeNaturalType at, KeyType key) const {
         assert(Super::symbol && at < Super::size());
         NativeNaturalType newAt;
-        ValueType value = Super::value(at);
+        ValueType value = Super::readValueAt(at);
         if(find(key, newAt))
             return false;
         Super::erase(at);

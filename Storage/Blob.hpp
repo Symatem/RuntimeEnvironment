@@ -374,7 +374,7 @@ struct Blob {
         assert(srcOffset < getSize());
         NativeNaturalType dstOffset = 0, sliceLength = 1, dst = 0;
         while(true) {
-            Natural8 flagBit;
+            Natural8 flagBit = 0;
             externalOperate<false>(&flagBit, srcOffset++, 1);
             if(!flagBit)
                 return (dstOffset == 0) ? dst : dst+1;
