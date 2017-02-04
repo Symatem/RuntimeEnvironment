@@ -47,10 +47,6 @@ DO_NOT_INLINE EXPORT NativeNaturalType getStackPointer() {
     return result;
 }
 
-EXPORT void saveImage() {
-    setSuperPageMetaData();
-}
-
 EXPORT Symbol _createSymbol() {
     return createSymbol();
 }
@@ -94,6 +90,20 @@ EXPORT Symbol deserializeHRL(Symbol inputSymbol, Symbol outputSymbol, Symbol pac
     if(outputSymbol == VoidSymbol)
         unlink(deserializer.queue.symbol);
     return exception;
+}
+
+EXPORT void encodeBinary(Symbol symbol) {
+    BinaryEncoder encoder(symbol);
+    encoder.encode();
+    encoder.encodeBitToBytePadding();
+    encoder.encodeHeader();
+}
+
+EXPORT void decodeBinary(Symbol symbol) {
+    BinaryDecoder decoder(symbol);
+    decoder.skipHeader();
+    decoder.decodeBitToBytePadding();
+    decoder.decode();
 }
 
 EXPORT NativeNaturalType query(QueryMask mask, Symbol entity, Symbol attribute, Symbol value, Symbol resultSymbol) {

@@ -3,6 +3,7 @@
 struct BinaryCodec {
     Blob blob;
     NativeNaturalType offset;
+    const static NativeNaturalType headerLength = 64+8*45;
 
     BinaryCodec(Symbol symbol) :blob(Blob(symbol)), offset(0) { }
 };
@@ -167,6 +168,20 @@ struct BinaryEncoder : public BinaryCodec {
         encodeEntities(true);
     }
 
+    void encodeBitToBytePadding() {
+        Natural8 padding = 8-offset%8;
+        blob.increaseSize(0, 8);
+        blob.externalOperate<true>(&padding, 0, 8);
+        blob.increaseSize(blob.getSize(), padding);
+        offset += padding;
+    }
+
+    void encodeHeader() {
+        blob.increaseSize(0, headerLength);
+        blob.externalOperate<true>(superPage, 0, headerLength);
+        offset += headerLength;
+    }
+
     BinaryEncoder(Symbol symbol) :BinaryCodec(symbol), huffmanCodes(Blob(createSymbol())) {
         blob.setSize(0);
     }
@@ -267,6 +282,17 @@ struct BinaryDecoder : public BinaryCodec {
         NativeNaturalType length = blob.getSize();
         while(offset < length)
             decodeEntity();
+    }
+
+    void decodeBitToBytePadding() {
+        Natural8 padding;
+        blob.externalOperate<false>(&padding, offset, 8);
+        blob.decreaseSize(blob.getSize()-padding, padding);
+        offset += 8;
+    }
+
+    void skipHeader() {
+        offset += headerLength;
     }
 
     BinaryDecoder(Symbol symbol) :BinaryCodec(symbol) { }

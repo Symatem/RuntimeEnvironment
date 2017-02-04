@@ -134,7 +134,6 @@ void unloadStorage() {
         sockfd = -1;
     }
     printStats();
-    setSuperPageMetaData();
     NativeNaturalType size = superPage->pagesEnd*bitsPerPage/8;
     munmap(superPage, bytesForPages(maxPageCount));
     if(file < 0)

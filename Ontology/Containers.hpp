@@ -7,6 +7,10 @@ struct BlobVector {
     Symbol symbol;
 
     BlobVector() :symbol(0) {}
+    BlobVector(const BlobVector<false, ElementType>& vector) :symbol(vector.symbol) {}
+    BlobVector(const BlobVector<true, ElementType>& vector) :symbol(vector.symbol) {
+        static_assert(!guarded);
+    }
 
     ~BlobVector() {
         if(guarded && symbol)
@@ -123,6 +127,8 @@ struct BlobMap : public BlobVector<guarded, Pair<KeyType, ValueType>> {
     typedef BlobVector<guarded, ElementType> Super;
 
     BlobMap() :Super() {}
+    BlobMap(const BlobMap<false, KeyType, ValueType>& other) :Super(other) {}
+    BlobMap(const BlobMap<true, KeyType, ValueType>& other) :Super(other) {}
 
     void iterateKeys(Closure<void(KeyType)> callback) const {
         for(NativeNaturalType at = 0; at < Super::size(); ++at)
@@ -162,6 +168,8 @@ struct BlobHeap : public BlobMap<guarded, KeyType, ValueType> {
     typedef typename Super::ElementType ElementType;
 
     BlobHeap() :Super() {}
+    BlobHeap(const BlobHeap<false, KeyType, ValueType>& other) :Super(other) {}
+    BlobHeap(const BlobHeap<true, KeyType, ValueType>& other) :Super(other) {}
 
     void siftToLeaves(NativeNaturalType at, NativeNaturalType size) {
         while(true) {
@@ -245,6 +253,8 @@ struct BlobSet : public BlobMap<guarded, KeyType, ValueType> {
     typedef typename Super::ElementType ElementType;
 
     BlobSet() :Super() {}
+    BlobSet(const BlobSet<false, KeyType, ValueType>& other) :Super(other) {}
+    BlobSet(const BlobSet<true, KeyType, ValueType>& other) :Super(other) {}
 
     NativeNaturalType find(KeyType key) const {
         return binarySearch<NativeNaturalType>(Super::size(), [&](NativeNaturalType at) {
@@ -290,6 +300,8 @@ struct BlobIndex : public BlobSet<guarded, Symbol> {
     typedef BlobSet<guarded, Symbol> Super;
 
     BlobIndex() :Super() {}
+    BlobIndex(const BlobIndex<false>& other) :Super(other) {}
+    BlobIndex(const BlobIndex<true>& other) :Super(other) {}
 
     NativeNaturalType find(Symbol key) const {
         return binarySearch<NativeNaturalType>(Super::size(), [&](NativeNaturalType at) {

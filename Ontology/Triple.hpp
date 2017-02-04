@@ -553,6 +553,9 @@ Symbol createFromString(const char* src) {
 }
 
 bool tryToFillPreDefined(NativeNaturalType additionalSymbols = 0) {
+    superPage->version = 0;
+    superPage->architectureSize = architectureSize;
+    memcpy(superPage->gitRef, gitRef, sizeof(superPage->gitRef));
     const Symbol preDefinedSymbolsEnd = sizeof(PreDefinedSymbols)/sizeof(void*);
     tripleIndex.symbol = preDefinedSymbolsEnd;
     blobIndex.symbol = preDefinedSymbolsEnd+1;
