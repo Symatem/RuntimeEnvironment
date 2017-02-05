@@ -10,8 +10,8 @@ matrix:
             - util-linux
             - clang-4.0
           sources:
-            - ubuntu-toolchain-r-test
-            - llvm-toolchain-precise-4.0
+            sourceline: 'ppa:ubuntu-toolchain-r/test'
+            sourceline: 'deb http://apt.llvm.org/precise/ llvm-toolchain-precise-4.0 main'
     - os: osx
       osx_image: xcode8.2
       compiler: clang
