@@ -95,14 +95,10 @@ EXPORT Symbol deserializeHRL(Symbol inputSymbol, Symbol outputSymbol, Symbol pac
 EXPORT void encodeBinary(Symbol symbol) {
     BinaryEncoder encoder(symbol);
     encoder.encode();
-    encoder.encodeBitToBytePadding();
-    encoder.encodeHeader();
 }
 
 EXPORT void decodeBinary(Symbol symbol) {
     BinaryDecoder decoder(symbol);
-    decoder.skipHeader();
-    decoder.decodeBitToBytePadding();
     decoder.decode();
 }
 

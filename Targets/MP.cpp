@@ -261,18 +261,12 @@ Integer32 main(Integer32 argc, Integer8** argv) {
             unlink(deserializer.queue.symbol);
         } else ifIsCommand("encodeBinary") {
             assert(parameterCount == 1);
-            unlink(readNatural());
-            BinaryEncoder encoder(symbol);
+            BinaryEncoder encoder(readNatural());
             encoder.encode();
-            encoder.encodeBitToBytePadding();
-            encoder.encodeHeader();
             sendNil();
         } else ifIsCommand("decodeBinary") {
             assert(parameterCount == 1);
-            unlink(readNatural());
-            BinaryDecoder decoder(symbol);
-            decoder.skipHeader();
-            decoder.decodeBitToBytePadding();
+            BinaryDecoder decoder(readNatural());
             decoder.decode();
             sendNil();
         } else ifIsCommand("query") {
