@@ -11,7 +11,7 @@ matrix:
             - clang-4.0
           sources:
             - ubuntu-toolchain-r-test
-            - llvm-toolchain-precise
+            - llvm-toolchain-precise-4.0
     - os: osx
       osx_image: xcode8.2
       compiler: clang
