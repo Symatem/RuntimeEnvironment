@@ -19,11 +19,13 @@ struct BinaryCodec {
         BlobCodecRaw
     } blobCodec = BlobCodecRaw;
 
-    BinaryCodec(Symbol symbol) :blob(Blob(symbol)) { }
+    BinaryCodec() {
+        blob = Blob(BinaryCodecSymbol);
+    }
 };
 
 struct BinaryEncoder : public BinaryCodec {
-    BlobSet<true, Symbol, NativeNaturalType> symbolMap;
+    BlobSet<false, Symbol, NativeNaturalType> symbolMap;
     Blob huffmanCodes;
     Symbol symbolIndexOffset;
 
@@ -222,22 +224,25 @@ struct BinaryEncoder : public BinaryCodec {
         offset += 8+padding;
 
         blob.increaseSize(0, headerLength);
-        blob.externalOperate<true>(superPage, 0, headerLength);
+        blob.externalOperate<true>(&superPage->version, 0, headerLength);
         offset += headerLength;
     }
 
-    BinaryEncoder(Symbol symbol) :BinaryCodec(symbol), huffmanCodes(Blob(createSymbol())) {
+    BinaryEncoder() :BinaryCodec() {
+        symbolMap.symbol = BinaryCodecAux0Symbol;
+        huffmanCodes = Blob(BinaryCodecAux1Symbol);
         blob.setSize(0);
     }
 
     ~BinaryEncoder() {
-        releaseSymbol(huffmanCodes.symbol);
+        Blob(symbolMap.symbol).setSize(0);
+        Blob(huffmanCodes.symbol).setSize(0);
     }
 };
 
 struct BinaryDecoder : public BinaryCodec {
-    BlobVector<true, Symbol> symbolVector;
-    BlobVector<true, NativeNaturalType> huffmanChildren;
+    BlobVector<false, Symbol> symbolVector;
+    BlobVector<false, NativeNaturalType> huffmanChildren;
 
     NativeNaturalType decodeNatural() {
         switch(numberCodec) {
@@ -286,8 +291,6 @@ struct BinaryDecoder : public BinaryCodec {
                 symbol = symbolVector.readElementAt(index);
             } break;
         }
-        if(superPage->symbolsEnd < symbol+1)
-            superPage->symbolsEnd = symbol+1;
         return symbol;
     }
 
@@ -334,6 +337,8 @@ struct BinaryDecoder : public BinaryCodec {
             Symbol symbol = decodeNatural();
             if(symbol > 0) {
                 --symbol;
+                if(symbol > preDefinedSymbolsCount) // TODO
+                    symbol = createSymbol();
                 symbolVector.writeElementAt(symbolIndex, symbol);
                 stack.push_back(symbolIndex++);
             } else {
@@ -358,9 +363,9 @@ struct BinaryDecoder : public BinaryCodec {
     }
 
     void decode() {
-        superPage->symbolsEnd = 0;
         blob.externalOperate<false>(&naturalLength, headerLength-8, 8);
         naturalLength = 1<<naturalLength;
+        assert(naturalLength <= architectureSize);
         offset = headerLength;
         Natural8 padding;
         blob.externalOperate<false>(&padding, offset, 8);
@@ -370,5 +375,13 @@ struct BinaryDecoder : public BinaryCodec {
             decodeChunk();
     }
 
-    BinaryDecoder(Symbol symbol) :BinaryCodec(symbol) { }
+    BinaryDecoder() :BinaryCodec() {
+        symbolVector.symbol = BinaryCodecAux0Symbol;
+        huffmanChildren.symbol = BinaryCodecAux1Symbol;
+    }
+
+    ~BinaryDecoder() {
+        Blob(symbolVector.symbol).setSize(0);
+        Blob(huffmanChildren.symbol).setSize(0);
+    }
 };

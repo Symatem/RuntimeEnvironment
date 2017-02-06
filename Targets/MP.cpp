@@ -260,13 +260,13 @@ Integer32 main(Integer32 argc, Integer8** argv) {
                 sendNatural(exception);
             unlink(deserializer.queue.symbol);
         } else ifIsCommand("encodeBinary") {
-            assert(parameterCount == 1);
-            BinaryEncoder encoder(readNatural());
+            assert(parameterCount == 0);
+            BinaryEncoder encoder;
             encoder.encode();
             sendNil();
         } else ifIsCommand("decodeBinary") {
-            assert(parameterCount == 1);
-            BinaryDecoder decoder(readNatural());
+            assert(parameterCount == 0);
+            BinaryDecoder decoder;
             decoder.decode();
             sendNil();
         } else ifIsCommand("query") {

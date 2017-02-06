@@ -12,6 +12,8 @@ const char* PreDefinedSymbols[] = {
 };
 #undef Wrapper
 
+const Symbol preDefinedSymbolsCount = sizeof(PreDefinedSymbols)/sizeof(void*);
+
 #define forEachSubIndex \
     NativeNaturalType indexCount = (indexMode == MonoIndex) ? 1 : 3; \
     for(NativeNaturalType subIndex = 0; subIndex < indexCount; ++subIndex)
@@ -554,15 +556,14 @@ Symbol createFromString(const char* src) {
 
 bool tryToFillPreDefined(NativeNaturalType additionalSymbols = 0) {
     superPage->version = 0;
-    superPage->architectureSize = architectureSize;
     memcpy(superPage->gitRef, gitRef, sizeof(superPage->gitRef));
-    const Symbol preDefinedSymbolsEnd = sizeof(PreDefinedSymbols)/sizeof(void*);
-    tripleIndex.symbol = preDefinedSymbolsEnd;
-    blobIndex.symbol = preDefinedSymbolsEnd+1;
+    superPage->architectureSize = BitMask<NativeNaturalType>::ceilLog2(architectureSize)-1;
+    tripleIndex.symbol = TripleIndexSymbol;
+    blobIndex.symbol = BlobIndexSymbol;
     if(!tripleIndex.empty())
         return false;
-    superPage->symbolsEnd = preDefinedSymbolsEnd+2+additionalSymbols;
-    for(Symbol symbol = 0; symbol < preDefinedSymbolsEnd; ++symbol) {
+    superPage->symbolsEnd = preDefinedSymbolsCount+additionalSymbols;
+    for(Symbol symbol = 0; symbol < preDefinedSymbolsCount-5; ++symbol) {
         const char* str = PreDefinedSymbols[symbol];
         stringToBlob(str, strlen(str), symbol);
         link({RunTimeEnvironmentSymbol, HoldsSymbol, symbol});

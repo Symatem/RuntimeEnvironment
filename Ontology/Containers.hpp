@@ -139,7 +139,7 @@ struct BlobMap : public BlobVector<guarded, Pair<KeyType, ValueType>> {
         assert(Super::symbol && at < Super::size());
         KeyType key;
         Blob(Super::symbol).externalOperate<false>(&key, at*sizeOfInBits<ElementType>::value, sizeOfInBits<KeyType>::value);
-        return reinterpret_cast<ValueType&&>(key);
+        return reinterpret_cast<KeyType&&>(key);
     }
 
     ValueType&& readValueAt(NativeNaturalType at) const {

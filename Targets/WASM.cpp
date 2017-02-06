@@ -92,13 +92,13 @@ EXPORT Symbol deserializeHRL(Symbol inputSymbol, Symbol outputSymbol, Symbol pac
     return exception;
 }
 
-EXPORT void encodeBinary(Symbol symbol) {
-    BinaryEncoder encoder(symbol);
+EXPORT void encodeBinary() {
+    BinaryEncoder encoder;
     encoder.encode();
 }
 
-EXPORT void decodeBinary(Symbol symbol) {
-    BinaryDecoder decoder(symbol);
+EXPORT void decodeBinary() {
+    BinaryDecoder decoder;
     decoder.decode();
 }
 
