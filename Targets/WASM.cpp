@@ -81,6 +81,12 @@ EXPORT void writeBlob(Symbol symbol, NativeNaturalType offset, NativeNaturalType
     Blob(symbol).externalOperate<true>(buffer, offset, length);
 }
 
+EXPORT void chaCha20(Symbol dst, Symbol src) {
+    ChaCha20 context;
+    Blob(src).externalOperate<false>(&context, 0, sizeOfInBits<ChaCha20>::value);
+    Blob(dst).chaCha20(context);
+}
+
 EXPORT Symbol deserializeHRL(Symbol inputSymbol, Symbol outputSymbol, Symbol packageSymbol) {
     HrlDeserializer deserializer;
     deserializer.queue.symbol = (outputSymbol == VoidSymbol) ? createSymbol() : outputSymbol;

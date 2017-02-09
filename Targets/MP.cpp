@@ -244,7 +244,13 @@ Integer32 main(Integer32 argc, Integer8** argv) {
                 length -= segmentLength;
             }
             sendNil();
-        } else ifIsCommand("deserializeHRL") {
+        } else ifIsCommand("chaCha20") {
+            assert(parameterCount == 2);
+            Symbol dst = readNatural(), src = readNatural();
+            ChaCha20 context;
+            Blob(src).externalOperate<false>(&context, 0, sizeOfInBits<ChaCha20>::value);
+            Blob(dst).chaCha20(context);
+        } ifIsCommand("deserializeHRL") {
             assert(parameterCount == 1 || parameterCount == 2);
             HrlDeserializer deserializer;
             deserializer.queue.symbol = createSymbol();

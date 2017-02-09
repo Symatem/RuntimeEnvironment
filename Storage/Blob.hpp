@@ -387,6 +387,20 @@ struct Blob {
             assert(dstOffset < architectureSize);
         }
     }
+
+    void chaCha20(ChaCha20& context) {
+        ChaCha20 buffer, mask;
+        NativeNaturalType endOffset = getSize(), blobOffset = 0;
+        while(blobOffset < endOffset) {
+            NativeNaturalType sliceLength = min(endOffset-blobOffset, sizeOfInBits<ChaCha20>::value);
+            mask.generate(context);
+            externalOperate<false>(&buffer, blobOffset, sliceLength);
+            for(Natural8 i = 0; i < 16; ++i)
+                buffer.block[i] ^= mask.block[i];
+            externalOperate<true>(&buffer, blobOffset, sliceLength);
+            blobOffset += sliceLength;
+        }
+    }
 };
 
 void releaseSymbol(Symbol symbol) {

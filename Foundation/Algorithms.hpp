@@ -29,42 +29,41 @@ IndexType binarySearch(IndexType end, Closure<bool(IndexType)> compare) {
     return begin;
 }
 
-struct MersenneTwister64 {
-    const static Natural64
-        mag01 = 0xB5026F5AA96619E9ULL,
-        LM = BitMask<Natural64>::fillLSBs(31),
-        UM = BitMask<Natural64>::fillMSBs(33);
-    const static Natural16 NN = 312, MM = 156;
-    Natural64 mt[NN];
-    Natural16 mti;
+struct ChaCha20 {
+    union {
+        struct {
+            Natural8 constant[16], key[32];
+            Natural64 counter, nonce;
+        };
+        Natural32 block[16];
+    };
 
-    void reset(Natural64 seed) {
-        mt[0] = seed;
-        for(mti = 1; mti < NN; ++mti)
-            mt[mti] = mti+0x5851F42D4C957F2DULL*(mt[mti-1]^(mt[mti-1]>>62));
+    static void quarterRound(Natural32& a, Natural32& b, Natural32& c, Natural32& d) {
+        a += b; d ^= a; d = BitMask<Natural32>::barrelShiftMultiply(d, 16);
+        c += d; b ^= c; b = BitMask<Natural32>::barrelShiftMultiply(b, 12);
+        a += b; d ^= a; d = BitMask<Natural32>::barrelShiftMultiply(d, 8 );
+        c += d; b ^= c; b = BitMask<Natural32>::barrelShiftMultiply(b, 7 );
     }
 
-    Natural64 operator()() {
-        Natural16 i;
-        Natural64 x;
-        if(mti >= NN) {
-            mti = 0;
-            for(i = 0; i < NN-MM; ++i) {
-                x = (mt[i]&UM)|(mt[i+1]&LM);
-                mt[i] = mt[i+MM] ^ (x>>1) ^ (mag01*(x&1ULL));
-            }
-            for(; i < NN-1; ++i) {
-                x = (mt[i]&UM)|(mt[i+1]&LM);
-                mt[i] = mt[i+(MM-NN)] ^ (x>>1) ^ (mag01*(x&1ULL));
-            }
-            x = (mt[NN-1]&UM)|(mt[0]&LM);
-            mt[NN-1] ^= (x>>1) ^ (mag01*(x&1ULL));
+    void scramble(NativeNaturalType rounds = 10) {
+        for(NativeNaturalType i = 0; i < rounds; ++i) {
+            quarterRound(block[0], block[4], block[ 8], block[12]);
+            quarterRound(block[1], block[5], block[ 9], block[13]);
+            quarterRound(block[2], block[6], block[10], block[14]);
+            quarterRound(block[3], block[7], block[11], block[15]);
+            quarterRound(block[0], block[5], block[10], block[15]);
+            quarterRound(block[1], block[6], block[11], block[12]);
+            quarterRound(block[2], block[7], block[ 8], block[13]);
+            quarterRound(block[3], block[4], block[ 9], block[14]);
         }
-        x = mt[mti++];
-        x ^= (x>>29)&0x5555555555555555ULL;
-        x ^= (x<<17)&0x71D67FFFEDA60000ULL;
-        x ^= (x<<37)&0xFFF7EEE000000000ULL;
-        x ^= (x>>43);
-        return x;
+    }
+
+    void generate(ChaCha20& context) {
+        for(Natural8 j = 0; j < 16; ++j)
+            block[j] = context.block[j];
+        scramble();
+        for(Natural8 j = 0; j < 16; ++j)
+            block[j] += context.block[j];
+        ++counter;
     }
 };
