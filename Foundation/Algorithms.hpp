@@ -64,6 +64,6 @@ struct ChaCha20 {
         scramble();
         for(Natural8 j = 0; j < 16; ++j)
             block[j] += context.block[j];
-        ++counter;
+        ++context.counter;
     }
 };
