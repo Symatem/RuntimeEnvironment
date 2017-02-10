@@ -349,45 +349,6 @@ struct Blob {
         modifiedBlob(symbol);
     }
 
-    void encodeBvlNatural(NativeNaturalType& dstOffset, NativeNaturalType src) {
-        assert(dstOffset <= getSize());
-        NativeNaturalType srcLength = BitMask<NativeNaturalType>::ceilLog2((src < 2) ? src : src-1),
-                          dstLength = BitMask<NativeNaturalType>::ceilLog2(srcLength),
-                          sliceLength = 1;
-        Natural8 flagBit = 1;
-        dstLength += 1<<dstLength;
-        increaseSize(dstOffset, dstLength);
-        --src;
-        NativeNaturalType endOffset = dstOffset+dstLength-1;
-        while(dstOffset < endOffset) {
-            externalOperate<true>(&flagBit, dstOffset++, 1);
-            externalOperate<true>(&src, dstOffset, sliceLength);
-            src >>= sliceLength;
-            dstOffset += sliceLength;
-            sliceLength <<= 1;
-        }
-        flagBit = 0;
-        externalOperate<true>(&flagBit, dstOffset++, 1);
-    }
-
-    NativeNaturalType decodeBvlNatural(NativeNaturalType& srcOffset) {
-        assert(srcOffset < getSize());
-        NativeNaturalType dstOffset = 0, sliceLength = 1, dst = 0;
-        while(true) {
-            Natural8 flagBit = 0;
-            externalOperate<false>(&flagBit, srcOffset++, 1);
-            if(!flagBit)
-                return (dstOffset == 0) ? dst : dst+1;
-            NativeNaturalType buffer = 0;
-            externalOperate<false>(&buffer, srcOffset, sliceLength);
-            dst |= buffer<<dstOffset;
-            srcOffset += sliceLength;
-            dstOffset += sliceLength;
-            sliceLength <<= 1;
-            assert(dstOffset < architectureSize);
-        }
-    }
-
     void chaCha20(ChaCha20& context) {
         ChaCha20 buffer, mask;
         NativeNaturalType endOffset = getSize(), blobOffset = 0;

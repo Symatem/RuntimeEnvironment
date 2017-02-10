@@ -1,4 +1,4 @@
-#include <Ontology/Containers.hpp>
+#include <Ontology/BlobIndex.hpp>
 
 #define Wrapper(token) token##Symbol
 enum PreDefinedSymbols {
@@ -90,7 +90,6 @@ enum QueryMask {
 };
 
 BlobSet<false, Symbol, Symbol[6]> tripleIndex;
-BlobIndex<false> blobIndex;
 
 bool linkInSubIndex(Triple triple) {
     BlobSet<false, Symbol, Symbol> beta;

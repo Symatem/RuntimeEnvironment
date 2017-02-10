@@ -2,7 +2,7 @@
 
 struct BinaryCodec {
     Blob blob;
-    NativeNaturalType offset = 0, naturalLength = architectureSize, symbolCount = 0;
+    NativeNaturalType offset = 0, naturalLength = architectureSize, symbolsInChunk;
     const static NativeNaturalType headerLength = 64+8*45;
 
     enum NumberCodec {
@@ -25,8 +25,7 @@ struct BinaryCodec {
 };
 
 struct BinaryEncoder : public BinaryCodec {
-    BlobSet<false, Symbol, NativeNaturalType> symbolMap;
-    Blob huffmanCodes;
+    StaticHuffmanEncoder symbolHuffmanEncoder;
     Symbol symbolIndexOffset;
 
     void encodeNatural(NativeNaturalType value) {
@@ -37,7 +36,7 @@ struct BinaryEncoder : public BinaryCodec {
                 offset += naturalLength;
                 break;
             case NumberCodecBinaryVariableLength:
-                blob.encodeBvlNatural(offset, value);
+                encodeBvlNatural(blob, offset, value);
                 break;
         }
     }
@@ -47,23 +46,12 @@ struct BinaryEncoder : public BinaryCodec {
             case SymbolCodecNatural:
                 encodeNatural(symbol);
                 break;
-            case SymbolCodecHuffman: {
-                NativeNaturalType index;
-                bool found = symbolMap.find(symbol, index);
-                if(doWrite) {
-                    assert(found);
-                    if(symbolCount < 2)
-                        return;
-                    NativeNaturalType begin = symbolMap.readValueAt(index),
-                                      length = (index+1 < symbolCount) ? symbolMap.readValueAt(index+1)-begin : huffmanCodes.getSize()-begin;
-                    blob.increaseSize(offset, length);
-                    blob.interoperation(huffmanCodes, offset, begin, length);
-                    offset += length;
-                } else if(found)
-                    symbolMap.writeValueAt(index, symbolMap.readValueAt(index)+1);
+            case SymbolCodecHuffman:
+                if(doWrite)
+                    symbolHuffmanEncoder.encodeSymbol(symbol, blob, offset);
                 else
-                    symbolMap.insertElement({symbol, 1});
-            } break;
+                    symbolHuffmanEncoder.countSymbol(symbol);
+                break;
         }
     }
 
@@ -78,25 +66,23 @@ struct BinaryEncoder : public BinaryCodec {
         });
     }
 
-    void encodeBlob(Symbol symbol) {
-        Blob srcBlob(symbol);
-        switch(blobCodec) {
-            case BlobCodecRaw: {
-                NativeNaturalType blobLength = srcBlob.getSize();
-                encodeNatural(blobLength);
-                blob.increaseSize(offset, blobLength);
-                blob.interoperation(srcBlob, offset, 0, blobLength);
-                offset += blobLength;
-            } break;
-        }
-    }
-
     void encodeEntity(bool doWrite, Symbol entity, Symbol betaSymbol) {
-        encodeSymbol(doWrite, entity);
-        if(doWrite)
-            encodeBlob(entity);
+        Blob srcBlob(entity);
+        NativeNaturalType blobLength = srcBlob.getSize();
         BlobSet<false, Symbol, Symbol> beta;
         beta.symbol = betaSymbol;
+
+        encodeSymbol(doWrite, entity);
+        if(doWrite)
+            switch(blobCodec) {
+                case BlobCodecRaw: {
+                    encodeNatural(blobLength);
+                    blob.increaseSize(offset, blobLength);
+                    blob.interoperation(srcBlob, offset, 0, blobLength);
+                    offset += blobLength;
+                } break;
+            }
+
         if(doWrite)
             encodeNatural(beta.size());
         beta.iterate([&](Pair<Symbol, Symbol> betaResult) {
@@ -105,116 +91,28 @@ struct BinaryEncoder : public BinaryCodec {
     }
 
     void encodeEntities(bool doWrite) {
-        for(NativeNaturalType at = symbolIndexOffset; at < symbolIndexOffset+symbolCount; ++at) {
+        if(doWrite)
+            encodeNatural(symbolsInChunk);
+        for(NativeNaturalType at = symbolIndexOffset; at < symbolIndexOffset+symbolsInChunk; ++at) {
             auto alphaResult = tripleIndex.readElementAt(at);
             encodeEntity(doWrite, alphaResult.key, alphaResult.value[EAV]);
         }
-    }
-
-    struct HuffmanParentNode {
-        NativeNaturalType parent;
-        bool bit;
-    };
-
-    struct TreeStackNode {
-        NativeNaturalType index;
-        Natural8 state;
-    };
-
-    void encodeHuffmanTree() {
-        if(symbolCount < 2) {
-            if(symbolCount == 1)
-                encodeNatural(symbolMap.readKeyAt(0)+1);
-            return;
-        }
-        encodeEntities(false);
-
-        NativeNaturalType index = 0,
-                          huffmanChildrenCount = symbolCount-1,
-                          huffmanParentsCount = huffmanChildrenCount*2;
-        BlobHeap<true, NativeNaturalType, Symbol> symbolHeap;
-        symbolHeap.reserve(symbolCount);
-        symbolMap.iterate([&](Pair<Symbol, NativeNaturalType> pair) {
-            symbolHeap.writeElementAt(index, {pair.value, index});
-            ++index;
-        });
-        symbolHeap.build();
-
-        BlobVector<true, HuffmanParentNode> huffmanParents;
-        BlobVector<true, NativeNaturalType> huffmanChildren;
-        huffmanParents.reserve(huffmanParentsCount);
-        huffmanChildren.reserve(huffmanParentsCount);
-        for(NativeNaturalType index = 0; symbolHeap.size() > 1; ++index) {
-            auto a = symbolHeap.pop_front(),
-                 b = symbolHeap.pop_front();
-            NativeNaturalType parent = symbolCount+index;
-            huffmanParents.writeElementAt(a.value, {parent, 0});
-            huffmanParents.writeElementAt(b.value, {parent, 1});
-            huffmanChildren.writeElementAt(index*2, a.value);
-            huffmanChildren.writeElementAt(index*2+1, b.value);
-            symbolHeap.insertElement({a.key+b.key, parent});
-        }
-        symbolHeap.clear();
-
-        NativeNaturalType huffmanCodesOffset = 0;
-        for(NativeNaturalType i = 0; i < symbolCount; ++i) {
-            NativeNaturalType index = i, length = 0, reserveOffset = 1;
-            while(index < huffmanParentsCount) {
-                index = huffmanParents.readElementAt(index).parent;
-                ++length;
-            }
-            symbolMap.writeValueAt(i, huffmanCodesOffset);
-            huffmanCodes.increaseSize(huffmanCodesOffset, length);
-            huffmanCodesOffset += length;
-            index = i;
-            while(index < huffmanParentsCount) {
-                auto node = huffmanParents.readElementAt(index);
-                index = node.parent;
-                huffmanCodes.externalOperate<true>(&node.bit, huffmanCodesOffset-reserveOffset, 1);
-                ++reserveOffset;
-            }
-        }
-        huffmanParents.clear();
-
-        BlobVector<true, TreeStackNode> stack;
-        stack.push_back({huffmanParentsCount, 0});
-        while(!stack.empty()) {
-            auto element = stack.back();
-            switch(element.state) {
-                case 0:
-                case 1: {
-                    NativeNaturalType index = huffmanChildren.readElementAt((element.index-symbolCount)*2+element.state);
-                    ++element.state;
-                    stack.writeElementAt(stack.size()-1, element);
-                    stack.push_back({index, static_cast<Natural8>((index < symbolCount) ? 3 : 0)});
-                } break;
-                case 2:
-                    stack.pop_back();
-                    encodeNatural(0);
-                    break;
-                case 3: {
-                    Symbol symbol = symbolMap.readKeyAt(element.index);
-                    encodeNatural(symbol+1);
-                    stack.pop_back();
-                } break;
-            }
-        }
-        huffmanChildren.clear();
     }
 
     void encodeChunk() {
         encodeNatural(numberCodec);
         encodeNatural(symbolCodec);
         encodeNatural(blobCodec);
-        encodeNatural(symbolCount);
-        if(symbolCodec == SymbolCodecHuffman)
-            encodeHuffmanTree();
+        if(symbolCodec == SymbolCodecHuffman) {
+            encodeEntities(false);
+            symbolHuffmanEncoder.encodeTree(blob, offset);
+        }
         encodeEntities(true);
     }
 
     void encode() {
         symbolIndexOffset = 0;
-        symbolCount = tripleIndex.size();
+        symbolsInChunk = tripleIndex.size();
         encodeChunk();
 
         Natural8 padding = 8-offset%8;
@@ -229,34 +127,29 @@ struct BinaryEncoder : public BinaryCodec {
     }
 
     BinaryEncoder() :BinaryCodec() {
-        symbolMap.symbol = BinaryCodecAux0Symbol;
-        huffmanCodes = Blob(BinaryCodecAux1Symbol);
+        symbolHuffmanEncoder.symbolMap.symbol = BinaryCodecAux0Symbol;
+        symbolHuffmanEncoder.huffmanCodes = Blob(BinaryCodecAux1Symbol);
         blob.setSize(0);
-    }
-
-    ~BinaryEncoder() {
-        Blob(symbolMap.symbol).setSize(0);
-        Blob(huffmanCodes.symbol).setSize(0);
     }
 };
 
 struct BinaryDecoder : public BinaryCodec {
-    BlobVector<false, Symbol> symbolVector;
-    BlobVector<false, NativeNaturalType> huffmanChildren;
+    StaticHuffmanDecoder symbolHuffmanDecoder;
 
     NativeNaturalType decodeNatural() {
+        NativeNaturalType value;
         switch(numberCodec) {
-            case NumberCodecRaw: {
-                NativeNaturalType value;
+            case NumberCodecRaw:
                 blob.externalOperate<false>(&value, offset, naturalLength);
                 offset += naturalLength;
-                return value;
-            }
+                break;
             case NumberCodecBinaryVariableLength:
-                return blob.decodeBvlNatural(offset);
+                value = decodeBvlNatural(blob, offset);
+                break;
+            default:
+                assert(false);
         }
-        assert(false);
-        return 0;
+        return value;
     }
 
     Symbol decodeSymbol() {
@@ -265,31 +158,11 @@ struct BinaryDecoder : public BinaryCodec {
             case SymbolCodecNatural:
                 symbol = decodeNatural();
                 break;
-            case SymbolCodecHuffman: {
-                NativeNaturalType index;
-                if(symbolCount < 2)
-                    index = 0;
-                else {
-                    NativeNaturalType mask = 0, bitsLeft = 0;
-                    index = symbolCount-2;
-                    while(true) {
-                        if(bitsLeft == 0) {
-                            bitsLeft = min(static_cast<NativeNaturalType>(architectureSize), blob.getSize()-offset);
-                            assert(bitsLeft);
-                            blob.externalOperate<false>(&mask, offset, bitsLeft);
-                            offset += bitsLeft;
-                        }
-                        index = huffmanChildren.readElementAt(index*2+(mask&1));
-                        --bitsLeft;
-                        if(index < symbolCount)
-                            break;
-                        index -= symbolCount;
-                        mask >>= 1;
-                    }
-                    offset -= bitsLeft;
-                }
-                symbol = symbolVector.readElementAt(index);
-            } break;
+            case SymbolCodecHuffman:
+                symbol = symbolHuffmanDecoder.decodeSymbol(blob, offset);
+                break;
+            default:
+                assert(false);
         }
         return symbol;
     }
@@ -303,8 +176,9 @@ struct BinaryDecoder : public BinaryCodec {
         }
     }
 
-    void decodeBlob(Symbol symbol) {
-        Blob dstBlob(symbol);
+    void decodeEntity() {
+        Symbol entity = decodeSymbol();
+        Blob dstBlob(entity);
         switch(blobCodec) {
             case BlobCodecRaw: {
                 NativeNaturalType blobLength = decodeNatural();
@@ -312,53 +186,28 @@ struct BinaryDecoder : public BinaryCodec {
                 dstBlob.interoperation(blob, 0, offset, blobLength);
                 offset += blobLength;
             } break;
+            default:
+                assert(false);
         }
-    }
-
-    void decodeEntity() {
-        Symbol entity = decodeSymbol();
-        decodeBlob(entity);
         NativeNaturalType attributeCount = decodeNatural();
         for(NativeNaturalType i = 0; i < attributeCount; ++i)
             decodeAttribute(entity);
-    }
-
-    void decodeHuffmanTree() {
-        symbolVector.reserve(symbolCount);
-        if(symbolCount < 2) {
-            if(symbolCount == 1)
-                symbolVector.writeElementAt(0, decodeNatural()-1);
-            return;
-        }
-        huffmanChildren.reserve((symbolCount-1)*2);
-        BlobVector<true, NativeNaturalType> stack;
-        NativeNaturalType symbolIndex = 0, huffmanChildrenIndex = 0;
-        while(huffmanChildrenIndex < symbolCount-1) {
-            Symbol symbol = decodeNatural();
-            if(symbol > 0) {
-                --symbol;
-                if(symbol > preDefinedSymbolsCount) // TODO
-                    symbol = createSymbol();
-                symbolVector.writeElementAt(symbolIndex, symbol);
-                stack.push_back(symbolIndex++);
-            } else {
-                NativeNaturalType one = stack.pop_back(), zero = stack.pop_back();
-                huffmanChildren.writeElementAt(huffmanChildrenIndex*2, zero);
-                huffmanChildren.writeElementAt(huffmanChildrenIndex*2+1, one);
-                stack.push_back(symbolCount+huffmanChildrenIndex);
-                ++huffmanChildrenIndex;
-            }
-        }
     }
 
     void decodeChunk() {
         numberCodec = static_cast<NumberCodec>(decodeNatural());
         symbolCodec = static_cast<SymbolCodec>(decodeNatural());
         blobCodec = static_cast<BlobCodec>(decodeNatural());
-        symbolCount = decodeNatural();
-        if(symbolCodec == SymbolCodecHuffman)
-            decodeHuffmanTree();
-        for(NativeNaturalType i = 0; i < symbolCount; ++i)
+        if(symbolCodec == SymbolCodecHuffman) {
+            symbolHuffmanDecoder.decodeTree(blob, offset);
+            for(NativeNaturalType i = 0; i < symbolHuffmanDecoder.symbolCount; ++i) { // TODO
+                Symbol symbol = symbolHuffmanDecoder.symbolVector.readElementAt(i);
+                if(symbol > preDefinedSymbolsCount)
+                    symbolHuffmanDecoder.symbolVector.writeElementAt(i, createSymbol());
+            }
+        }
+        symbolsInChunk = decodeNatural();
+        for(NativeNaturalType i = 0; i < symbolsInChunk; ++i)
             decodeEntity();
     }
 
@@ -376,12 +225,7 @@ struct BinaryDecoder : public BinaryCodec {
     }
 
     BinaryDecoder() :BinaryCodec() {
-        symbolVector.symbol = BinaryCodecAux0Symbol;
-        huffmanChildren.symbol = BinaryCodecAux1Symbol;
-    }
-
-    ~BinaryDecoder() {
-        Blob(symbolVector.symbol).setSize(0);
-        Blob(huffmanChildren.symbol).setSize(0);
+        symbolHuffmanDecoder.symbolVector.symbol = BinaryCodecAux0Symbol;
+        symbolHuffmanDecoder.huffmanChildren.symbol = BinaryCodecAux1Symbol;
     }
 };
