@@ -230,3 +230,153 @@ struct StaticHuffmanDecoder {
         huffmanChildren.clear();
     }
 };
+
+
+
+struct DynamicArithmeticCodec {
+    const Natural32 full = BitMask<Natural32>::full,
+                    half = full/2+1, quarter = full/4+1;
+    Natural64 low = 0, high = full, distance, totalFrequency;
+    BlobVector<true, Natural32> symbolFrequencies;
+    BlobVector<true, Natural32> cummulativeFrequencies;
+    NativeNaturalType codeOffset = 0, underflowCounter = 0, symbolCount;
+    Blob code;
+
+    void updateModel(NativeNaturalType symbolIndex) {
+        symbolFrequencies.writeElementAt(symbolIndex, symbolFrequencies.readElementAt(symbolIndex)+1);
+        totalFrequency = (symbolIndex == 0) ? 0 : symbolFrequencies.readElementAt(symbolIndex-1);
+        for(; symbolIndex < symbolCount; ++symbolIndex) {
+            totalFrequency += symbolFrequencies.readElementAt(symbolIndex);
+            cummulativeFrequencies.writeElementAt(symbolIndex, totalFrequency);
+        }
+    }
+
+    void updateRange(NativeNaturalType symbolIndex) {
+        Natural32 lowerFrequency = (symbolIndex == 0) ? 0 : cummulativeFrequencies.readElementAt(symbolIndex-1),
+                  upperFrequency = cummulativeFrequencies.readElementAt(symbolIndex);
+        high = low+(distance*upperFrequency/totalFrequency)-1;
+        low  = low+(distance*lowerFrequency/totalFrequency);
+    }
+
+    void shiftAndScaleRange(Natural32 subtract) {
+        low -= subtract;
+        high -= subtract;
+        low <<= 1;
+        high <<= 1;
+        high |= 1;
+    }
+
+    Natural8 normalizeRange() {
+        if(high < half) {
+            shiftAndScaleRange(0);
+            return 0;
+        } else if(low >= half) {
+            shiftAndScaleRange(half);
+            return 1;
+        } else if(low >= quarter && high < half+quarter) {
+            shiftAndScaleRange(quarter);
+            ++underflowCounter;
+            return 2;
+        } else
+            return 3;
+    }
+
+    DynamicArithmeticCodec(NativeNaturalType _symbolCount, Blob _code) :totalFrequency(_symbolCount), symbolCount(_symbolCount), code(_code) {
+        symbolFrequencies.reserve(symbolCount);
+        cummulativeFrequencies.reserve(symbolCount);
+        for(NativeNaturalType symbolIndex = 0; symbolIndex < symbolCount; ++symbolIndex) {
+            symbolFrequencies.writeElementAt(symbolIndex, 1);
+            cummulativeFrequencies.writeElementAt(symbolIndex, symbolIndex+1);
+        }
+    }
+};
+
+struct DynamicArithmeticEncoder : public DynamicArithmeticCodec {
+    void encodeBit(bool bit) {
+        code.increaseSize(codeOffset, 1);
+        code.externalOperate<true>(&bit, codeOffset++, 1);
+    }
+
+    void encoderNormalizeRange() {
+        while(true) {
+            Natural8 operation = normalizeRange();
+            switch(operation) {
+                case 0:
+                case 1:
+                    encodeBit(operation);
+                    for(; underflowCounter > 0; --underflowCounter)
+                        encodeBit(!operation);
+                    break;
+                case 3:
+                    return;
+            }
+        }
+    }
+
+    void encodeSymbol(NativeNaturalType symbolIndex) {
+        distance = high-low+1;
+        updateRange(symbolIndex);
+        encoderNormalizeRange();
+        updateModel(symbolIndex);
+    }
+
+    void encodeTermination() {
+        if(low < quarter) {
+            encodeBit(0);
+            encodeBit(1);
+            for(; underflowCounter > 0; --underflowCounter)
+                encodeBit(1);
+        } else
+            encodeBit(1);
+    }
+
+    DynamicArithmeticEncoder(NativeNaturalType _symbolCount, Blob _code) :DynamicArithmeticCodec(_symbolCount, _code) {
+        code.setSize(0);
+    }
+};
+
+struct DynamicArithmeticDecoder : public DynamicArithmeticCodec {
+    Natural32 target;
+
+    bool decodeBit() {
+        target <<= 1;
+        if(codeOffset == code.getSize())
+            return false;
+        code.externalOperate<false>(&target, codeOffset++, 1);
+        return true;
+    }
+
+    void decoderNormalizeRange() {
+        while(true)
+            switch(normalizeRange()) {
+                case 0:
+                case 1:
+                    decodeBit();
+                    for(; underflowCounter > 0; --underflowCounter)
+                        decodeBit();
+                    break;
+                case 3:
+                    return;
+            }
+    }
+
+    NativeNaturalType decodeSymbol() {
+        distance = high-low+1;
+        Natural64 frequency = target-low;
+        frequency *= totalFrequency;
+        frequency /= distance;
+        NativeNaturalType symbolIndex = binarySearch<NativeNaturalType>(symbolCount, [&](NativeNaturalType at) {
+            return frequency >= cummulativeFrequencies.readElementAt(at);
+        });
+        updateRange(symbolIndex);
+        decoderNormalizeRange();
+        updateModel(symbolIndex);
+        return symbolIndex;
+    }
+
+    DynamicArithmeticDecoder(NativeNaturalType _symbolCount, Blob _code) :DynamicArithmeticCodec(_symbolCount, _code), target(0) {
+        const NativeNaturalType maxLength = 31;
+        while(decodeBit() && codeOffset < maxLength);
+        target <<= maxLength-codeOffset;
+    }
+};
