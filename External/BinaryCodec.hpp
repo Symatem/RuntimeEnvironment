@@ -1,4 +1,4 @@
-#include <Ontology/Triple.hpp>
+#include <External/Arithmetic.hpp>
 
 struct BinaryCodec {
     Blob blob;
@@ -48,7 +48,7 @@ struct BinaryEncoder : public BinaryCodec {
                 break;
             case SymbolCodecHuffman:
                 if(doWrite)
-                    symbolHuffmanEncoder.encodeSymbol(symbol, blob, offset);
+                    symbolHuffmanEncoder.encodeSymbol(symbol);
                 else
                     symbolHuffmanEncoder.countSymbol(symbol);
                 break;
@@ -91,8 +91,6 @@ struct BinaryEncoder : public BinaryCodec {
     }
 
     void encodeEntities(bool doWrite) {
-        if(doWrite)
-            encodeNatural(symbolsInChunk);
         for(NativeNaturalType at = symbolIndexOffset; at < symbolIndexOffset+symbolsInChunk; ++at) {
             auto alphaResult = tripleIndex.readElementAt(at);
             encodeEntity(doWrite, alphaResult.key, alphaResult.value[EAV]);
@@ -105,8 +103,9 @@ struct BinaryEncoder : public BinaryCodec {
         encodeNatural(blobCodec);
         if(symbolCodec == SymbolCodecHuffman) {
             encodeEntities(false);
-            symbolHuffmanEncoder.encodeTree(blob, offset);
+            symbolHuffmanEncoder.encodeTree();
         }
+        encodeNatural(symbolsInChunk);
         encodeEntities(true);
     }
 
@@ -126,7 +125,7 @@ struct BinaryEncoder : public BinaryCodec {
         offset += headerLength;
     }
 
-    BinaryEncoder() :BinaryCodec() {
+    BinaryEncoder() :BinaryCodec(), symbolHuffmanEncoder(blob, offset) {
         symbolHuffmanEncoder.symbolMap.symbol = BinaryCodecAux0Symbol;
         symbolHuffmanEncoder.huffmanCodes = Blob(BinaryCodecAux1Symbol);
         blob.setSize(0);
@@ -159,7 +158,7 @@ struct BinaryDecoder : public BinaryCodec {
                 symbol = decodeNatural();
                 break;
             case SymbolCodecHuffman:
-                symbol = symbolHuffmanDecoder.decodeSymbol(blob, offset);
+                symbol = symbolHuffmanDecoder.decodeSymbol();
                 break;
             default:
                 assert(false);
@@ -199,7 +198,7 @@ struct BinaryDecoder : public BinaryCodec {
         symbolCodec = static_cast<SymbolCodec>(decodeNatural());
         blobCodec = static_cast<BlobCodec>(decodeNatural());
         if(symbolCodec == SymbolCodecHuffman) {
-            symbolHuffmanDecoder.decodeTree(blob, offset);
+            symbolHuffmanDecoder.decodeTree();
             for(NativeNaturalType i = 0; i < symbolHuffmanDecoder.symbolCount; ++i) { // TODO
                 Symbol symbol = symbolHuffmanDecoder.symbolVector.readElementAt(i);
                 if(symbol > preDefinedSymbolsCount)
@@ -224,7 +223,7 @@ struct BinaryDecoder : public BinaryCodec {
             decodeChunk();
     }
 
-    BinaryDecoder() :BinaryCodec() {
+    BinaryDecoder() :BinaryCodec(), symbolHuffmanDecoder(blob, offset) {
         symbolHuffmanDecoder.symbolVector.symbol = BinaryCodecAux0Symbol;
         symbolHuffmanDecoder.huffmanChildren.symbol = BinaryCodecAux1Symbol;
     }
