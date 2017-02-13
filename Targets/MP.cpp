@@ -265,14 +265,14 @@ Integer32 main(Integer32 argc, Integer8** argv) {
             } else
                 sendNatural(exception);
             unlink(deserializer.queue.symbol);
-        } else ifIsCommand("encodeBinary") {
+        } else ifIsCommand("encodeOntologyBinary") {
             assert(parameterCount == 0);
-            BinaryEncoder encoder;
+            BinaryOntologyEncoder encoder;
             encoder.encode();
             sendNil();
-        } else ifIsCommand("decodeBinary") {
+        } else ifIsCommand("decodeOntologyBinary") {
             assert(parameterCount == 0);
-            BinaryDecoder decoder;
+            BinaryOntologyDecoder decoder;
             decoder.decode();
             sendNil();
         } else ifIsCommand("query") {

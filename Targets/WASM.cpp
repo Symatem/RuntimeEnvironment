@@ -98,13 +98,13 @@ EXPORT Symbol deserializeHRL(Symbol inputSymbol, Symbol outputSymbol, Symbol pac
     return exception;
 }
 
-EXPORT void encodeBinary() {
-    BinaryEncoder encoder;
+EXPORT void encodeOntologyBinary() {
+    BinaryOntologyEncoder encoder;
     encoder.encode();
 }
 
-EXPORT void decodeBinary() {
-    BinaryDecoder decoder;
+EXPORT void decodeOntologyBinary() {
+    BinaryOntologyDecoder decoder;
     decoder.decode();
 }
 

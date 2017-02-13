@@ -1,4 +1,4 @@
-#include <External/BinaryCodec.hpp>
+#include <External/BinaryOntologyCodec.hpp>
 
 const char* HRLRawBegin = "raw:";
 

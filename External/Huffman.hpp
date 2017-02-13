@@ -9,7 +9,7 @@ struct StaticHuffmanCodec {
 };
 
 struct StaticHuffmanEncoder : public StaticHuffmanCodec {
-    BlobSet<false, Symbol, NativeNaturalType> symbolMap;
+    BlobSet<true, Symbol, NativeNaturalType> symbolMap;
     Blob huffmanCodes;
 
     void countSymbol(Symbol symbol) {
@@ -123,17 +123,18 @@ struct StaticHuffmanEncoder : public StaticHuffmanCodec {
         huffmanChildren.clear();
     }
 
-    StaticHuffmanEncoder(Blob& _blob, NativeNaturalType& _offset) :StaticHuffmanCodec(_blob, _offset) { }
+    StaticHuffmanEncoder(Blob& _blob, NativeNaturalType& _offset) :StaticHuffmanCodec(_blob, _offset) {
+        huffmanCodes = Blob(createSymbol());
+    }
 
     ~StaticHuffmanEncoder() {
-        symbolMap.clear();
-        huffmanCodes.setSize(0);
+        releaseSymbol(huffmanCodes.symbol);
     }
 };
 
 struct StaticHuffmanDecoder : public StaticHuffmanCodec {
-    BlobVector<false, Symbol> symbolVector;
-    BlobVector<false, NativeNaturalType> huffmanChildren;
+    BlobVector<true, Symbol> symbolVector;
+    BlobVector<true, NativeNaturalType> huffmanChildren;
 
     Symbol decodeSymbol() {
         NativeNaturalType index;

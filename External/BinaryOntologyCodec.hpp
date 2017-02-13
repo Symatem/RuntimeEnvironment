@@ -1,52 +1,62 @@
 #include <External/Arithmetic.hpp>
 
-struct BinaryCodec {
+struct BinaryOntologyCodec {
     Blob blob;
     NativeNaturalType offset = 0, naturalLength = architectureSize, symbolsInChunk;
     const static NativeNaturalType headerLength = 64+8*45;
 
-    enum NumberCodec {
-        NumberCodecRaw,
-        NumberCodecBinaryVariableLength
-    } numberCodec = NumberCodecBinaryVariableLength;
+    enum ChunkOption {
+        ChunkOptionRaw
+    } chunkOption = ChunkOptionRaw;
 
-    enum SymbolCodec {
-        SymbolCodecNatural,
-        SymbolCodecHuffman
-    } symbolCodec = SymbolCodecHuffman;
+    enum NumberOption {
+        NumberOptionRaw,
+        NumberOptionBinaryVariableLength
+    } numberOption = NumberOptionBinaryVariableLength;
 
-    enum BlobCodec {
-        BlobCodecRaw
-    } blobCodec = BlobCodecRaw;
+    enum SymbolOption {
+        SymbolOptionNatural,
+        SymbolOptionStaticHuffman
+    } symbolOption = SymbolOptionStaticHuffman;
 
-    BinaryCodec() {
-        blob = Blob(BinaryCodecSymbol);
+    enum BlobOption {
+        BlobOptionRaw
+    } blobOption = BlobOptionRaw;
+
+    BinaryOntologyCodec() {
+        blob = Blob(BinaryOntologyCodecSymbol);
     }
 };
 
-struct BinaryEncoder : public BinaryCodec {
+struct BinaryOntologyEncoder : public BinaryOntologyCodec {
     StaticHuffmanEncoder symbolHuffmanEncoder;
     Symbol symbolIndexOffset;
 
+    BinaryOntologyEncoder() :BinaryOntologyCodec(), symbolHuffmanEncoder(blob, offset) {
+        // symbolHuffmanEncoder.symbolMap.symbol = BinaryOntologyCodecAux0Symbol;
+        // symbolHuffmanEncoder.huffmanCodes = Blob(BinaryOntologyCodecAux1Symbol);
+        blob.setSize(0);
+    }
+
     void encodeNatural(NativeNaturalType value) {
-        switch(numberCodec) {
-            case NumberCodecRaw:
+        switch(numberOption) {
+            case NumberOptionRaw:
                 blob.increaseSize(offset, naturalLength);
                 blob.externalOperate<true>(&value, offset, naturalLength);
                 offset += naturalLength;
                 break;
-            case NumberCodecBinaryVariableLength:
+            case NumberOptionBinaryVariableLength:
                 encodeBvlNatural(blob, offset, value);
                 break;
         }
     }
 
     void encodeSymbol(bool doWrite, Symbol symbol) {
-        switch(symbolCodec) {
-            case SymbolCodecNatural:
+        switch(symbolOption) {
+            case SymbolOptionNatural:
                 encodeNatural(symbol);
                 break;
-            case SymbolCodecHuffman:
+            case SymbolOptionStaticHuffman:
                 if(doWrite)
                     symbolHuffmanEncoder.encodeSymbol(symbol);
                 else
@@ -74,8 +84,8 @@ struct BinaryEncoder : public BinaryCodec {
 
         encodeSymbol(doWrite, entity);
         if(doWrite)
-            switch(blobCodec) {
-                case BlobCodecRaw: {
+            switch(blobOption) {
+                case BlobOptionRaw: {
                     encodeNatural(blobLength);
                     blob.increaseSize(offset, blobLength);
                     blob.interoperation(srcBlob, offset, 0, blobLength);
@@ -98,10 +108,11 @@ struct BinaryEncoder : public BinaryCodec {
     }
 
     void encodeChunk() {
-        encodeNatural(numberCodec);
-        encodeNatural(symbolCodec);
-        encodeNatural(blobCodec);
-        if(symbolCodec == SymbolCodecHuffman) {
+        encodeNatural(chunkOption);
+        encodeNatural(numberOption);
+        encodeNatural(symbolOption);
+        encodeNatural(blobOption);
+        if(symbolOption == SymbolOptionStaticHuffman) {
             encodeEntities(false);
             symbolHuffmanEncoder.encodeTree();
         }
@@ -124,25 +135,29 @@ struct BinaryEncoder : public BinaryCodec {
         blob.externalOperate<true>(&superPage->version, 0, headerLength);
         offset += headerLength;
     }
-
-    BinaryEncoder() :BinaryCodec(), symbolHuffmanEncoder(blob, offset) {
-        symbolHuffmanEncoder.symbolMap.symbol = BinaryCodecAux0Symbol;
-        symbolHuffmanEncoder.huffmanCodes = Blob(BinaryCodecAux1Symbol);
-        blob.setSize(0);
-    }
 };
 
-struct BinaryDecoder : public BinaryCodec {
+struct BinaryOntologyDecoder : public BinaryOntologyCodec {
     StaticHuffmanDecoder symbolHuffmanDecoder;
+
+    BinaryOntologyDecoder() :BinaryOntologyCodec(), symbolHuffmanDecoder(blob, offset) {
+        symbolHuffmanDecoder.symbolVector.symbol = BinaryOntologyCodecAux0Symbol;
+        symbolHuffmanDecoder.huffmanChildren.symbol = BinaryOntologyCodecAux1Symbol;
+    }
+
+    ~BinaryOntologyDecoder() {
+        symbolHuffmanDecoder.symbolVector.symbol = VoidSymbol;
+        symbolHuffmanDecoder.huffmanChildren.symbol = VoidSymbol;
+    }
 
     NativeNaturalType decodeNatural() {
         NativeNaturalType value;
-        switch(numberCodec) {
-            case NumberCodecRaw:
+        switch(numberOption) {
+            case NumberOptionRaw:
                 blob.externalOperate<false>(&value, offset, naturalLength);
                 offset += naturalLength;
                 break;
-            case NumberCodecBinaryVariableLength:
+            case NumberOptionBinaryVariableLength:
                 value = decodeBvlNatural(blob, offset);
                 break;
             default:
@@ -153,11 +168,11 @@ struct BinaryDecoder : public BinaryCodec {
 
     Symbol decodeSymbol() {
         Symbol symbol;
-        switch(symbolCodec) {
-            case SymbolCodecNatural:
+        switch(symbolOption) {
+            case SymbolOptionNatural:
                 symbol = decodeNatural();
                 break;
-            case SymbolCodecHuffman:
+            case SymbolOptionStaticHuffman:
                 symbol = symbolHuffmanDecoder.decodeSymbol();
                 break;
             default:
@@ -178,8 +193,8 @@ struct BinaryDecoder : public BinaryCodec {
     void decodeEntity() {
         Symbol entity = decodeSymbol();
         Blob dstBlob(entity);
-        switch(blobCodec) {
-            case BlobCodecRaw: {
+        switch(blobOption) {
+            case BlobOptionRaw: {
                 NativeNaturalType blobLength = decodeNatural();
                 dstBlob.setSize(blobLength);
                 dstBlob.interoperation(blob, 0, offset, blobLength);
@@ -194,10 +209,11 @@ struct BinaryDecoder : public BinaryCodec {
     }
 
     void decodeChunk() {
-        numberCodec = static_cast<NumberCodec>(decodeNatural());
-        symbolCodec = static_cast<SymbolCodec>(decodeNatural());
-        blobCodec = static_cast<BlobCodec>(decodeNatural());
-        if(symbolCodec == SymbolCodecHuffman) {
+        chunkOption = static_cast<ChunkOption>(decodeNatural());
+        numberOption = static_cast<NumberOption>(decodeNatural());
+        symbolOption = static_cast<SymbolOption>(decodeNatural());
+        blobOption = static_cast<BlobOption>(decodeNatural());
+        if(symbolOption == SymbolOptionStaticHuffman) {
             symbolHuffmanDecoder.decodeTree();
             for(NativeNaturalType i = 0; i < symbolHuffmanDecoder.symbolCount; ++i) { // TODO
                 Symbol symbol = symbolHuffmanDecoder.symbolVector.readElementAt(i);
@@ -221,10 +237,5 @@ struct BinaryDecoder : public BinaryCodec {
         offset += 8;
         while(offset < blobLength)
             decodeChunk();
-    }
-
-    BinaryDecoder() :BinaryCodec(), symbolHuffmanDecoder(blob, offset) {
-        symbolHuffmanDecoder.symbolVector.symbol = BinaryCodecAux0Symbol;
-        symbolHuffmanDecoder.huffmanChildren.symbol = BinaryCodecAux1Symbol;
     }
 };

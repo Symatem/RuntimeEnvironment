@@ -356,8 +356,8 @@ struct Blob {
             NativeNaturalType sliceLength = min(endOffset-blobOffset, sizeOfInBits<ChaCha20>::value);
             mask.generate(context);
             externalOperate<false>(&buffer, blobOffset, sliceLength);
-            for(Natural8 i = 0; i < 16; ++i)
-                buffer.block[i] ^= mask.block[i];
+            for(Natural8 i = 0; i < 8; ++i)
+                buffer.block64[i] ^= mask.block64[i];
             externalOperate<true>(&buffer, blobOffset, sliceLength);
             blobOffset += sliceLength;
         }
