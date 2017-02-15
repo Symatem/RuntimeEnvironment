@@ -51,12 +51,10 @@ struct ArithmeticCodecSlidingWindowModel : public ArithmeticCodecStaticModel {
     }
 
     void update(NativeNaturalType incrementSymbolIndex) {
-        NativeNaturalType decrementSymbolIndex = symbolCount;
-        if(notFirstRound) {
-            decrementSymbolIndex = symbolRingBuffer.readElementAt(ringBufferIndex);
-            symbolFrequencies.writeElementAt(decrementSymbolIndex, symbolFrequencies.readElementAt(decrementSymbolIndex)-1);
-        }
+        NativeNaturalType decrementSymbolIndex = (notFirstRound) ? symbolRingBuffer.readElementAt(ringBufferIndex) : symbolCount;
         if(decrementSymbolIndex != incrementSymbolIndex) {
+            if(notFirstRound)
+                symbolFrequencies.writeElementAt(decrementSymbolIndex, symbolFrequencies.readElementAt(decrementSymbolIndex)-1);
             symbolFrequencies.writeElementAt(incrementSymbolIndex, symbolFrequencies.readElementAt(incrementSymbolIndex)+1);
             updateFrequency(min(decrementSymbolIndex, incrementSymbolIndex));
         }
@@ -85,6 +83,7 @@ struct ArithmeticCodec {
                   upperFrequency = model.upperFrequency(symbolIndex);
         high = low+(distance*upperFrequency/model.totalFrequency)-1;
         low  = low+(distance*lowerFrequency/model.totalFrequency);
+        assert(low < high);
     }
 
     void shiftAndScaleRange(Natural32 shift) {
@@ -162,8 +161,9 @@ struct ArithmeticDecoder : public ArithmeticCodec {
 
     ArithmeticDecoder(Blob& _blob, NativeNaturalType& _offset, NativeNaturalType _symbolCount) :ArithmeticCodec(_blob, _offset, _symbolCount), buffer(0) {
         const NativeNaturalType maxLength = BitMask<NativeNaturalType>::ceilLog2(full)-1;
-        while(decodeBit() && offset < maxLength);
-        buffer <<= maxLength-offset;
+        NativeNaturalType i;
+        for(i = 0; decodeBit() && i < maxLength; ++i);
+        buffer <<= maxLength-i;
     }
 
     bool decodeBit() {
@@ -186,8 +186,9 @@ struct ArithmeticDecoder : public ArithmeticCodec {
     }
 
     NativeNaturalType decodeSymbol() {
+        assert(low <= buffer && buffer <= high);
         distance = high-low+1;
-        Natural64 frequency = buffer-low;
+        Natural64 frequency = buffer-low+1;
         frequency *= model.totalFrequency;
         frequency /= distance;
         NativeNaturalType symbolIndex = binarySearch<NativeNaturalType>(model.symbolCount, [&](NativeNaturalType at) {
@@ -200,3 +201,26 @@ struct ArithmeticDecoder : public ArithmeticCodec {
         return symbolIndex;
     }
 };
+
+void arithmeticEncodeBlob(Blob& dst, Blob& src) {
+    NativeNaturalType dstOffset = 0, srcLength = src.getSize(), bitsToSymbol = 4;
+    dst.setSize(0);
+    encodeBvlNatural(dst, dstOffset, srcLength);
+    ArithmeticEncoder encoder(dst, dstOffset, 1<<bitsToSymbol);
+    for(NativeNaturalType srcOffset = 0; srcOffset < srcLength; srcOffset += bitsToSymbol) {
+        NativeNaturalType symbolIndex = 0;
+        src.externalOperate<false>(&symbolIndex, srcOffset, bitsToSymbol);
+        encoder.encodeSymbol(symbolIndex);
+    }
+    encoder.encodeTermination();
+}
+
+void arithmeticDecodeBlob(Blob& dst, Blob& src) {
+    NativeNaturalType srcOffset = 0, dstLength = decodeBvlNatural(src, srcOffset), bitsToSymbol = 4;
+    dst.setSize(dstLength);
+    ArithmeticDecoder decoder(src, srcOffset, 1<<bitsToSymbol);
+    for(NativeNaturalType dstOffset = 0; dstOffset < dstLength; dstOffset += bitsToSymbol) {
+        NativeNaturalType symbolIndex = decoder.decodeSymbol();
+        dst.externalOperate<true>(&symbolIndex, dstOffset, bitsToSymbol);
+    }
+}
