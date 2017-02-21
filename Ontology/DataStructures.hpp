@@ -1,4 +1,4 @@
-#include <Storage/Containers.hpp>
+#include <Storage/DataStructures.hpp>
 
 bool unlink(Symbol symbol);
 
@@ -11,7 +11,7 @@ struct BlobIndex : public BlobSet<guarded, Symbol> {
     BlobIndex(const BlobIndex<true>& other) :Super(other) {}
 
     NativeNaturalType find(Symbol key) const {
-        return binarySearch<NativeNaturalType>(Super::size(), [&](NativeNaturalType at) {
+        return binarySearch<NativeNaturalType>(0, Super::size(), [&](NativeNaturalType at) {
             return Blob(key).compare(Blob(Super::readElementAt(at))) < 0;
         });
     }

@@ -17,10 +17,9 @@ bool substrEqual(const char* a, const char* b) {
 }
 
 template<typename IndexType>
-IndexType binarySearch(IndexType end, Closure<bool(IndexType)> compare) {
-    IndexType begin = 0, mid;
+IndexType binarySearch(IndexType begin, IndexType end, Closure<bool(IndexType)> compare) {
     while(begin < end) {
-        mid = (begin+end)/2;
+        IndexType mid = (begin+end)/2;
         if(compare(mid))
             begin = mid+1;
         else

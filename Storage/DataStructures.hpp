@@ -23,18 +23,17 @@ struct BlobVector {
         return (symbol) ? Blob(symbol).getSize()/sizeOfInBits<ElementType>::value : 0;
     }
 
-    ElementType readElementAt(NativeNaturalType offset) const {
-        assert(symbol && offset < size());
-        return Blob(symbol).readAt<ElementType>(offset);
+    ElementType readElementAt(NativeNaturalType at) const {
+        assert(symbol);
+        return Blob(symbol).readAt<ElementType>(at);
     }
 
-    void writeElementAt(NativeNaturalType offset, ElementType element) const {
-        assert(symbol && offset < size());
-        Blob(symbol).writeAt<ElementType>(offset, element);
+    void writeElementAt(NativeNaturalType at, ElementType element) const {
+        assert(symbol);
+        Blob(symbol).writeAt<ElementType>(at, element);
     }
 
     void swapElementsAt(NativeNaturalType a, NativeNaturalType b) const {
-        assert(a < size() && b < size());
         ElementType A = readElementAt(a),
                     B = readElementAt(b);
         writeElementAt(a, B);
@@ -70,20 +69,24 @@ struct BlobVector {
         reserve(0);
     }
 
-    void insert(NativeNaturalType offset, ElementType element) {
+    void insertRange(NativeNaturalType at, NativeNaturalType length) {
         activate();
-        Blob dstBlob(symbol);
-        assert(dstBlob.increaseSize(offset*sizeOfInBits<ElementType>::value, sizeOfInBits<ElementType>::value));
-        dstBlob.writeAt<ElementType>(offset, element);
+        assert(Blob(symbol).increaseSize(at*sizeOfInBits<ElementType>::value, sizeOfInBits<ElementType>::value)*length);
     }
 
-    void erase(NativeNaturalType offset, NativeNaturalType length) {
+    void insert(NativeNaturalType at, ElementType element) {
+        activate();
+        insertRange(at, 1);
+        writeElementAt(at, element);
+    }
+
+    void eraseRange(NativeNaturalType at, NativeNaturalType length) {
         assert(symbol);
-        assert(Blob(symbol).decreaseSize(offset*sizeOfInBits<ElementType>::value, sizeOfInBits<ElementType>::value));
+        assert(Blob(symbol).decreaseSize(at*sizeOfInBits<ElementType>::value, sizeOfInBits<ElementType>::value)*length);
     }
 
     void erase(NativeNaturalType at) {
-        erase(at, 1);
+        eraseRange(at, 1);
     }
 
     void push_front(ElementType element) {
@@ -107,15 +110,15 @@ struct BlobVector {
     }
 };
 
-template<typename KeyType, typename ValueType = VoidType[0]>
+template<typename FirstType, typename SecondType = VoidType[0]>
 struct Pair {
-    KeyType key;
-    ValueType value;
+    FirstType first;
+    SecondType second;
     Pair() {}
-    Pair(KeyType _key) :key(_key) {}
-    Pair(KeyType _key, ValueType _value) :key(_key), value(_value) {}
-    operator KeyType() {
-        return key;
+    Pair(FirstType _first) :first(_first) {}
+    Pair(FirstType _first, SecondType _second) :first(_first), second(_second) {}
+    operator FirstType() {
+        return first;
     }
 };
 
@@ -130,31 +133,36 @@ struct BlobMap : public BlobVector<guarded, Pair<KeyType, ValueType>> {
 
     void iterateKeys(Closure<void(KeyType)> callback) const {
         for(NativeNaturalType at = 0; at < Super::size(); ++at)
-            callback(Super::readElementAt(at).key);
+            callback(readKeyAt(at));
+    }
+
+    void iterateValues(Closure<void(ValueType)> callback) const {
+        for(NativeNaturalType at = 0; at < Super::size(); ++at)
+            callback(readValueAt(at));
     }
 
     KeyType&& readKeyAt(NativeNaturalType at) const {
-        assert(Super::symbol && at < Super::size());
+        assert(Super::symbol);
         KeyType key;
         Blob(Super::symbol).externalOperate<false>(&key, at*sizeOfInBits<ElementType>::value, sizeOfInBits<KeyType>::value);
         return reinterpret_cast<KeyType&&>(key);
     }
 
     ValueType&& readValueAt(NativeNaturalType at) const {
-        assert(Super::symbol && at < Super::size());
+        assert(Super::symbol);
         ValueType value;
         Blob(Super::symbol).externalOperate<false>(&value, at*sizeOfInBits<ElementType>::value+sizeOfInBits<KeyType>::value, sizeOfInBits<ValueType>::value);
         return reinterpret_cast<ValueType&&>(value);
     }
 
     bool writeKeyAt(NativeNaturalType at, KeyType key) const {
-        assert(Super::symbol && at < Super::size());
+        assert(Super::symbol);
         Blob(Super::symbol).externalOperate<true>(&key, at*sizeOfInBits<ElementType>::value, sizeOfInBits<KeyType>::value);
         return true;
     }
 
     bool writeValueAt(NativeNaturalType at, ValueType value) const {
-        assert(Super::symbol && at < Super::size());
+        assert(Super::symbol);
         Blob(Super::symbol).externalOperate<true>(&value, at*sizeOfInBits<ElementType>::value+sizeOfInBits<KeyType>::value, sizeOfInBits<ValueType>::value);
         return true;
     }
@@ -255,19 +263,19 @@ struct BlobSet : public BlobMap<guarded, KeyType, ValueType> {
     BlobSet(const BlobSet<true, KeyType, ValueType>& other) :Super(other) {}
 
     NativeNaturalType find(KeyType key) const {
-        return binarySearch<NativeNaturalType>(Super::size(), [&](NativeNaturalType at) {
-            return key > Super::readElementAt(at).key;
+        return binarySearch<NativeNaturalType>(0, Super::size(), [&](NativeNaturalType at) {
+            return key > Super::readKeyAt(at);
         });
     }
 
     bool find(KeyType key, NativeNaturalType& at) const {
         at = find(key);
-        return (at < Super::size() && Super::readElementAt(at).key == key);
+        return (at < Super::size() && Super::readKeyAt(at) == key);
     }
 
     bool insertElement(ElementType element) {
         NativeNaturalType at;
-        if(find(element.key, at))
+        if(find(element.first, at))
             return false;
         Super::insert(at, element);
         return true;
@@ -275,14 +283,14 @@ struct BlobSet : public BlobMap<guarded, KeyType, ValueType> {
 
     bool eraseElement(ElementType element) {
         NativeNaturalType at;
-        if(!find(element.key, at))
+        if(!find(element.first, at))
             return false;
         Super::erase(at);
         return true;
     }
 
     bool writeKeyAt(NativeNaturalType at, KeyType key) const {
-        assert(Super::symbol && at < Super::size());
+        assert(Super::symbol);
         NativeNaturalType newAt;
         ValueType value = Super::readValueAt(at);
         if(find(key, newAt))

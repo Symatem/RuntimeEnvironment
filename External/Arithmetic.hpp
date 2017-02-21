@@ -158,20 +158,23 @@ struct ArithmeticEncoder : public ArithmeticCodec {
 
 struct ArithmeticDecoder : public ArithmeticCodec {
     Natural32 buffer;
+    NativeNaturalType startOffset;
 
     ArithmeticDecoder(Blob& _blob, NativeNaturalType& _offset, NativeNaturalType _symbolCount) :ArithmeticCodec(_blob, _offset, _symbolCount), buffer(0) {
         const NativeNaturalType maxLength = BitMask<NativeNaturalType>::ceilLog2(full)-1;
-        NativeNaturalType i;
-        for(i = 0; decodeBit() && i < maxLength; ++i);
-        buffer <<= maxLength-i;
+        for(startOffset = 0; decodeBit() && startOffset < maxLength; ++startOffset);
+        buffer <<= maxLength-startOffset;
     }
 
     bool decodeBit() {
         buffer <<= 1;
-        if(offset == blob.getSize())
+        if(offset >= blob.getSize()) {
+            ++offset;
             return false;
-        blob.externalOperate<false>(&buffer, offset++, 1);
-        return true;
+        } else {
+            blob.externalOperate<false>(&buffer, offset++, 1);
+            return true;
+        }
     }
 
     void decoderNormalizeRange() {
@@ -191,7 +194,7 @@ struct ArithmeticDecoder : public ArithmeticCodec {
         Natural64 frequency = buffer-low+1;
         frequency *= model.totalFrequency;
         frequency /= distance;
-        NativeNaturalType symbolIndex = binarySearch<NativeNaturalType>(model.symbolCount, [&](NativeNaturalType at) {
+        NativeNaturalType symbolIndex = binarySearch<NativeNaturalType>(0, model.symbolCount, [&](NativeNaturalType at) {
             return frequency >= model.upperFrequency(at);
         });
         assert(symbolIndex < model.symbolCount);
@@ -199,6 +202,11 @@ struct ArithmeticDecoder : public ArithmeticCodec {
         decoderNormalizeRange();
         model.update(symbolIndex);
         return symbolIndex;
+    }
+
+    void decodeTermination() {
+        offset -= startOffset;
+        offset += (low < quarter) ? 1 : 0;
     }
 };
 
@@ -223,4 +231,5 @@ void arithmeticDecodeBlob(Blob& dst, Blob& src) {
         NativeNaturalType symbolIndex = decoder.decodeSymbol();
         dst.externalOperate<true>(&symbolIndex, dstOffset, bitsToSymbol);
     }
+    decoder.decodeTermination();
 }

@@ -1,8 +1,10 @@
 #include <External/HrlSerialize.hpp>
 
-#define checkReturn(expression) \
-    if((expression) != VoidSymbol) \
-        return false;
+#define checkReturn(expression) { \
+    Symbol exception = (expression); \
+    if(exception != VoidSymbol) \
+        return exception; \
+}
 
 struct HrlDeserializer {
     Symbol parentEntry, input, package = VoidSymbol;
@@ -267,3 +269,5 @@ struct HrlDeserializer {
         return VoidSymbol;
     }
 };
+
+#undef checkReturn

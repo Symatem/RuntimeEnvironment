@@ -1,4 +1,4 @@
-#include <Ontology/BlobIndex.hpp>
+#include <Ontology/DataStructures.hpp>
 
 #define Wrapper(token) token##Symbol
 enum PreDefinedSymbols {
@@ -97,7 +97,7 @@ bool linkInSubIndex(Triple triple) {
     NativeNaturalType betaIndex;
     BlobSet<false, Symbol> gamma;
     if(beta.find(triple.pos[1], betaIndex))
-        gamma.symbol = beta.readElementAt(betaIndex).value;
+        gamma.symbol = beta.readElementAt(betaIndex).second;
     else {
         gamma.symbol = createSymbol();
         beta.insert(betaIndex, {triple.pos[1], gamma.symbol});
@@ -109,16 +109,16 @@ bool linkTriplePartial(Triple triple, NativeNaturalType subIndex) {
     NativeNaturalType alphaIndex;
     Pair<Symbol, Symbol[6]> element;
     if(!tripleIndex.find(triple.pos[subIndex], alphaIndex)) {
-        element.key = triple.pos[subIndex];
+        element.first = triple.pos[subIndex];
         for(NativeNaturalType i = 0; i < 6; ++i)
-            element.value[i] = createSymbol();
+            element.second[i] = createSymbol();
         tripleIndex.insert(alphaIndex, element);
     } else
         element = tripleIndex.readElementAt(alphaIndex);
-    if(!linkInSubIndex(triple.forwardIndex(element.value, subIndex)))
+    if(!linkInSubIndex(triple.forwardIndex(element.second, subIndex)))
         return false;
     if(indexMode == HexaIndex)
-        assert(linkInSubIndex(triple.invertedIndex(element.value, subIndex)));
+        assert(linkInSubIndex(triple.invertedIndex(element.second, subIndex)));
     return true;
 }
 
@@ -136,11 +136,11 @@ NativeNaturalType searchMMM(NativeNaturalType subIndex, Triple triple, Closure<v
     if(!tripleIndex.find(triple.pos[0], alphaIndex))
         return 0;
     BlobSet<false, Symbol, Symbol> beta;
-    beta.symbol = tripleIndex.readElementAt(alphaIndex).value[subIndex];
+    beta.symbol = tripleIndex.readElementAt(alphaIndex).second[subIndex];
     if(!beta.find(triple.pos[1], betaIndex))
         return 0;
     BlobSet<false, Symbol> gamma;
-    gamma.symbol = beta.readElementAt(betaIndex).value;
+    gamma.symbol = beta.readElementAt(betaIndex).second;
     if(!gamma.find(triple.pos[2], gammaIndex))
         return 0;
     if(callback)
@@ -153,11 +153,11 @@ NativeNaturalType searchMMV(NativeNaturalType subIndex, Triple triple, Closure<v
     if(!tripleIndex.find(triple.pos[0], alphaIndex))
         return 0;
     BlobSet<false, Symbol, Symbol> beta;
-    beta.symbol = tripleIndex.readElementAt(alphaIndex).value[subIndex];
+    beta.symbol = tripleIndex.readElementAt(alphaIndex).second[subIndex];
     if(!beta.find(triple.pos[1], betaIndex))
         return 0;
     BlobSet<false, Symbol> gamma;
-    gamma.symbol = beta.readElementAt(betaIndex).value;
+    gamma.symbol = beta.readElementAt(betaIndex).second;
     if(callback)
         gamma.iterateKeys([&](Symbol gammaResult) {
             triple.pos[2] = gammaResult;
@@ -171,12 +171,12 @@ NativeNaturalType searchMVV(NativeNaturalType subIndex, Triple triple, Closure<v
     if(!tripleIndex.find(triple.pos[0], alphaIndex))
         return 0;
     BlobSet<false, Symbol, Symbol> beta;
-    beta.symbol = tripleIndex.readElementAt(alphaIndex).value[subIndex];
+    beta.symbol = tripleIndex.readElementAt(alphaIndex).second[subIndex];
     beta.iterate([&](Pair<Symbol, Symbol> betaResult) {
         BlobSet<false, Symbol> gamma;
-        gamma.symbol = betaResult.value;
+        gamma.symbol = betaResult.second;
         if(callback) {
-            triple.pos[1] = betaResult.key;
+            triple.pos[1] = betaResult.first;
             gamma.iterateKeys([&](Symbol gammaResult) {
                 triple.pos[2] = gammaResult;
                 callback(triple.normalized(subIndex));
@@ -193,10 +193,10 @@ NativeNaturalType searchMIV(NativeNaturalType subIndex, Triple triple, Closure<v
         return 0;
     BlobSet<true, Symbol> result;
     BlobSet<false, Symbol, Symbol> beta;
-    beta.symbol = tripleIndex.readElementAt(alphaIndex).value[subIndex];
+    beta.symbol = tripleIndex.readElementAt(alphaIndex).second[subIndex];
     beta.iterate([&](Pair<Symbol, Symbol> betaResult) {
         BlobSet<false, Symbol> gamma;
-        gamma.symbol = betaResult.value;
+        gamma.symbol = betaResult.second;
         gamma.iterateKeys([&](Symbol gammaResult) {
             result.insertElement(gammaResult);
         });
@@ -214,10 +214,10 @@ NativeNaturalType searchMVI(NativeNaturalType subIndex, Triple triple, Closure<v
     if(!tripleIndex.find(triple.pos[0], alphaIndex))
         return 0;
     BlobSet<false, Symbol, Symbol> beta;
-    beta.symbol = tripleIndex.readElementAt(alphaIndex).value[subIndex];
+    beta.symbol = tripleIndex.readElementAt(alphaIndex).second[subIndex];
     if(callback)
         beta.iterate([&](Pair<Symbol, Symbol> betaResult) {
-            triple.pos[1] = betaResult.key;
+            triple.pos[1] = betaResult.first;
             callback(triple.normalized(subIndex));
         });
     return beta.size();
@@ -226,7 +226,7 @@ NativeNaturalType searchMVI(NativeNaturalType subIndex, Triple triple, Closure<v
 NativeNaturalType searchVII(NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
     if(callback)
         tripleIndex.iterate([&](Pair<Symbol, Symbol[6]> alphaResult) {
-            triple.pos[0] = alphaResult.key;
+            triple.pos[0] = alphaResult.first;
             callback(triple.normalized(subIndex));
         });
     return tripleIndex.size();
@@ -236,11 +236,11 @@ NativeNaturalType searchVVI(NativeNaturalType subIndex, Triple triple, Closure<v
     NativeNaturalType count = 0;
     tripleIndex.iterate([&](Pair<Symbol, Symbol[6]> alphaResult) {
         BlobSet<false, Symbol, Symbol> beta;
-        beta.symbol = alphaResult.value[subIndex];
+        beta.symbol = alphaResult.second[subIndex];
         if(callback) {
-            triple.pos[0] = alphaResult.key;
+            triple.pos[0] = alphaResult.first;
             beta.iterate([&](Pair<Symbol, Symbol> betaResult) {
-                triple.pos[1] = betaResult.key;
+                triple.pos[1] = betaResult.first;
                 callback(triple.normalized(subIndex));
             });
         }
@@ -252,14 +252,14 @@ NativeNaturalType searchVVI(NativeNaturalType subIndex, Triple triple, Closure<v
 NativeNaturalType searchVVV(NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
     NativeNaturalType count = 0;
     tripleIndex.iterate([&](Pair<Symbol, Symbol[6]> alphaResult) {
-        triple.pos[0] = alphaResult.key;
+        triple.pos[0] = alphaResult.first;
         BlobSet<false, Symbol, Symbol> beta;
-        beta.symbol = alphaResult.value[subIndex];
+        beta.symbol = alphaResult.second[subIndex];
         beta.iterate([&](Pair<Symbol, Symbol> betaResult) {
             BlobSet<false, Symbol> gamma;
-            gamma.symbol = betaResult.value;
+            gamma.symbol = betaResult.second;
             if(callback) {
-                triple.pos[1] = betaResult.key;
+                triple.pos[1] = betaResult.first;
                 gamma.iterateKeys([&](Symbol gammaResult) {
                     triple.pos[2] = gammaResult;
                     callback(triple);
@@ -362,9 +362,9 @@ void setIndexMode(IndexMode _indexMode) {
         tripleIndex.iterate([&](Pair<Symbol, Symbol[6]> alphaResult) {
             for(NativeNaturalType subIndex = _indexMode; subIndex < indexMode; ++subIndex) {
                 BlobSet<false, Symbol, Symbol> beta;
-                beta.symbol = alphaResult.value[subIndex];
+                beta.symbol = alphaResult.second[subIndex];
                 beta.iterate([&](Pair<Symbol, Symbol> betaResult) {
-                    releaseSymbol(betaResult.value);
+                    releaseSymbol(betaResult.second);
                 });
                 beta.clear();
             }
@@ -379,7 +379,7 @@ bool unlinkInSubIndex(Triple triple) {
     if(!beta.find(triple.pos[1], betaIndex))
         return false;
     BlobSet<false, Symbol> gamma;
-    gamma.symbol = beta.readElementAt(betaIndex).value;
+    gamma.symbol = beta.readElementAt(betaIndex).second;
     if(!gamma.find(triple.pos[2], gammaIndex))
         return false;
     gamma.erase(gammaIndex);
@@ -398,10 +398,10 @@ bool unlinkWithoutReleasing(Triple triple, bool skipEnabled = false, Symbol skip
         if(!tripleIndex.find(triple.pos[subIndex], alphaIndex))
             return false;
         Pair<Symbol, Symbol[6]> element = tripleIndex.readElementAt(alphaIndex);
-        if(!unlinkInSubIndex(triple.forwardIndex(element.value, subIndex)))
+        if(!unlinkInSubIndex(triple.forwardIndex(element.second, subIndex)))
             return false;
         if(indexMode == HexaIndex)
-            assert(unlinkInSubIndex(triple.invertedIndex(element.value, subIndex)));
+            assert(unlinkInSubIndex(triple.invertedIndex(element.second, subIndex)));
     }
     if(triple.pos[1] == BlobTypeSymbol)
         modifiedBlob(triple.pos[0]);
@@ -411,9 +411,9 @@ bool unlinkWithoutReleasing(Triple triple, bool skipEnabled = false, Symbol skip
 void eraseSymbol(Pair<Symbol, Symbol[6]>& element, NativeNaturalType alphaIndex, Symbol symbol) {
     for(NativeNaturalType subIndex = 0; subIndex < indexMode; ++subIndex) {
         BlobSet<false, Symbol, Symbol> beta;
-        beta.symbol = element.value[subIndex];
+        beta.symbol = element.second[subIndex];
         beta.iterate([&](Pair<Symbol, Symbol> betaResult) {
-            releaseSymbol(betaResult.value);
+            releaseSymbol(betaResult.second);
         });
         releaseSymbol(beta.symbol);
     }
@@ -428,7 +428,7 @@ void tryToReleaseSymbol(Symbol symbol) {
     Pair<Symbol, Symbol[6]> element = tripleIndex.readElementAt(alphaIndex);
     forEachSubIndex {
         BlobSet<false, Symbol, Symbol> beta;
-        beta.symbol = element.value[subIndex];
+        beta.symbol = element.second[subIndex];
         if(!beta.empty())
             return;
     }
@@ -453,14 +453,14 @@ bool unlink(Symbol symbol) {
     BlobSet<true, Symbol> dirty;
     forEachSubIndex {
         BlobSet<false, Symbol, Symbol> beta;
-        beta.symbol = element.value[subIndex];
+        beta.symbol = element.second[subIndex];
         beta.iterate([&](Pair<Symbol, Symbol> betaResult) {
-            dirty.insertElement(betaResult.key);
+            dirty.insertElement(betaResult.first);
             BlobSet<false, Symbol> gamma;
-            gamma.symbol = betaResult.value;
+            gamma.symbol = betaResult.second;
             gamma.iterate([&](Symbol gammaResult) {
                 dirty.insertElement(gammaResult);
-                unlinkWithoutReleasing(Triple(symbol, betaResult.key, gammaResult).normalized(subIndex), true, symbol);
+                unlinkWithoutReleasing(Triple(symbol, betaResult.first, gammaResult).normalized(subIndex), true, symbol);
             });
         });
     }

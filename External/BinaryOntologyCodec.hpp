@@ -33,8 +33,6 @@ struct BinaryOntologyEncoder : public BinaryOntologyCodec {
     Symbol symbolIndexOffset;
 
     BinaryOntologyEncoder() :BinaryOntologyCodec(), symbolHuffmanEncoder(blob, offset) {
-        // symbolHuffmanEncoder.symbolMap.symbol = BinaryOntologyCodecAux0Symbol;
-        // symbolHuffmanEncoder.huffmanCodes = Blob(BinaryOntologyCodecAux1Symbol);
         blob.setSize(0);
     }
 
@@ -96,14 +94,14 @@ struct BinaryOntologyEncoder : public BinaryOntologyCodec {
         if(doWrite)
             encodeNatural(beta.size());
         beta.iterate([&](Pair<Symbol, Symbol> betaResult) {
-            encodeAttribute(doWrite, betaResult.key, betaResult.value);
+            encodeAttribute(doWrite, betaResult.first, betaResult.second);
         });
     }
 
     void encodeEntities(bool doWrite) {
         for(NativeNaturalType at = symbolIndexOffset; at < symbolIndexOffset+symbolsInChunk; ++at) {
             auto alphaResult = tripleIndex.readElementAt(at);
-            encodeEntity(doWrite, alphaResult.key, alphaResult.value[EAV]);
+            encodeEntity(doWrite, alphaResult.first, alphaResult.second[EAV]);
         }
     }
 

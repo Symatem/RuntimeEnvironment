@@ -47,7 +47,7 @@ struct StaticHuffmanEncoder : public StaticHuffmanCodec {
         BlobHeap<true, NativeNaturalType, Symbol> symbolHeap;
         symbolHeap.reserve(symbolCount);
         symbolMap.iterate([&](Pair<Symbol, NativeNaturalType> pair) {
-            symbolHeap.writeElementAt(index, {pair.value, index});
+            symbolHeap.writeElementAt(index, {pair.second, index});
             ++index;
         });
         symbolHeap.build();
@@ -64,11 +64,11 @@ struct StaticHuffmanEncoder : public StaticHuffmanCodec {
             auto a = symbolHeap.pop_front(),
                  b = symbolHeap.pop_front();
             NativeNaturalType parent = symbolCount+index;
-            huffmanParents.writeElementAt(a.value, {parent, 0});
-            huffmanParents.writeElementAt(b.value, {parent, 1});
-            huffmanChildren.writeElementAt(index*2, a.value);
-            huffmanChildren.writeElementAt(index*2+1, b.value);
-            symbolHeap.insertElement({a.key+b.key, parent});
+            huffmanParents.writeElementAt(a.second, {parent, 0});
+            huffmanParents.writeElementAt(b.second, {parent, 1});
+            huffmanChildren.writeElementAt(index*2, a.second);
+            huffmanChildren.writeElementAt(index*2+1, b.second);
+            symbolHeap.insertElement({a.first+b.first, parent});
         }
         symbolHeap.clear();
 

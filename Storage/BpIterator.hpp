@@ -159,7 +159,7 @@ bool find(Iterator<enableModification>& iter,
                     result = true;
                     break;
                 case Key:
-                    frame->index = binarySearch<OffsetType>(page->template keyCount<true>(), [&](OffsetType at) {
+                    frame->index = binarySearch<OffsetType>(0, page->template keyCount<true>(), [&](OffsetType at) {
                         return static_cast<KeyType>(keyOrRank) > page->template getKey<true>(at);
                     });
                     result = frame->index < page->header.count && static_cast<KeyType>(keyOrRank) == page->template getKey<true>(frame->index);
@@ -181,12 +181,12 @@ bool find(Iterator<enableModification>& iter,
                     frame->index = frame->endIndex-1;
                     break;
                 case Key:
-                    frame->index = binarySearch<OffsetType>(page->template keyCount<false>(), [&](OffsetType at) {
+                    frame->index = binarySearch<OffsetType>(0, page->template keyCount<false>(), [&](OffsetType at) {
                         return static_cast<KeyType>(keyOrRank) >= page->template getKey<false>(at);
                     });
                     break;
                 case Rank:
-                    frame->index = binarySearch<OffsetType>(page->template keyCount<false>(), [&](OffsetType at) {
+                    frame->index = binarySearch<OffsetType>(0, page->template keyCount<false>(), [&](OffsetType at) {
                         return static_cast<RankType>(keyOrRank)-frame->rank >= page->getRank(at);
                     });
                     break;
