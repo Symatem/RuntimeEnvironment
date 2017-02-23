@@ -92,17 +92,9 @@ enum QueryMask {
 BlobSet<false, Symbol, Symbol[6]> tripleIndex;
 
 bool linkInSubIndex(Triple triple) {
-    BlobSet<false, Symbol, Symbol> beta;
+    BlobPairSet<false, Symbol> beta;
     beta.symbol = triple.pos[0];
-    NativeNaturalType betaIndex;
-    BlobSet<false, Symbol> gamma;
-    if(beta.find(triple.pos[1], betaIndex))
-        gamma.symbol = beta.readElementAt(betaIndex).second;
-    else {
-        gamma.symbol = createSymbol();
-        beta.insert(betaIndex, {triple.pos[1], gamma.symbol});
-    }
-    return gamma.insertElement(triple.pos[2]);
+    return beta.insertElement({triple.pos[1], triple.pos[2]});
 }
 
 bool linkTriplePartial(Triple triple, NativeNaturalType subIndex) {
@@ -135,13 +127,9 @@ NativeNaturalType searchMMM(NativeNaturalType subIndex, Triple triple, Closure<v
     NativeNaturalType alphaIndex, betaIndex, gammaIndex;
     if(!tripleIndex.find(triple.pos[0], alphaIndex))
         return 0;
-    BlobSet<false, Symbol, Symbol> beta;
+    BlobPairSet<false, Symbol> beta;
     beta.symbol = tripleIndex.readElementAt(alphaIndex).second[subIndex];
-    if(!beta.find(triple.pos[1], betaIndex))
-        return 0;
-    BlobSet<false, Symbol> gamma;
-    gamma.symbol = beta.readElementAt(betaIndex).second;
-    if(!gamma.find(triple.pos[2], gammaIndex))
+    if(!beta.findElement({triple.pos[1], triple.pos[2]}, betaIndex, gammaIndex))
         return 0;
     if(callback)
         callback(triple);
@@ -152,37 +140,31 @@ NativeNaturalType searchMMV(NativeNaturalType subIndex, Triple triple, Closure<v
     NativeNaturalType alphaIndex, betaIndex;
     if(!tripleIndex.find(triple.pos[0], alphaIndex))
         return 0;
-    BlobSet<false, Symbol, Symbol> beta;
+    BlobPairSet<false, Symbol> beta;
     beta.symbol = tripleIndex.readElementAt(alphaIndex).second[subIndex];
-    if(!beta.find(triple.pos[1], betaIndex))
+    if(!beta.findFirstKey(triple.pos[1], betaIndex))
         return 0;
-    BlobSet<false, Symbol> gamma;
-    gamma.symbol = beta.readElementAt(betaIndex).second;
     if(callback)
-        gamma.iterateKeys([&](Symbol gammaResult) {
+        beta.iterateSecondKeys(betaIndex, [&](Symbol gammaResult) {
             triple.pos[2] = gammaResult;
             callback(triple.normalized(subIndex));
         });
-    return gamma.size();
+    return beta.getSecondKeyCount(betaIndex);
 }
 
 NativeNaturalType searchMVV(NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
     NativeNaturalType alphaIndex, count = 0;
     if(!tripleIndex.find(triple.pos[0], alphaIndex))
         return 0;
-    BlobSet<false, Symbol, Symbol> beta;
+    BlobPairSet<false, Symbol> beta;
     beta.symbol = tripleIndex.readElementAt(alphaIndex).second[subIndex];
     beta.iterate([&](Pair<Symbol, Symbol> betaResult) {
-        BlobSet<false, Symbol> gamma;
-        gamma.symbol = betaResult.second;
         if(callback) {
             triple.pos[1] = betaResult.first;
-            gamma.iterateKeys([&](Symbol gammaResult) {
-                triple.pos[2] = gammaResult;
-                callback(triple.normalized(subIndex));
-            });
+            triple.pos[2] = betaResult.second;
+            callback(triple.normalized(subIndex));
         }
-        count += gamma.size();
+        ++count;
     });
     return count;
 }
@@ -192,14 +174,10 @@ NativeNaturalType searchMIV(NativeNaturalType subIndex, Triple triple, Closure<v
     if(!tripleIndex.find(triple.pos[0], alphaIndex))
         return 0;
     BlobSet<true, Symbol> result;
-    BlobSet<false, Symbol, Symbol> beta;
+    BlobPairSet<false, Symbol> beta;
     beta.symbol = tripleIndex.readElementAt(alphaIndex).second[subIndex];
     beta.iterate([&](Pair<Symbol, Symbol> betaResult) {
-        BlobSet<false, Symbol> gamma;
-        gamma.symbol = betaResult.second;
-        gamma.iterateKeys([&](Symbol gammaResult) {
-            result.insertElement(gammaResult);
-        });
+        result.insertElement(betaResult.second);
     });
     if(callback)
         result.iterate([&](Symbol gamma) {
@@ -213,14 +191,14 @@ NativeNaturalType searchMVI(NativeNaturalType subIndex, Triple triple, Closure<v
     NativeNaturalType alphaIndex;
     if(!tripleIndex.find(triple.pos[0], alphaIndex))
         return 0;
-    BlobSet<false, Symbol, Symbol> beta;
+    BlobPairSet<false, Symbol> beta;
     beta.symbol = tripleIndex.readElementAt(alphaIndex).second[subIndex];
     if(callback)
-        beta.iterate([&](Pair<Symbol, Symbol> betaResult) {
-            triple.pos[1] = betaResult.first;
+        beta.iterateFirstKeys([&](Symbol betaResult) {
+            triple.pos[1] = betaResult;
             callback(triple.normalized(subIndex));
         });
-    return beta.size();
+    return beta.getFirstKeyCount();
 }
 
 NativeNaturalType searchVII(NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
@@ -235,16 +213,16 @@ NativeNaturalType searchVII(NativeNaturalType subIndex, Triple triple, Closure<v
 NativeNaturalType searchVVI(NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
     NativeNaturalType count = 0;
     tripleIndex.iterate([&](Pair<Symbol, Symbol[6]> alphaResult) {
-        BlobSet<false, Symbol, Symbol> beta;
+        BlobPairSet<false, Symbol> beta;
         beta.symbol = alphaResult.second[subIndex];
         if(callback) {
             triple.pos[0] = alphaResult.first;
-            beta.iterate([&](Pair<Symbol, Symbol> betaResult) {
-                triple.pos[1] = betaResult.first;
+            beta.iterateFirstKeys([&](Symbol betaResult) {
+                triple.pos[1] = betaResult;
                 callback(triple.normalized(subIndex));
             });
         }
-        count += beta.size();
+        count += beta.getFirstKeyCount();
     });
     return count;
 }
@@ -253,19 +231,15 @@ NativeNaturalType searchVVV(NativeNaturalType subIndex, Triple triple, Closure<v
     NativeNaturalType count = 0;
     tripleIndex.iterate([&](Pair<Symbol, Symbol[6]> alphaResult) {
         triple.pos[0] = alphaResult.first;
-        BlobSet<false, Symbol, Symbol> beta;
+        BlobPairSet<false, Symbol> beta;
         beta.symbol = alphaResult.second[subIndex];
         beta.iterate([&](Pair<Symbol, Symbol> betaResult) {
-            BlobSet<false, Symbol> gamma;
-            gamma.symbol = betaResult.second;
             if(callback) {
                 triple.pos[1] = betaResult.first;
-                gamma.iterateKeys([&](Symbol gammaResult) {
-                    triple.pos[2] = gammaResult;
-                    callback(triple);
-                });
+                triple.pos[2] = betaResult.second;
+                callback(triple);
             }
-            count += gamma.size();
+            ++count;
         });
     });
     return count;
@@ -361,33 +335,19 @@ void setIndexMode(IndexMode _indexMode) {
     } else
         tripleIndex.iterate([&](Pair<Symbol, Symbol[6]> alphaResult) {
             for(NativeNaturalType subIndex = _indexMode; subIndex < indexMode; ++subIndex) {
-                BlobSet<false, Symbol, Symbol> beta;
+                BlobPairSet<false, Symbol> beta;
                 beta.symbol = alphaResult.second[subIndex];
-                beta.iterate([&](Pair<Symbol, Symbol> betaResult) {
-                    releaseSymbol(betaResult.second);
-                });
                 beta.clear();
+                releaseSymbol(beta.symbol);
             }
         });
     indexMode = _indexMode;
 }
 
 bool unlinkInSubIndex(Triple triple) {
-    BlobSet<false, Symbol, Symbol> beta;
+    BlobPairSet<false, Symbol> beta;
     beta.symbol = triple.pos[0];
-    NativeNaturalType betaIndex, gammaIndex;
-    if(!beta.find(triple.pos[1], betaIndex))
-        return false;
-    BlobSet<false, Symbol> gamma;
-    gamma.symbol = beta.readElementAt(betaIndex).second;
-    if(!gamma.find(triple.pos[2], gammaIndex))
-        return false;
-    gamma.erase(gammaIndex);
-    if(gamma.empty()) {
-        beta.erase(betaIndex);
-        releaseSymbol(gamma.symbol);
-    }
-    return true;
+    return beta.eraseElement({triple.pos[1], triple.pos[2]});
 }
 
 bool unlinkWithoutReleasing(Triple triple, bool skipEnabled = false, Symbol skip = VoidSymbol) {
@@ -410,11 +370,9 @@ bool unlinkWithoutReleasing(Triple triple, bool skipEnabled = false, Symbol skip
 
 void eraseSymbol(Pair<Symbol, Symbol[6]>& element, NativeNaturalType alphaIndex, Symbol symbol) {
     for(NativeNaturalType subIndex = 0; subIndex < indexMode; ++subIndex) {
-        BlobSet<false, Symbol, Symbol> beta;
+        BlobPairSet<false, Symbol> beta;
         beta.symbol = element.second[subIndex];
-        beta.iterate([&](Pair<Symbol, Symbol> betaResult) {
-            releaseSymbol(betaResult.second);
-        });
+        beta.clear();
         releaseSymbol(beta.symbol);
     }
     tripleIndex.erase(alphaIndex);
@@ -427,7 +385,7 @@ void tryToReleaseSymbol(Symbol symbol) {
         return;
     Pair<Symbol, Symbol[6]> element = tripleIndex.readElementAt(alphaIndex);
     forEachSubIndex {
-        BlobSet<false, Symbol, Symbol> beta;
+        BlobPairSet<false, Symbol> beta;
         beta.symbol = element.second[subIndex];
         if(!beta.empty())
             return;
@@ -452,16 +410,14 @@ bool unlink(Symbol symbol) {
     Pair<Symbol, Symbol[6]> element = tripleIndex.readElementAt(alphaIndex);
     BlobSet<true, Symbol> dirty;
     forEachSubIndex {
-        BlobSet<false, Symbol, Symbol> beta;
+        BlobPairSet<false, Symbol> beta;
         beta.symbol = element.second[subIndex];
+        beta.iterateFirstKeys([&](Symbol betaResult) {
+            dirty.insertElement(betaResult);
+        });
         beta.iterate([&](Pair<Symbol, Symbol> betaResult) {
-            dirty.insertElement(betaResult.first);
-            BlobSet<false, Symbol> gamma;
-            gamma.symbol = betaResult.second;
-            gamma.iterate([&](Symbol gammaResult) {
-                dirty.insertElement(gammaResult);
-                unlinkWithoutReleasing(Triple(symbol, betaResult.first, gammaResult).normalized(subIndex), true, symbol);
-            });
+            dirty.insertElement(betaResult.second);
+            unlinkWithoutReleasing(Triple(symbol, betaResult.first, betaResult.second).normalized(subIndex), true, symbol);
         });
     }
     eraseSymbol(element, alphaIndex, symbol);

@@ -262,14 +262,10 @@ struct BlobSet : public BlobMap<guarded, KeyType, ValueType> {
     BlobSet(const BlobSet<false, KeyType, ValueType>& other) :Super(other) {}
     BlobSet(const BlobSet<true, KeyType, ValueType>& other) :Super(other) {}
 
-    NativeNaturalType find(KeyType key) const {
-        return binarySearch<NativeNaturalType>(0, Super::size(), [&](NativeNaturalType at) {
+    bool find(KeyType key, NativeNaturalType& at) const {
+        at = binarySearch<NativeNaturalType>(0, Super::size(), [&](NativeNaturalType at) {
             return key > Super::readKeyAt(at);
         });
-    }
-
-    bool find(KeyType key, NativeNaturalType& at) const {
-        at = find(key);
         return (at < Super::size() && Super::readKeyAt(at) == key);
     }
 

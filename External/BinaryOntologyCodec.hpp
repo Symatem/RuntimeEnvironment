@@ -20,7 +20,8 @@ struct BinaryOntologyCodec {
     } symbolOption = SymbolOptionStaticHuffman;
 
     enum BlobOption {
-        BlobOptionRaw
+        BlobOptionRaw,
+        BlobOptionArithmetic
     } blobOption = BlobOptionRaw;
 
     BinaryOntologyCodec() {
@@ -63,38 +64,44 @@ struct BinaryOntologyEncoder : public BinaryOntologyCodec {
         }
     }
 
-    void encodeAttribute(bool doWrite, Symbol attribute, Symbol gammaSymbol) {
+    void encodeAttribute(bool doWrite, Symbol betaSymbol, Symbol attribute) {
+        NativeNaturalType secondAt;
+        BlobPairSet<false, Symbol> beta;
+        beta.symbol = betaSymbol;
+        beta.findFirstKey(attribute, secondAt);
         encodeSymbol(doWrite, attribute);
-        BlobSet<false, Symbol> gamma;
-        gamma.symbol = gammaSymbol;
         if(doWrite)
-            encodeNatural(gamma.size()-1);
-        gamma.iterateKeys([&](Symbol gammaResult) {
+            encodeNatural(beta.getSecondKeyCount(secondAt)-1);
+        beta.iterateSecondKeys(secondAt, [&](Symbol gammaResult) {
             encodeSymbol(doWrite, gammaResult);
         });
     }
 
     void encodeEntity(bool doWrite, Symbol entity, Symbol betaSymbol) {
         Blob srcBlob(entity);
-        NativeNaturalType blobLength = srcBlob.getSize();
-        BlobSet<false, Symbol, Symbol> beta;
+        NativeNaturalType srcBlobLength = srcBlob.getSize();
+        BlobPairSet<false, Symbol> beta;
         beta.symbol = betaSymbol;
 
         encodeSymbol(doWrite, entity);
-        if(doWrite)
+        if(doWrite) {
+            encodeNatural(srcBlobLength);
             switch(blobOption) {
-                case BlobOptionRaw: {
-                    encodeNatural(blobLength);
-                    blob.increaseSize(offset, blobLength);
-                    blob.interoperation(srcBlob, offset, 0, blobLength);
-                    offset += blobLength;
-                } break;
+                case BlobOptionRaw:
+                    blob.increaseSize(offset, srcBlobLength);
+                    blob.interoperation(srcBlob, offset, 0, srcBlobLength);
+                    offset += srcBlobLength;
+                    break;
+                case BlobOptionArithmetic:
+                    arithmeticEncodeBlob(blob, offset, srcBlob, srcBlobLength);
+                    break;
             }
+        }
 
         if(doWrite)
             encodeNatural(beta.size());
-        beta.iterate([&](Pair<Symbol, Symbol> betaResult) {
-            encodeAttribute(doWrite, betaResult.first, betaResult.second);
+        beta.iterateFirstKeys([&](Symbol attribute) {
+            encodeAttribute(doWrite, beta.symbol, attribute);
         });
     }
 
@@ -191,13 +198,16 @@ struct BinaryOntologyDecoder : public BinaryOntologyCodec {
     void decodeEntity() {
         Symbol entity = decodeSymbol();
         Blob dstBlob(entity);
+        NativeNaturalType dstBlobLength = decodeNatural();
+        dstBlob.setSize(dstBlobLength);
         switch(blobOption) {
-            case BlobOptionRaw: {
-                NativeNaturalType blobLength = decodeNatural();
-                dstBlob.setSize(blobLength);
-                dstBlob.interoperation(blob, 0, offset, blobLength);
-                offset += blobLength;
-            } break;
+            case BlobOptionRaw:
+                dstBlob.interoperation(blob, 0, offset, dstBlobLength);
+                offset += dstBlobLength;
+                break;
+            case BlobOptionArithmetic:
+                arithmeticDecodeBlob(dstBlob, dstBlobLength, blob, offset);
+                break;
             default:
                 assert(false);
         }

@@ -158,12 +158,12 @@ struct ArithmeticEncoder : public ArithmeticCodec {
 
 struct ArithmeticDecoder : public ArithmeticCodec {
     Natural32 buffer;
-    NativeNaturalType startOffset;
+    NativeNaturalType offsetCorrection;
 
     ArithmeticDecoder(Blob& _blob, NativeNaturalType& _offset, NativeNaturalType _symbolCount) :ArithmeticCodec(_blob, _offset, _symbolCount), buffer(0) {
         const NativeNaturalType maxLength = BitMask<NativeNaturalType>::ceilLog2(full)-1;
-        for(startOffset = 0; decodeBit() && startOffset < maxLength; ++startOffset);
-        buffer <<= maxLength-startOffset;
+        for(offsetCorrection = 0; decodeBit() && offsetCorrection < maxLength; ++offsetCorrection);
+        buffer <<= maxLength-offsetCorrection;
     }
 
     bool decodeBit() {
@@ -205,15 +205,14 @@ struct ArithmeticDecoder : public ArithmeticCodec {
     }
 
     void decodeTermination() {
-        offset -= startOffset;
-        offset += (low < quarter) ? 1 : 0;
+        offset -= offsetCorrection;
+        if(low < quarter)
+            ++offset;
     }
 };
 
-void arithmeticEncodeBlob(Blob& dst, Blob& src) {
-    NativeNaturalType dstOffset = 0, srcLength = src.getSize(), bitsToSymbol = 4;
-    dst.setSize(0);
-    encodeBvlNatural(dst, dstOffset, srcLength);
+void arithmeticEncodeBlob(Blob& dst, NativeNaturalType& dstOffset, Blob& src, NativeNaturalType srcLength,
+                          NativeNaturalType bitsToSymbol = 4) {
     ArithmeticEncoder encoder(dst, dstOffset, 1<<bitsToSymbol);
     for(NativeNaturalType srcOffset = 0; srcOffset < srcLength; srcOffset += bitsToSymbol) {
         NativeNaturalType symbolIndex = 0;
@@ -223,9 +222,8 @@ void arithmeticEncodeBlob(Blob& dst, Blob& src) {
     encoder.encodeTermination();
 }
 
-void arithmeticDecodeBlob(Blob& dst, Blob& src) {
-    NativeNaturalType srcOffset = 0, dstLength = decodeBvlNatural(src, srcOffset), bitsToSymbol = 4;
-    dst.setSize(dstLength);
+void arithmeticDecodeBlob(Blob& dst, NativeNaturalType dstLength, Blob& src, NativeNaturalType& srcOffset,
+                          NativeNaturalType bitsToSymbol = 4) {
     ArithmeticDecoder decoder(src, srcOffset, 1<<bitsToSymbol);
     for(NativeNaturalType dstOffset = 0; dstOffset < dstLength; dstOffset += bitsToSymbol) {
         NativeNaturalType symbolIndex = decoder.decodeSymbol();
