@@ -47,6 +47,15 @@ DO_NOT_INLINE EXPORT NativeNaturalType getStackPointer() {
     return result;
 }
 
+struct Main {
+    Main() {
+        setStackPointer(reinterpret_cast<NativeNaturalType>(stack)+sizeof(stack));
+        superPage = reinterpret_cast<SuperPage*>(__builtin_wasm_current_memory()*bitsPerChunk/8);
+        resizeMemory(minPageCount);
+        initStackVM();
+    };
+} main;
+
 EXPORT Symbol _createSymbol() {
     return createSymbol();
 }
@@ -63,22 +72,22 @@ EXPORT void setBlobSize(Symbol symbol, NativeNaturalType size) {
     Blob(symbol).setSize(size);
 }
 
-EXPORT void decreaseBlobSize(Symbol symbol, NativeNaturalType offset, NativeNaturalType length) {
-    Blob(symbol).decreaseSize(offset, length);
+EXPORT bool decreaseBlobSize(Symbol symbol, NativeNaturalType offset, NativeNaturalType length) {
+    return Blob(symbol).decreaseSize(offset, length);
 }
 
-EXPORT void increaseBlobSize(Symbol symbol, NativeNaturalType offset, NativeNaturalType length) {
-    Blob(symbol).decreaseSize(offset, length);
+EXPORT bool increaseBlobSize(Symbol symbol, NativeNaturalType offset, NativeNaturalType length) {
+    return Blob(symbol).decreaseSize(offset, length);
 }
 
 EXPORT void readBlob(Symbol symbol, NativeNaturalType offset, NativeNaturalType length) {
     Natural8 buffer[4096];
-    Blob(symbol).externalOperate<false>(buffer, offset, length);
+    return Blob(symbol).externalOperate<false>(buffer, offset, length);
 }
 
 EXPORT void writeBlob(Symbol symbol, NativeNaturalType offset, NativeNaturalType length) {
     Natural8 buffer[4096];
-    Blob(symbol).externalOperate<true>(buffer, offset, length);
+    return Blob(symbol).externalOperate<true>(buffer, offset, length);
 }
 
 EXPORT void chaCha20(Symbol dst, Symbol src) {
@@ -98,14 +107,12 @@ EXPORT Symbol deserializeHRL(Symbol inputSymbol, Symbol outputSymbol, Symbol pac
     return exception;
 }
 
-EXPORT void encodeOntologyBinary() {
-    BinaryOntologyEncoder encoder;
-    encoder.encode();
+EXPORT bool link(Symbol entity, Symbol attribute, Symbol value) {
+    return link({entity, attribute, value});
 }
 
-EXPORT void decodeOntologyBinary() {
-    BinaryOntologyDecoder decoder;
-    decoder.decode();
+EXPORT bool unlink(Symbol entity, Symbol attribute, Symbol value) {
+    return unlink({entity, attribute, value});
 }
 
 EXPORT NativeNaturalType query(QueryMask mask, Symbol entity, Symbol attribute, Symbol value, Symbol resultSymbol) {
@@ -126,21 +133,14 @@ EXPORT NativeNaturalType query(QueryMask mask, Symbol entity, Symbol attribute, 
     return count;
 }
 
-EXPORT bool link(Symbol entity, Symbol attribute, Symbol value) {
-    return link({entity, attribute, value});
+EXPORT void encodeOntologyBinary() {
+    BinaryOntologyEncoder encoder;
+    encoder.encode();
 }
 
-EXPORT bool unlink(Symbol entity, Symbol attribute, Symbol value) {
-    return unlink({entity, attribute, value});
+EXPORT void decodeOntologyBinary() {
+    BinaryOntologyDecoder decoder;
+    decoder.decode();
 }
-
-struct Main {
-    Main() {
-        setStackPointer(reinterpret_cast<NativeNaturalType>(stack)+sizeof(stack));
-        superPage = reinterpret_cast<SuperPage*>(__builtin_wasm_current_memory()*bitsPerChunk/8);
-        resizeMemory(minPageCount);
-        tryToFillPreDefined();
-    };
-} main;
 
 }
