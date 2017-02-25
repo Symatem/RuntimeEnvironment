@@ -136,6 +136,32 @@ NativeNaturalType searchMMM(NativeNaturalType subIndex, Triple triple, Closure<v
     return 1;
 }
 
+NativeNaturalType searchMMI(NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
+    NativeNaturalType alphaIndex, betaIndex;
+    if(!tripleIndex.find(triple.pos[0], alphaIndex))
+        return 0;
+    BlobPairSet<false, Symbol> beta;
+    beta.symbol = tripleIndex.readElementAt(alphaIndex).second[subIndex];
+    if(!beta.findFirstKey(triple.pos[1], betaIndex))
+        return 0;
+    if(callback)
+        callback(triple);
+    return 1;
+}
+
+NativeNaturalType searchMII(NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
+    NativeNaturalType alphaIndex;
+    if(!tripleIndex.find(triple.pos[0], alphaIndex))
+        return 0;
+    if(callback)
+        callback(triple);
+    return 1;
+}
+
+NativeNaturalType searchIII(NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
+    return 0;
+}
+
 NativeNaturalType searchMMV(NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
     NativeNaturalType alphaIndex, betaIndex;
     if(!tripleIndex.find(triple.pos[0], alphaIndex))
@@ -247,42 +273,40 @@ NativeNaturalType searchVVV(NativeNaturalType subIndex, Triple triple, Closure<v
 
 NativeNaturalType query(QueryMask mask, Triple triple = {VoidSymbol, VoidSymbol, VoidSymbol}, Closure<void(Triple)> callback = nullptr) {
     struct QueryMethod {
-        NativeNaturalType subIndex, offset, size;
+        NativeNaturalType subIndex;
         NativeNaturalType(*function)(NativeNaturalType, Triple, Closure<void(Triple)>);
     };
     const QueryMethod lookup[] = {
-        {EAV, 0, 0, &searchMMM},
-        {AVE, 2, 1, &searchMMV},
-        {AVE, 0, 0, nullptr},
-        {VEA, 2, 1, &searchMMV},
-        {VEA, 1, 2, &searchMVV},
-        {VAE, 1, 1, &searchMVI},
-        {VEA, 0, 0, nullptr},
-        {VEA, 1, 1, &searchMVI},
-        {VEA, 0, 0, nullptr},
-        {EAV, 2, 1, &searchMMV},
-        {AVE, 1, 2, &searchMVV},
-        {AVE, 1, 1, &searchMVI},
-        {EAV, 1, 2, &searchMVV},
-        {EAV, 0, 3, &searchVVV},
-        {AVE, 0, 2, &searchVVI},
-        {EVA, 1, 1, &searchMVI},
-        {VEA, 0, 2, &searchVVI},
-        {VEA, 0, 1, &searchVII},
-        {EAV, 0, 0, nullptr},
-        {AEV, 1, 1, &searchMVI},
-        {AVE, 0, 0, nullptr},
-        {EAV, 1, 1, &searchMVI},
-        {EAV, 0, 2, &searchVVI},
-        {AVE, 0, 1, &searchVII},
-        {EAV, 0, 0, nullptr},
-        {EAV, 0, 1, &searchVII},
-        {EAV, 0, 0, nullptr}
+        {EAV, &searchMMM},
+        {AVE, &searchMMV},
+        {AVE, &searchMMI},
+        {VEA, &searchMMV},
+        {VEA, &searchMVV},
+        {VAE, &searchMVI},
+        {VEA, &searchMMI},
+        {VEA, &searchMVI},
+        {VEA, &searchMII},
+        {EAV, &searchMMV},
+        {AVE, &searchMVV},
+        {AVE, &searchMVI},
+        {EAV, &searchMVV},
+        {EAV, &searchVVV},
+        {AVE, &searchVVI},
+        {EVA, &searchMVI},
+        {VEA, &searchVVI},
+        {VEA, &searchVII},
+        {EAV, &searchMMI},
+        {AEV, &searchMVI},
+        {AVE, &searchMII},
+        {EAV, &searchMVI},
+        {EAV, &searchVVI},
+        {AVE, &searchVII},
+        {EAV, &searchMII},
+        {EAV, &searchVII},
+        {EAV, &searchIII},
     };
     assert(mask < sizeof(lookup)/sizeof(QueryMethod));
     QueryMethod method = lookup[mask];
-    if(method.function == nullptr)
-        return 0;
     Triple match = triple;
     BlobSet<true, Triple> resultSet;
     auto monoIndexLambda = [&](Triple result) {
@@ -308,7 +332,6 @@ NativeNaturalType query(QueryMask mask, Triple triple = {VoidSymbol, VoidSymbol,
         case TriIndex:
             if(method.subIndex >= 3) {
                 method.subIndex -= 3;
-                method.offset = 2;
                 method.function = &searchMIV;
             }
         case HexaIndex:
