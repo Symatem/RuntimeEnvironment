@@ -9,7 +9,7 @@ struct BpTreeMap : public BpTree<KeyType, VoidType, sizeOfInBits<ValueType>::val
     struct Iterator : public Super::template Iterator<enableModification, FrameType> {
         typedef typename Super::template Iterator<enableModification, FrameType> SuperIterator;
 
-        Iterator() { }
+        Iterator() {}
         Iterator(SuperIterator iter) {
             SuperIterator::copy(iter);
         }

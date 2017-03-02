@@ -5,7 +5,7 @@ struct StaticHuffmanCodec {
     NativeNaturalType& offset;
     NativeNaturalType symbolCount;
 
-    StaticHuffmanCodec(Blob& _blob, NativeNaturalType& _offset) :blob(_blob), offset(_offset) { }
+    StaticHuffmanCodec(Blob& _blob, NativeNaturalType& _offset) :blob(_blob), offset(_offset) {}
 };
 
 struct StaticHuffmanEncoder : public StaticHuffmanCodec {
@@ -189,7 +189,7 @@ struct StaticHuffmanDecoder : public StaticHuffmanCodec {
         }
     }
 
-    StaticHuffmanDecoder(Blob& _blob, NativeNaturalType& _offset) :StaticHuffmanCodec(_blob, _offset) { }
+    StaticHuffmanDecoder(Blob& _blob, NativeNaturalType& _offset) :StaticHuffmanCodec(_blob, _offset) {}
 
     ~StaticHuffmanDecoder() {
         symbolVector.clear();

@@ -52,7 +52,7 @@ struct Main {
         setStackPointer(reinterpret_cast<NativeNaturalType>(stack)+sizeof(stack));
         superPage = reinterpret_cast<SuperPage*>(__builtin_wasm_current_memory()*bitsPerChunk/8);
         resizeMemory(minPageCount);
-        initStackVM();
+        tryToFillPreDefined();
     };
 } main;
 

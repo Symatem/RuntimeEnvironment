@@ -71,7 +71,7 @@ struct BlobVector {
 
     void insertRange(NativeNaturalType at, NativeNaturalType length) {
         activate();
-        assert(Blob(symbol).increaseSize(at*sizeOfInBits<ElementType>::value, sizeOfInBits<ElementType>::value)*length);
+        assert(Blob(symbol).increaseSize(at*sizeOfInBits<ElementType>::value, sizeOfInBits<ElementType>::value*length));
     }
 
     void insert(NativeNaturalType at, ElementType element) {
@@ -82,7 +82,7 @@ struct BlobVector {
 
     void eraseRange(NativeNaturalType at, NativeNaturalType length) {
         assert(symbol);
-        assert(Blob(symbol).decreaseSize(at*sizeOfInBits<ElementType>::value, sizeOfInBits<ElementType>::value)*length);
+        assert(Blob(symbol).decreaseSize(at*sizeOfInBits<ElementType>::value, sizeOfInBits<ElementType>::value*length));
     }
 
     void erase(NativeNaturalType at) {

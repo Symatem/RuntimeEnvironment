@@ -102,8 +102,11 @@ bool linkTriplePartial(Triple triple, NativeNaturalType subIndex) {
     Pair<Symbol, Symbol[6]> element;
     if(!tripleIndex.find(triple.pos[subIndex], alphaIndex)) {
         element.first = triple.pos[subIndex];
-        for(NativeNaturalType i = 0; i < 6; ++i)
-            element.second[i] = createSymbol();
+        for(NativeNaturalType i = 0; i < 6; ++i) {
+            BlobPairSet<false, Symbol> beta;
+            beta.symbol = element.second[i] = createSymbol();
+            beta.initialize();
+        }
         tripleIndex.insert(alphaIndex, element);
     } else
         element = tripleIndex.readElementAt(alphaIndex);

@@ -29,11 +29,11 @@ struct ArithmeticCodecStaticModel {
         }
     }
 
-    void update(NativeNaturalType symbolIndex) { }
+    void update(NativeNaturalType symbolIndex) {}
 };
 
 struct ArithmeticCodecAdaptiveModel : public ArithmeticCodecStaticModel {
-    ArithmeticCodecAdaptiveModel(NativeNaturalType _symbolCount) :ArithmeticCodecStaticModel(_symbolCount) { }
+    ArithmeticCodecAdaptiveModel(NativeNaturalType _symbolCount) :ArithmeticCodecStaticModel(_symbolCount) {}
 
     void update(NativeNaturalType symbolIndex) {
         symbolFrequencies.writeElementAt(symbolIndex, symbolFrequencies.readElementAt(symbolIndex)+1);
@@ -76,7 +76,7 @@ struct ArithmeticCodec {
                     half = full/2+1, quarter = full/4+1;
     Natural64 low = 0, high = full, distance;
 
-    ArithmeticCodec(Blob& _blob, NativeNaturalType& _offset, NativeNaturalType _symbolCount) :model(_symbolCount), blob(_blob), offset(_offset) { }
+    ArithmeticCodec(Blob& _blob, NativeNaturalType& _offset, NativeNaturalType _symbolCount) :model(_symbolCount), blob(_blob), offset(_offset) {}
 
     void updateRange(NativeNaturalType symbolIndex) {
         Natural32 lowerFrequency = model.lowerFrequency(symbolIndex),
@@ -112,7 +112,7 @@ struct ArithmeticCodec {
 struct ArithmeticEncoder : public ArithmeticCodec {
     NativeNaturalType underflowCounter = 0;
 
-    ArithmeticEncoder(Blob& _blob, NativeNaturalType& _offset, NativeNaturalType _symbolCount) :ArithmeticCodec(_blob, _offset, _symbolCount) { }
+    ArithmeticEncoder(Blob& _blob, NativeNaturalType& _offset, NativeNaturalType _symbolCount) :ArithmeticCodec(_blob, _offset, _symbolCount) {}
 
     void encodeBit(bool bit) {
         blob.increaseSize(offset, 1);
