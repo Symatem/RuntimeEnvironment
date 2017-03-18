@@ -32,6 +32,7 @@ struct BinaryOntologyCodec {
 struct BinaryOntologyEncoder : public BinaryOntologyCodec {
     StaticHuffmanEncoder symbolHuffmanEncoder;
     Symbol symbolIndexOffset;
+    NativeNaturalType emptySymbolsInChunk;
 
     BinaryOntologyEncoder() :BinaryOntologyCodec(), symbolHuffmanEncoder(blob, offset) {
         blob.setSize(0);
@@ -53,7 +54,8 @@ struct BinaryOntologyEncoder : public BinaryOntologyCodec {
     void encodeSymbol(bool doWrite, Symbol symbol) {
         switch(symbolOption) {
             case SymbolOptionNatural:
-                encodeNatural(symbol);
+                if(doWrite)
+                    encodeNatural(symbol);
                 break;
             case SymbolOptionStaticHuffman:
                 if(doWrite)
@@ -82,6 +84,10 @@ struct BinaryOntologyEncoder : public BinaryOntologyCodec {
         NativeNaturalType srcBlobLength = srcBlob.getSize();
         BlobPairSet<false, Symbol> beta;
         beta.symbol = betaSymbol;
+        if(srcBlobLength == 0 && beta.empty()) {
+            ++emptySymbolsInChunk;
+            return;
+        }
 
         encodeSymbol(doWrite, entity);
         if(doWrite) {
@@ -99,14 +105,14 @@ struct BinaryOntologyEncoder : public BinaryOntologyCodec {
         }
 
         if(doWrite)
-            encodeNatural(beta.size());
+            encodeNatural(beta.getFirstKeyCount());
         beta.iterateFirstKeys([&](Symbol attribute) {
             encodeAttribute(doWrite, beta.symbol, attribute);
         });
     }
 
     void encodeEntities(bool doWrite) {
-        for(NativeNaturalType at = symbolIndexOffset; at < symbolIndexOffset+symbolsInChunk; ++at) {
+        for(NativeNaturalType at = symbolIndexOffset, end = symbolIndexOffset+symbolsInChunk; at < end; ++at) {
             auto alphaResult = tripleIndex.readElementAt(at);
             encodeEntity(doWrite, alphaResult.first, alphaResult.second[EAV]);
         }
@@ -117,11 +123,11 @@ struct BinaryOntologyEncoder : public BinaryOntologyCodec {
         encodeNatural(numberOption);
         encodeNatural(symbolOption);
         encodeNatural(blobOption);
-        if(symbolOption == SymbolOptionStaticHuffman) {
-            encodeEntities(false);
+        emptySymbolsInChunk = 0;
+        encodeEntities(false);
+        if(symbolOption == SymbolOptionStaticHuffman)
             symbolHuffmanEncoder.encodeTree();
-        }
-        encodeNatural(symbolsInChunk);
+        encodeNatural(symbolsInChunk-emptySymbolsInChunk);
         encodeEntities(true);
     }
 
@@ -225,7 +231,7 @@ struct BinaryOntologyDecoder : public BinaryOntologyCodec {
             symbolHuffmanDecoder.decodeTree();
             for(NativeNaturalType i = 0; i < symbolHuffmanDecoder.symbolCount; ++i) { // TODO
                 Symbol symbol = symbolHuffmanDecoder.symbolVector.readElementAt(i);
-                if(symbol > preDefinedSymbolsCount)
+                if(symbol >= preDefinedSymbolsCount)
                     symbolHuffmanDecoder.symbolVector.writeElementAt(i, createSymbol());
             }
         }

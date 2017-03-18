@@ -12,6 +12,8 @@ Wrapper(UnnestAttribute),
 Wrapper(Message),
 Wrapper(Row),
 Wrapper(Column),
+Wrapper(PosX),
+Wrapper(PosY),
 
 Wrapper(BlobType),
 Wrapper(Natural),
