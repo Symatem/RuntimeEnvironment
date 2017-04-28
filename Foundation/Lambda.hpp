@@ -5,15 +5,21 @@ struct CallableContainer;
 
 template<typename ReturnType, typename... Arguments>
 struct CallableContainer<ReturnType(Arguments...)> {
-    virtual ReturnType operator()(Arguments...) = 0;
+    typedef ReturnType(*InvocationPtr)(void const*, Arguments...);
+    void const* lambda;
+    InvocationPtr invocationPtr;
+    CallableContainer() :lambda(nullptr), invocationPtr(nullptr) {}
+    CallableContainer(void const* _lambda, InvocationPtr _invocationPtr) :lambda(_lambda), invocationPtr(_invocationPtr) {}
+    inline ReturnType operator()(Arguments... arguments) {
+        return invocationPtr(lambda, arguments...);
+    }
 };
 
 template<typename LambdaType, typename ReturnType, typename... Arguments>
 struct LambdaContainer : public CallableContainer<ReturnType(Arguments...)> {
-    LambdaType const* lambda;
-    LambdaContainer(LambdaType const* _lambda) :lambda(_lambda) {}
-    ReturnType operator()(Arguments... arguments) {
-        return (*lambda)(arguments...);
+    LambdaContainer(LambdaType const* _lambda) :CallableContainer<ReturnType(Arguments...)>(_lambda, &invoke) {}
+    static ReturnType invoke(void const* lambda, Arguments... arguments) {
+        return (*reinterpret_cast<LambdaType const*>(lambda))(arguments...);
     }
 };
 
@@ -22,16 +28,16 @@ struct Closure;
 
 template<typename ReturnType, typename... Arguments>
 struct Closure<ReturnType(Arguments...)> {
-    void* payload[2];
+    CallableContainer<ReturnType(Arguments...)> payload;
     template<typename LambdaType>
     Closure(LambdaType const& lambda) {
         ::new(&payload) LambdaContainer<LambdaType, ReturnType, Arguments...>(&lambda);
     }
-    Closure(decltype(nullptr)) :payload{0, 0} {}
-    operator bool() const {
-        return payload[1];
+    Closure(decltype(nullptr)) {}
+    inline operator bool() const {
+        return payload.lambda;
     }
-    ReturnType operator()(Arguments... arguments) {
+    inline ReturnType operator()(Arguments... arguments) {
         assert(*this);
         return reinterpret_cast<CallableContainer<ReturnType(Arguments...)>&>(payload)(arguments...);
     }
