@@ -91,16 +91,23 @@ struct BinaryOntologyEncoder : public BinaryOntologyCodec {
 
         encodeSymbol(doWrite, entity);
         if(doWrite) {
-            encodeNatural(srcBlobLength);
-            switch(blobOption) {
-                case BlobOptionRaw:
-                    blob.increaseSize(offset, srcBlobLength);
-                    blob.interoperation(srcBlob, offset, 0, srcBlobLength);
-                    offset += srcBlobLength;
-                    break;
-                case BlobOptionArithmetic:
-                    arithmeticEncodeBlob(blob, offset, srcBlob, srcBlobLength);
-                    break;
+            if(srcBlobLength == 0)
+                encodeNatural(0);
+            else {
+                // TODO: Sparse Blob Support
+                encodeNatural(1); // Slice count: 1
+                encodeNatural(0); // 1. Slice offset: 0
+                encodeNatural(srcBlobLength); // 1. Slice length
+                switch(blobOption) {
+                    case BlobOptionRaw:
+                        blob.increaseSize(offset, srcBlobLength);
+                        blob.interoperation(srcBlob, offset, 0, srcBlobLength);
+                        offset += srcBlobLength;
+                        break;
+                    case BlobOptionArithmetic:
+                        arithmeticEncodeBlob(blob, offset, srcBlob, srcBlobLength);
+                        break;
+                }
             }
         }
 
@@ -204,15 +211,22 @@ struct BinaryOntologyDecoder : public BinaryOntologyCodec {
     void decodeEntity() {
         Symbol entity = decodeSymbol();
         Blob dstBlob(entity);
-        NativeNaturalType dstBlobLength = decodeNatural();
-        dstBlob.setSize(dstBlobLength);
+        NativeNaturalType sliceCount = decodeNatural(), sliceOffset, sliceLength;
+        if(sliceCount == 0) {
+            sliceOffset = 0;
+            sliceLength = 0;
+        } else { // TODO: Sparse Blob Support
+            sliceOffset = decodeNatural();
+            sliceLength = decodeNatural();
+        }
+        dstBlob.setSize(sliceLength);
         switch(blobOption) {
             case BlobOptionRaw:
-                dstBlob.interoperation(blob, 0, offset, dstBlobLength);
-                offset += dstBlobLength;
+                dstBlob.interoperation(blob, 0, offset, sliceLength);
+                offset += sliceLength;
                 break;
             case BlobOptionArithmetic:
-                arithmeticDecodeBlob(dstBlob, dstBlobLength, blob, offset);
+                arithmeticDecodeBlob(dstBlob, sliceLength, blob, offset);
                 break;
             default:
                 assert(false);
