@@ -75,7 +75,7 @@ struct Page {
         set<PageRefType, pageRefOffset>(dst, content);
     }
 
-    void integrateRanks(OffsetType at, OffsetType end) {
+    void cumulateRanks(OffsetType at, OffsetType end) {
         if(!rankBits || at >= end)
             return;
         RankType sum;
@@ -90,7 +90,7 @@ struct Page {
         }
     }
 
-    void disintegrateRanks(OffsetType begin, OffsetType at) {
+    void decumulateRanks(OffsetType begin, OffsetType at) {
         if(!rankBits || begin >= at)
             return;
         RankType higher = getRank(--at);
@@ -236,11 +236,11 @@ struct Page {
                 copyKey<false, true>(higherOuterParent, higherOuter, higherOuterParentIndex, 0);
         } else {
             if(frame->lowerInnerIndex > 0) {
-                lowerOuter->disintegrateRanks(lowerOuter->header.count, frame->rank);
+                lowerOuter->decumulateRanks(lowerOuter->header.count, frame->rank);
                 copyKey<false, false>(lowerInnerParent, lowerOuter, lowerInnerParentIndex, lowerOuter->header.count-1);
                 copyBranchElements<false>(lowerInner, lowerOuter, 0, lowerOuter->header.count, frame->lowerInnerIndex);
                 copyBranchElements<true>(higherOuter, lowerOuter, frame->higherOuterEndIndex, frame->index+shiftHigherInner, shiftHigherOuter);
-                lowerInner->integrateRanks(0, frame->lowerInnerIndex-1);
+                lowerInner->cumulateRanks(0, frame->lowerInnerIndex-1);
             } else if(frame->higherOuterEndIndex == 0) {
                 copyKey<false, false>(higherOuterParent, lowerOuter, higherOuterParentIndex, frame->index+shiftHigherInner-1);
                 copyBranchElements<false>(higherOuter, lowerOuter, 0, frame->index+shiftHigherInner, shiftHigherOuter);

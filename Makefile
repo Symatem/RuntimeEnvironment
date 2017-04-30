@@ -9,10 +9,10 @@ $(BUILD_PATH):
 
 # Build POSIX Executables
 
-$(BUILD_PATH)SymatemBp: Targets/Bp.cpp $(SOURCES) $(BUILD_PATH)
+$(BUILD_PATH)SymatemBp: Targets/Bp.cpp Targets/POSIX.hpp $(SOURCES) $(BUILD_PATH)
 	$(CC) $(COMPILER_FLAGS) $(LINKER_FLAGS) -o $@ $<
 
-$(BUILD_PATH)SymatemMP: Targets/MP.cpp $(SOURCES) $(BUILD_PATH)
+$(BUILD_PATH)SymatemMP: Targets/MP.cpp Targets/POSIX.hpp $(SOURCES) $(BUILD_PATH)
 	$(CC) $(COMPILER_FLAGS) $(LINKER_FLAGS) -o $@ $<
 
 ifeq ($(PLATFORM), Linux)

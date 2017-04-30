@@ -119,7 +119,7 @@ struct BpTree {
         frame->pageCount = pageCount-1;
         if(data.layer < iter.end) {
             if(!isLeaf) {
-                lowerOuter->disintegrateRanks(frame->index, lowerOuter->header.count);
+                lowerOuter->decumulateRanks(frame->index, lowerOuter->header.count);
                 frame->rank = frame->index++;
             }
             if(frame->pageCount == 0) {
@@ -264,7 +264,7 @@ struct BpTree {
             return;
         for(OffsetType i = frame->rank; i < frame->endIndex; ++i)
             page->setRank(i, getPage(page->getPageRef(i))->getIntegratedRank());
-        page->integrateRanks(frame->rank, page->header.count);
+        page->cumulateRanks(frame->rank, page->header.count);
     }
 
     typedef Closure<void(Page*, OffsetType, OffsetType)> AcquireData;
@@ -349,7 +349,7 @@ struct BpTree {
                 frame->rank = frame->index;
                 frame->endIndex = frame->index+1;
                 Page* page = getPage(frame->pageRef);
-                page->disintegrateRanks(frame->rank, page->header.count);
+                page->decumulateRanks(frame->rank, page->header.count);
                 insertIntegrateRanks(frame, page);
             }
     }
@@ -378,7 +378,7 @@ struct BpTree {
             ((dir == -1) ? data.from : data.iter).getParentFrame(data.layer, parent, parentIndex);
             Page* page = getPage(data.iter[data.layer]->pageRef);
             if(rankBits && !isLeaf) {
-                page->disintegrateRanks(0, page->header.count);
+                page->decumulateRanks(0, page->header.count);
                 if(data.rank[rankIndex] && page == data.outerParent[rankIndex])
                     page->setRank(data.outerParentIndex[rankIndex], data.rank[rankIndex]);
                 eraseUpdateRank(data, rankIndex, page);
@@ -414,9 +414,9 @@ struct BpTree {
              *higherInner = getPage(data.to[data.layer]->pageRef), *higherInnerParent;
         bool keepRunning = true, ranksFromBelow = rankBits && !isLeaf;
         if(ranksFromBelow) {
-            lowerInner->disintegrateRanks(0, lowerInner->header.count);
+            lowerInner->decumulateRanks(0, lowerInner->header.count);
             if(lowerInner != higherInner)
-                higherInner->disintegrateRanks(0, higherInner->header.count);
+                higherInner->decumulateRanks(0, higherInner->header.count);
             eraseUpdateRank(data, 0, lowerInner);
             eraseUpdateRank(data, 1, higherInner);
             if(data.rank[2])
@@ -476,7 +476,7 @@ struct BpTree {
         for(NativeNaturalType rankIndex = 0; rankIndex < 4; ++rankIndex)
             if(pages[rankIndex]) {
                 if(!isLeaf)
-                    pages[rankIndex]->integrateRanks(0, pages[rankIndex]->header.count);
+                    pages[rankIndex]->cumulateRanks(0, pages[rankIndex]->header.count);
                 data.rank[rankIndex] = pages[rankIndex]->getIntegratedRank();
             } else
                 data.rank[rankIndex] = static_cast<RankType>(0);

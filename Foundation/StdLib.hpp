@@ -6,7 +6,7 @@
 #define tokenToString(x) #x
 #define macroToString(x) tokenToString(x)
 #define assert(condition) { \
-    if(!(condition)) \
+    if(!__builtin_expect(static_cast<bool>(condition), 0)) \
         assertFailed("Assertion failed in " __FILE__ ":" macroToString(__LINE__)); \
 }
 

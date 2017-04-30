@@ -26,6 +26,7 @@ void puts(const Integer8* message) {
 
 void assertFailed(const char* str) {
     puts(str);
+    asm volatile("unreachable");
     __builtin_unreachable();
 }
 

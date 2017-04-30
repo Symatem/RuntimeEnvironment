@@ -5,8 +5,8 @@ struct FreePage : public BasePage {
 };
 
 // TODO: Redistribution if there are many almost empty buckets of the same type
-const NativeNaturalType blobBucketTypeCount = 12,
-        blobBucketType[blobBucketTypeCount] = {8, 16, 32, 64, 128, 320, 576, 1344, 2432, 4544, 8064, 16192};
+const NativeNaturalType blobBucketType[] = {8, 16, 32, 64, 128, 320, 576, 1344, 2432, 4544, 8064, 16192},
+                        blobBucketTypeCount = sizeof(blobBucketType)/sizeof(NativeNaturalType);
 
 struct SuperPage : public BasePage {
     Natural64 version;
