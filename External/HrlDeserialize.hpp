@@ -263,7 +263,7 @@ struct HrlDeserializer {
             return throwException("Missing closing bracket");
         if(!valueCountIs(queue.symbol, UnnestEntitySymbol, 0))
             return throwException("Unnesting failed");
-        locals.iterate([](Symbol local) {
+        locals.iterateElements([](Symbol local) {
             Blob(local).setSize(0);
         });
         return VoidSymbol;

@@ -7,11 +7,11 @@
 #define macroToString(x) tokenToString(x)
 #define assert(condition) { \
     if(!__builtin_expect(static_cast<bool>(condition), 0)) \
-        assertFailed("Assertion failed in " __FILE__ ":" macroToString(__LINE__)); \
+        assertFailed(__FILE__ ":" macroToString(__LINE__)); \
 }
 
 extern "C" {
-    void assertFailed(const char* str);
+    void assertFailed(const char* message);
     NativeNaturalType strlen(const char* str) {
         const char* pos;
         for(pos = str; *pos; ++pos);
@@ -56,3 +56,29 @@ template<typename T, typename... Args>
 constexpr T max(T c, Args... args) {
     return max(c, max(args...));
 }
+
+struct Ascending {
+    template<typename KeyType>
+    static bool compare(KeyType a, KeyType b) {
+        return a < b;
+    }
+};
+
+struct Descending {
+    template<typename KeyType>
+    static bool compare(KeyType a, KeyType b) {
+        return a > b;
+    }
+};
+
+template<typename FirstType, typename SecondType = VoidType>
+struct Pair {
+    FirstType first;
+    SecondType second;
+    Pair() {}
+    Pair(FirstType _first) :first(_first) {}
+    Pair(FirstType _first, SecondType _second) :first(_first), second(_second) {}
+    operator FirstType() {
+        return first;
+    }
+};

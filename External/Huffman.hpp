@@ -46,7 +46,7 @@ struct StaticHuffmanEncoder : public StaticHuffmanCodec {
                           huffmanParentsCount = huffmanChildrenCount*2;
         BlobHeap<true, NativeNaturalType, Symbol> symbolHeap;
         symbolHeap.reserve(symbolCount);
-        symbolMap.iterate([&](Pair<Symbol, NativeNaturalType> pair) {
+        symbolMap.iterateElements([&](Pair<Symbol, NativeNaturalType> pair) {
             symbolHeap.writeElementAt(index, {pair.second, index});
             ++index;
         });

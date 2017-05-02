@@ -8,6 +8,11 @@ Natural8 buffer[128];
 #define ifIsCommand(str) \
     if(substrEqual(reinterpret_cast<Integer8*>(buffer), str))
 
+void assertFailed(const char* message) {
+    printf("Assertion failed in %s\n", message);
+    abort();
+}
+
 bool tryRead(Natural8 count) {
     if(recv(sockfd, buffer, count, 0) > 0)
         return true;
@@ -259,7 +264,7 @@ Integer32 main(Integer32 argc, Integer8** argv) {
             Symbol exception = deserializer.deserialize();
             if(exception == VoidSymbol) {
                 sendArrayHeader(deserializer.queue.size());
-                deserializer.queue.iterate([](Symbol symbol) {
+                deserializer.queue.iterateElements([](Symbol symbol) {
                     sendNatural(symbol);
                 });
             } else
@@ -295,7 +300,7 @@ Integer32 main(Integer32 argc, Integer8** argv) {
                 sendNatural(count);
             else {
                 sendArrayHeader(result.size());
-                result.iterate([](Symbol symbol) {
+                result.iterateElements([](Symbol symbol) {
                     sendNatural(symbol);
                 });
             }

@@ -29,7 +29,7 @@ Combined with [UnikernelExperiments](https://github.com/Lichtso/UnikernelExperim
 Coding Restrictions
 -------------------
 
-- No goto, dynamic_cast
+- No goto, dynamic_cast and virtual methods
 - No new/delete, malloc/free => heapless
 - No recursion/alloca => fixed stack size
 - No StdLibC++ => core is zero dependency

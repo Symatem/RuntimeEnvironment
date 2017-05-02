@@ -187,7 +187,7 @@ NativeNaturalType searchMVV(NativeNaturalType subIndex, Triple triple, Closure<v
         return 0;
     BlobPairSet<false, Symbol> beta;
     beta.symbol = tripleIndex.readElementAt(alphaIndex).second[subIndex];
-    beta.iterate([&](Pair<Symbol, Symbol> betaResult) {
+    beta.iterateElements([&](Pair<Symbol, Symbol> betaResult) {
         if(callback) {
             triple.pos[1] = betaResult.first;
             triple.pos[2] = betaResult.second;
@@ -205,11 +205,11 @@ NativeNaturalType searchMIV(NativeNaturalType subIndex, Triple triple, Closure<v
     BlobSet<true, Symbol> result;
     BlobPairSet<false, Symbol> beta;
     beta.symbol = tripleIndex.readElementAt(alphaIndex).second[subIndex];
-    beta.iterate([&](Pair<Symbol, Symbol> betaResult) {
+    beta.iterateElements([&](Pair<Symbol, Symbol> betaResult) {
         result.insertElement(betaResult.second);
     });
     if(callback)
-        result.iterate([&](Symbol gamma) {
+        result.iterateElements([&](Symbol gamma) {
             triple.pos[2] = gamma;
             callback(triple.normalized(subIndex));
         });
@@ -232,7 +232,7 @@ NativeNaturalType searchMVI(NativeNaturalType subIndex, Triple triple, Closure<v
 
 NativeNaturalType searchVII(NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
     if(callback)
-        tripleIndex.iterate([&](Pair<Symbol, Symbol[6]> alphaResult) {
+        tripleIndex.iterateElements([&](Pair<Symbol, Symbol[6]> alphaResult) {
             triple.pos[0] = alphaResult.first;
             callback(triple.normalized(subIndex));
         });
@@ -241,7 +241,7 @@ NativeNaturalType searchVII(NativeNaturalType subIndex, Triple triple, Closure<v
 
 NativeNaturalType searchVVI(NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
     NativeNaturalType count = 0;
-    tripleIndex.iterate([&](Pair<Symbol, Symbol[6]> alphaResult) {
+    tripleIndex.iterateElements([&](Pair<Symbol, Symbol[6]> alphaResult) {
         BlobPairSet<false, Symbol> beta;
         beta.symbol = alphaResult.second[subIndex];
         if(callback) {
@@ -258,11 +258,11 @@ NativeNaturalType searchVVI(NativeNaturalType subIndex, Triple triple, Closure<v
 
 NativeNaturalType searchVVV(NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
     NativeNaturalType count = 0;
-    tripleIndex.iterate([&](Pair<Symbol, Symbol[6]> alphaResult) {
+    tripleIndex.iterateElements([&](Pair<Symbol, Symbol[6]> alphaResult) {
         triple.pos[0] = alphaResult.first;
         BlobPairSet<false, Symbol> beta;
         beta.symbol = alphaResult.second[subIndex];
-        beta.iterate([&](Pair<Symbol, Symbol> betaResult) {
+        beta.iterateElements([&](Pair<Symbol, Symbol> betaResult) {
             if(callback) {
                 triple.pos[1] = betaResult.first;
                 triple.pos[2] = betaResult.second;
@@ -359,7 +359,7 @@ void setIndexMode(IndexMode _indexMode) {
                 linkTriplePartial(result, subIndex);
         });
     } else
-        tripleIndex.iterate([&](Pair<Symbol, Symbol[6]> alphaResult) {
+        tripleIndex.iterateElements([&](Pair<Symbol, Symbol[6]> alphaResult) {
             for(NativeNaturalType subIndex = _indexMode; subIndex < indexMode; ++subIndex) {
                 BlobPairSet<false, Symbol> beta;
                 beta.symbol = alphaResult.second[subIndex];
@@ -441,13 +441,13 @@ bool unlink(Symbol symbol) {
         beta.iterateFirstKeys([&](Symbol betaResult) {
             dirty.insertElement(betaResult);
         });
-        beta.iterate([&](Pair<Symbol, Symbol> betaResult) {
+        beta.iterateElements([&](Pair<Symbol, Symbol> betaResult) {
             dirty.insertElement(betaResult.second);
             unlinkWithoutReleasing(Triple(symbol, betaResult.first, betaResult.second).normalized(subIndex), true, symbol);
         });
     }
     eraseSymbol(element, alphaIndex, symbol);
-    dirty.iterate([&](Symbol symbol) {
+    dirty.iterateElements([&](Symbol symbol) {
         tryToReleaseSymbol(symbol);
     });
     return true;
@@ -464,13 +464,13 @@ void setSolitary(Triple triple, bool linkVoidSymbol = false) {
     });
     if(toLink)
         link(triple);
-    dirty.iterate([&](Symbol symbol) {
+    dirty.iterateElements([&](Symbol symbol) {
         unlinkWithoutReleasing({triple.pos[0], triple.pos[1], symbol});
     });
     if(!linkVoidSymbol)
         dirty.insertElement(triple.pos[0]);
     dirty.insertElement(triple.pos[1]);
-    dirty.iterate([&](Symbol symbol) {
+    dirty.iterateElements([&](Symbol symbol) {
         tryToReleaseSymbol(symbol);
     });
 }

@@ -115,11 +115,6 @@ void printStats() {
 
 
 
-void assertFailed(const char* str) {
-    puts(str);
-    abort();
-}
-
 Integer32 file = -1, sockfd = -1;
 struct stat fileStat;
 

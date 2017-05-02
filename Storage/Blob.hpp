@@ -305,8 +305,9 @@ struct Blob {
     }
 
     template<bool swap>
-    void externalOperate(void* data, NativeNaturalType offset, NativeNaturalType length) {
-        assert(length > 0 && offset+length <= getSize());
+    bool externalOperate(void* data, NativeNaturalType offset, NativeNaturalType length) {
+        if(length == 0 || offset+length > getSize())
+            return false;
         if(state == InBucket) {
             bitwiseCopySwap<swap>(reinterpret_cast<NativeNaturalType*>(data),
                                   reinterpret_cast<NativeNaturalType*>(superPage),
@@ -328,6 +329,7 @@ struct Blob {
                 offset += segment;
             }
         }
+        return true;
     }
 
     template<typename DataType>
