@@ -78,15 +78,15 @@ EXPORT bool decreaseBlobSize(Symbol symbol, NativeNaturalType offset, NativeNatu
 }
 
 EXPORT bool increaseBlobSize(Symbol symbol, NativeNaturalType offset, NativeNaturalType length) {
-    return Blob(symbol).decreaseSize(offset, length);
+    return Blob(symbol).increaseSize(offset, length);
 }
 
-EXPORT void readBlob(Symbol symbol, NativeNaturalType offset, NativeNaturalType length) {
+EXPORT bool readBlob(Symbol symbol, NativeNaturalType offset, NativeNaturalType length) {
     Natural8 buffer[4096];
     return Blob(symbol).externalOperate<false>(buffer, offset, length);
 }
 
-EXPORT void writeBlob(Symbol symbol, NativeNaturalType offset, NativeNaturalType length) {
+EXPORT bool writeBlob(Symbol symbol, NativeNaturalType offset, NativeNaturalType length) {
     Natural8 buffer[4096];
     return Blob(symbol).externalOperate<true>(buffer, offset, length);
 }
