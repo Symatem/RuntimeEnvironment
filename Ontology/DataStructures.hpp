@@ -1,4 +1,4 @@
-#include <Storage/DataStructures.hpp>
+#include <Storage/BitstreamContainers.hpp>
 
 bool unlink(Symbol symbol);
 
