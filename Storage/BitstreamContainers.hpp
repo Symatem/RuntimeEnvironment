@@ -23,12 +23,24 @@ void iterateElements(Container container, Closure<void(typename Container::Eleme
 }
 
 template<typename Container>
-typename Container::ElementType&& getFirstElement(Container container) {
+void iterateKeys(Container container, Closure<void(typename Container::ElementType::FirstType)> callback) {
+    for(NativeNaturalType at = 0; at < container.getElementCount(); ++at)
+        callback(container.getKeyAt(at));
+}
+
+template<typename Container>
+void iterateValues(Container container, Closure<void(typename Container::ElementType::SecondType)> callback) {
+    for(NativeNaturalType at = 0; at < container.getElementCount(); ++at)
+        callback(container.getValueAt(at));
+}
+
+template<typename Container>
+typename Container::ElementType getFirstElement(Container container) {
     return container.getElementAt(0);
 }
 
 template<typename Container>
-typename Container::ElementType&& getLastElement(Container container) {
+typename Container::ElementType getLastElement(Container container) {
     return container.getElementAt(container.getElementCount()-1);
 }
 
@@ -43,19 +55,19 @@ void insertAsLastElement(Container container, typename Container::ElementType el
 }
 
 template<typename Container>
-typename Container::ElementType&& getAndEraseElementAt(Container container, NativeNaturalType at) {
-    typename Container::ElementType&& element = container.getElementAt(at);
+typename Container::ElementType getAndEraseElementAt(Container container, NativeNaturalType at) {
+    typename Container::ElementType element = container.getElementAt(at);
     container.eraseElementAt(at);
-    return reinterpret_cast<typename Container::ElementType&&>(element);
+    return element;
 }
 
 template<typename Container>
-typename Container::ElementType&& eraseFirstElement(Container container) {
+typename Container::ElementType eraseFirstElement(Container container) {
     return getAndEraseElementAt(container, 0);
 }
 
 template<typename Container>
-typename Container::ElementType&& eraseLastElement(Container container) {
+typename Container::ElementType eraseLastElement(Container container) {
     return getAndEraseElementAt(container, container.getElementCount()-1);
 }
 
@@ -96,24 +108,25 @@ struct GuardedBitstreamContainer : public BitstreamContainer {
     }
 };
 
-template<typename _ElementType, typename ParentType = BitstreamContainer>
+template<typename _ElementType, typename _ParentType = BitstreamContainer>
 struct BitstreamVector {
     typedef _ElementType ElementType;
+    typedef _ParentType ParentType;
     ParentType& parent;
     Blob& blob;
     NativeNaturalType childIndex;
 
     BitstreamVector(ParentType& _parent, NativeNaturalType _childIndex = 0) :parent(_parent), blob(_parent.blob), childIndex(_childIndex) { }
 
-    NativeNaturalType getElementCount() const {
+    NativeNaturalType getElementCount() {
         return parent.getChildLength(childIndex)/sizeOfInBits<ElementType>::value;
     }
 
-    bool isEmpty() const {
+    bool isEmpty() {
         return parent.getChildLength(childIndex) == 0;
     }
 
-    NativeNaturalType getOffsetOfElement(NativeNaturalType at) const {
+    NativeNaturalType getOffsetOfElement(NativeNaturalType at) {
         return parent.getChildOffset(childIndex)+at*sizeOfInBits<ElementType>::value;
     }
 
@@ -121,10 +134,10 @@ struct BitstreamVector {
         blob.externalOperate<true>(&element, getOffsetOfElement(at), sizeOfInBits<ElementType>::value);
     }
 
-    ElementType&& getElementAt(NativeNaturalType at) const {
+    ElementType getElementAt(NativeNaturalType at) {
         ElementType element;
         blob.externalOperate<false>(&element, getOffsetOfElement(at), sizeOfInBits<ElementType>::value);
-        return reinterpret_cast<ElementType&&>(element);
+        return element;
     }
 
     void insertRange(NativeNaturalType at, NativeNaturalType elementCount) {
@@ -143,20 +156,34 @@ struct BitstreamVector {
     void eraseElementAt(NativeNaturalType at) {
         eraseRange(at, 1);
     }
+
+    bool moveElementAt(NativeNaturalType dstAt, NativeNaturalType srcAt) {
+        if(dstAt == srcAt)
+            return false;
+        bool upward = (dstAt > srcAt);
+        if(upward)
+            ++dstAt;
+        insertElementAt(dstAt, getElementAt(srcAt));
+        if(!upward)
+            ++srcAt;
+        eraseElementAt(srcAt);
+        return true;
+    }
 };
 
-template<typename KeyType, typename ValueType, typename ParentType = BitstreamContainer>
-struct BitstreamPairVector : public BitstreamVector<Pair<KeyType, ValueType>, ParentType> {
+template<typename KeyType, typename ValueType, typename _ParentType = BitstreamContainer>
+struct BitstreamPairVector : public BitstreamVector<Pair<KeyType, ValueType>, _ParentType> {
+    typedef _ParentType ParentType;
     typedef Pair<KeyType, ValueType> ElementType;
     typedef BitstreamVector<ElementType, ParentType> Super;
 
     BitstreamPairVector(ParentType& _parent, NativeNaturalType _childIndex = 0) :Super(_parent, _childIndex) { }
 
-    NativeNaturalType getOffsetOfKey(NativeNaturalType at) const {
+    NativeNaturalType getOffsetOfKey(NativeNaturalType at) {
         return Super::getOffsetOfElement(at);
     }
 
-    NativeNaturalType getOffsetOfValue(NativeNaturalType at) const {
+    NativeNaturalType getOffsetOfValue(NativeNaturalType at) {
         return Super::getOffsetOfElement(at)+sizeOfInBits<KeyType>::value;
     }
 
@@ -170,31 +197,22 @@ struct BitstreamPairVector : public BitstreamVector<Pair<KeyType, ValueType>, Pa
         return true;
     }
 
-    KeyType&& getKeyAt(NativeNaturalType at) const {
+    KeyType getKeyAt(NativeNaturalType at) {
         KeyType key;
         Super::blob.template externalOperate<false>(&key, getOffsetOfKey(at), sizeOfInBits<KeyType>::value);
-        return reinterpret_cast<KeyType&&>(key);
+        return key;
     }
 
-    ValueType&& getValueAt(NativeNaturalType at) const {
+    ValueType getValueAt(NativeNaturalType at) {
         ValueType value;
         Super::blob.template externalOperate<false>(&value, getOffsetOfValue(at), sizeOfInBits<ValueType>::value);
-        return reinterpret_cast<ValueType&&>(value);
-    }
-
-    void iterateKeys(Closure<void(KeyType)> callback) const {
-        for(NativeNaturalType at = 0; at < Super::getElementCount(); ++at)
-            callback(getKeyAt(at));
-    }
-
-    void iterateValues(Closure<void(ValueType)> callback) const {
-        for(NativeNaturalType at = 0; at < Super::getElementCount(); ++at)
-            callback(getValueAt(at));
+        return value;
     }
 };
 
-template<typename SortDirection, typename KeyType, typename ValueType = VoidType, typename ParentType = BitstreamContainer>
-struct BitstreamHeap : public BitstreamPairVector<KeyType, ValueType, ParentType> {
+template<typename SortDirection, typename KeyType, typename ValueType = VoidType, typename _ParentType = BitstreamContainer>
+struct BitstreamHeap : public BitstreamPairVector<KeyType, ValueType, _ParentType> {
+    typedef _ParentType ParentType;
     typedef BitstreamPairVector<KeyType, ValueType, ParentType> Super;
     typedef typename Super::ElementType ElementType;
 
@@ -270,24 +288,25 @@ struct BitstreamHeap : public BitstreamPairVector<KeyType, ValueType, ParentType
         siftToRoot(at);
     }
 
-    bool setKeyAt(NativeNaturalType at, KeyType key) const {
+    bool setKeyAt(NativeNaturalType at, KeyType key) {
         Super::setKeyAt(at, key);
         siftToRoot(at);
         return true;
     }
 };
 
-template<typename KeyType, typename ValueType = VoidType, typename ParentType = BitstreamContainer>
-struct BitstreamSet : public BitstreamPairVector<KeyType, ValueType, ParentType> {
-    typedef BitstreamPairVector<KeyType, ValueType> Super;
+template<typename KeyType, typename ValueType = VoidType, typename _ParentType = BitstreamContainer>
+struct BitstreamSet : public BitstreamPairVector<KeyType, ValueType, _ParentType> {
+    typedef _ParentType ParentType;
+    typedef BitstreamPairVector<KeyType, ValueType, ParentType> Super;
     typedef typename Super::ElementType ElementType;
 
-    BitstreamSet(ParentType& _parent, NativeNaturalType _childIndex = 0) :Super(_parent, _childIndex) { }
+    BitstreamSet(ParentType& _parent, NativeNaturalType _childIndex = 0) :Super(_parent, _childIndex) {}
     void setElementAt(NativeNaturalType at, ElementType element) = delete;
     void insertRange(NativeNaturalType at, NativeNaturalType elementCount) = delete;
     void insertElementAt(NativeNaturalType at, ElementType element) = delete;
 
-    bool findKey(KeyType key, NativeNaturalType& at) const {
+    bool findKey(KeyType key, NativeNaturalType& at) {
         at = binarySearch<NativeNaturalType>(0, Super::getElementCount(), [&](NativeNaturalType at) {
             return Super::getKeyAt(at) < key;
         });
@@ -312,11 +331,12 @@ struct BitstreamSet : public BitstreamPairVector<KeyType, ValueType, ParentType>
 
     bool setKeyAt(NativeNaturalType at, KeyType key) {
         NativeNaturalType newAt;
-        ValueType value = Super::getValueAt(at);
         if(findKey(key, newAt))
             return false;
-        Super::eraseElementAt(at);
-        Super::insertElementAt(newAt, {key, value});
+        if(newAt > at)
+            --newAt;
+        Super::moveElementAt(newAt, at);
+        Super::setKeyAt(newAt, key);
         return true;
     }
 };

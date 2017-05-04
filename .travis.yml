@@ -1,5 +1,5 @@
 language: cpp
-script: make build/SymatemMP
+script: make runTests
 matrix:
   include:
     - env: CLANG_VERSION=4.0 CPP=1z

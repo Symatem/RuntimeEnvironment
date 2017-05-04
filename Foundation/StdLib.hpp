@@ -71,8 +71,10 @@ struct Descending {
     }
 };
 
-template<typename FirstType, typename SecondType = VoidType>
+template<typename _FirstType, typename _SecondType = VoidType>
 struct Pair {
+    typedef _FirstType FirstType;
+    typedef _SecondType SecondType;
     FirstType first;
     SecondType second;
     Pair() {}

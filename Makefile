@@ -8,11 +8,13 @@ $(BUILD_PATH):
 	mkdir -p $(BUILD_PATH)
 
 # Build POSIX Executables
+$(BUILD_PATH)SymatemMP: Targets/MP.cpp Targets/POSIX.hpp $(SOURCES) $(BUILD_PATH)
+	$(CC) $(COMPILER_FLAGS) $(LINKER_FLAGS) -o $@ $<
 
 $(BUILD_PATH)SymatemBp: Targets/Bp.cpp Targets/POSIX.hpp $(SOURCES) $(BUILD_PATH)
 	$(CC) $(COMPILER_FLAGS) $(LINKER_FLAGS) -o $@ $<
 
-$(BUILD_PATH)SymatemMP: Targets/MP.cpp Targets/POSIX.hpp $(SOURCES) $(BUILD_PATH)
+$(BUILD_PATH)SymatemTests: Targets/Tests.cpp Targets/POSIX.hpp $(SOURCES) $(BUILD_PATH)
 	$(CC) $(COMPILER_FLAGS) $(LINKER_FLAGS) -o $@ $<
 
 ifeq ($(PLATFORM), Linux)
@@ -35,6 +37,9 @@ runMP: $(BUILD_PATH)SymatemMP
 	$< --path $(IMAGE_PATH)
 
 runBp: $(BUILD_PATH)SymatemBp
+	$< $(IMAGE_PATH)
+
+runTests: $(BUILD_PATH)SymatemTests
 	$< $(IMAGE_PATH)
 
 MOUNT_PATH = $(BUILD_PATH)mountpoint
@@ -63,7 +68,7 @@ $(BUILD_PATH)Symatem.wasm: $(BUILD_PATH)Symatem.wast
 
 # Combined
 
-buildAll: $(BUILD_PATH)SymatemBp $(BUILD_PATH)SymatemMP $(BUILD_PATH)SymatemFS $(BUILD_PATH)Symatem.wasm
+buildAll: $(BUILD_PATH)SymatemMP $(BUILD_PATH)SymatemBp $(BUILD_PATH)SymatemTests $(BUILD_PATH)SymatemFS $(BUILD_PATH)Symatem.wasm
 
 clear:
 	rm -Rf build/
