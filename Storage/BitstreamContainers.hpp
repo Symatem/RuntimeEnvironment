@@ -1,4 +1,5 @@
 #include <Storage/DataStructures.hpp>
+#include <stdio.h>
 
 template<typename Container>
 void setElementCount(Container container, NativeNaturalType newElementCount) {
@@ -339,4 +340,231 @@ struct BitstreamSet : public BitstreamPairVector<KeyType, ValueType, _ParentType
         Super::setKeyAt(newAt, key);
         return true;
     }
+};
+
+
+
+template<typename KeyType, typename ValueType, typename _ParentType = BitstreamContainer>
+struct BitstreamContainerVector : public BitstreamPairVector<KeyType, NativeNaturalType, _ParentType> {
+    typedef _ParentType ParentType;
+    typedef BitstreamPairVector<KeyType, NativeNaturalType, ParentType> Super;
+    typedef typename Super::ElementType InnerElementType;
+    typedef Pair<KeyType, ValueType> ElementType;
+
+    BitstreamContainerVector(ParentType& _parent, NativeNaturalType _childIndex = 0) :Super(_parent, _childIndex) { }
+    bool setValueAt(NativeNaturalType at, NativeNaturalType value) = delete;
+
+    NativeNaturalType getElementCount() {
+        return (Super::isEmpty()) ? 0 : Super::getValueAt(0)/sizeOfInBits<InnerElementType>::value;
+    }
+
+    ValueType getValueAt(NativeNaturalType at) {
+        return ValueType(reinterpret_cast<typename ValueType::ParentType&>(*this), at);
+    }
+
+    ElementType getElementAt(NativeNaturalType at) {
+        return {Super::getKeyAt(at), getValueAt(at)};
+    }
+
+    void insertRange(NativeNaturalType at, NativeNaturalType elementCount) {
+        NativeNaturalType newElementCount = getElementCount()+elementCount,
+                          value = getChildBegin(at);
+        Super::insertRange(at, elementCount);
+        for(NativeNaturalType atEnd = at+elementCount; at < atEnd; ++at)
+            Super::setValueAt(at, value);
+        for(NativeNaturalType at = 0; at < newElementCount; ++at)
+            Super::setValueAt(at, Super::getValueAt(at)+elementCount*sizeOfInBits<InnerElementType>::value);
+    }
+
+    void eraseRange(NativeNaturalType at, NativeNaturalType elementCount) {
+        NativeNaturalType newElementCount = getElementCount()-elementCount,
+                          sliceLength = getChildEnd(at+elementCount-1)-getChildBegin(at);
+        Super::parent.decreaseChildLength(Super::childIndex, getChildOffset(at), sliceLength);
+        Super::eraseRange(at, elementCount);
+        for(; at < newElementCount; ++at)
+            Super::setValueAt(at, Super::getValueAt(at)-sliceLength);
+        for(NativeNaturalType at = 0; at < newElementCount; ++at)
+            Super::setValueAt(at, Super::getValueAt(at)-elementCount*sizeOfInBits<InnerElementType>::value);
+    }
+
+    void insertElementAt(NativeNaturalType at, KeyType key) {
+        insertRange(at, 1);
+        Super::setKeyAt(at, key);
+    }
+
+    void eraseElementAt(NativeNaturalType at) {
+        eraseRange(at, 1);
+    }
+
+    bool moveElementAt(NativeNaturalType dstAt, NativeNaturalType srcAt) {
+        if(dstAt == srcAt)
+            return false;
+        bool upward = (dstAt > srcAt);
+        if(upward)
+            ++dstAt;
+        NativeNaturalType srcOffset = getChildOffset(srcAt), length = getChildLength(srcAt);
+        insertElementAt(dstAt, Super::getKeyAt(srcAt));
+        NativeNaturalType dstOffset = getChildOffset(dstAt);
+        increaseChildLength(dstAt, dstOffset, length);
+        Super::blob.interoperation(Super::blob, dstOffset, srcOffset, length);
+        if(!upward)
+            ++srcAt;
+        eraseElementAt(srcAt);
+        return true;
+    }
+
+
+
+    void increaseChildLength(NativeNaturalType at, NativeNaturalType offset, NativeNaturalType length) {
+        Super::parent.increaseChildLength(Super::childIndex, offset, length);
+        for(++at; at < getElementCount(); ++at)
+            Super::setValueAt(at, Super::getValueAt(at)+length);
+    }
+
+    void decreaseChildLength(NativeNaturalType at, NativeNaturalType offset, NativeNaturalType length) {
+        Super::parent.decreaseChildLength(Super::childIndex, offset, length);
+        for(++at; at < getElementCount(); ++at)
+            Super::setValueAt(at, Super::getValueAt(at)-length);
+    }
+
+    NativeNaturalType getChildOffset(NativeNaturalType at) {
+        return Super::parent.getChildOffset(Super::childIndex)+getChildBegin(at);
+    }
+
+    NativeNaturalType getChildBegin(NativeNaturalType at) {
+        if(at == getElementCount())
+            return Super::parent.getChildLength(Super::childIndex);
+        return Super::getValueAt(at);
+    }
+
+    NativeNaturalType getChildEnd(NativeNaturalType at) {
+        if(at == getElementCount()-1)
+            return Super::parent.getChildLength(Super::childIndex);
+        return Super::getValueAt(at+1);
+    }
+
+    NativeNaturalType getChildLength(NativeNaturalType at) {
+        return getChildEnd(at)-getChildBegin(at);
+    }
+};
+
+template<typename KeyType, typename ValueType, typename _ParentType = BitstreamContainer>
+struct BitstreamContainerSet : public BitstreamContainerVector<KeyType, ValueType, _ParentType> {
+    typedef _ParentType ParentType;
+    typedef BitstreamContainerVector<KeyType, ValueType, ParentType> Super;
+    typedef typename Super::ElementType ElementType;
+
+    BitstreamContainerSet(ParentType& _parent, NativeNaturalType _childIndex = 0) :Super(_parent, _childIndex) { }
+    void setElementAt(NativeNaturalType at, ElementType element) = delete;
+    void insertRange(NativeNaturalType at, NativeNaturalType elementCount) = delete;
+    // void insertElementAt(NativeNaturalType at, ElementType element) = delete;
+
+    bool findKey(KeyType key, NativeNaturalType& at) {
+        at = binarySearch<NativeNaturalType>(0, Super::getElementCount(), [&](NativeNaturalType at) {
+            return Super::getKeyAt(at) < key;
+        });
+        return (at < Super::getElementCount() && Super::getKeyAt(at) == key);
+    }
+
+    bool insertElement(KeyType key) {
+        NativeNaturalType at;
+        if(findKey(key, at))
+            return false;
+        Super::insertElementAt(at, key);
+        return true;
+    }
+
+    bool eraseElement(KeyType key) {
+        NativeNaturalType at;
+        if(!findKey(key, at))
+            return false;
+        Super::eraseElementAt(at);
+        return true;
+    }
+
+    bool setKeyAt(NativeNaturalType at, KeyType key) {
+        NativeNaturalType newAt;
+        if(findKey(key, newAt))
+            return false;
+        if(newAt > at)
+            --newAt;
+        Super::moveElementAt(newAt, at);
+        Super::setKeyAt(newAt, key);
+        return true;
+    }
+};
+
+template<typename FirstKeyType, typename SecondKeyType, typename _ParentType = BitstreamContainer>
+struct BitstreamPairSet : public BitstreamContainerSet<FirstKeyType, BitstreamSet<SecondKeyType, VoidType, BitstreamPairSet<FirstKeyType, SecondKeyType, _ParentType>>, _ParentType> {
+    typedef _ParentType ParentType;
+    typedef BitstreamSet<SecondKeyType, VoidType, BitstreamPairSet<FirstKeyType, SecondKeyType, ParentType>> ValueType;
+    typedef BitstreamContainerSet<FirstKeyType, ValueType, ParentType> Super;
+    typedef Pair<FirstKeyType, SecondKeyType> ElementType;
+
+    BitstreamPairSet(ParentType& _parent, NativeNaturalType _childIndex = 0) :Super(_parent, _childIndex) { }
+
+    FirstKeyType getFirstKeyCount() {
+        return Super::getElementCount();
+    }
+
+    SecondKeyType getSecondKeyCount(NativeNaturalType firstAt) {
+        return Super::getValueAt(firstAt).getElementCount();
+    }
+
+    void iterateFirstKeys(Closure<void(FirstKeyType)> callback) {
+        iterateKeys(*this, callback);
+    }
+
+    void iterateSecondKeys(NativeNaturalType firstAt, Closure<void(SecondKeyType)> callback) {
+        iterateKeys(Super::getValueAt(firstAt), callback);
+    }
+
+    void iterateElements(Closure<void(ElementType)> callback) {
+        for(NativeNaturalType firstAt = 0; firstAt < getFirstKeyCount(); ++firstAt) {
+            FirstKeyType firstKey = Super::getKeyAt(firstAt);
+            iterateKeys(Super::getValueAt(firstAt), [&](SecondKeyType secondKey) {
+                callback({firstKey, secondKey});
+            });
+        }
+    }
+
+    bool findFirstKey(FirstKeyType firstKey, NativeNaturalType& firstAt) {
+        return Super::findKey(firstKey, firstAt);
+    }
+
+    bool findSecondKey(SecondKeyType secondKey, NativeNaturalType firstAt, NativeNaturalType& secondAt) {
+        return Super::getValueAt(firstAt).findKey(secondKey, secondAt);
+    }
+
+    bool findElement(ElementType element, NativeNaturalType& firstAt, NativeNaturalType& secondAt) {
+        return findFirstKey(element.first, firstAt) && findSecondKey(element.second, firstAt, secondAt);
+    }
+
+    bool insertElement(ElementType element) {
+        NativeNaturalType firstAt;
+        if(!findFirstKey(element.first, firstAt))
+            Super::insertElementAt(firstAt, element.first);
+        return Super::getValueAt(firstAt).insertElement(element.second);
+    }
+
+    bool eraseElement(ElementType element) {
+        NativeNaturalType firstAt;
+        if(!findFirstKey(element.first, firstAt))
+            return false;
+        ValueType innerSet = Super::getValueAt(firstAt);
+        if(!innerSet.eraseElement(element.second))
+            return false;
+        if(innerSet.getElementCount() == 0)
+            Super::eraseElementAt(firstAt);
+        return true;
+    }
+};
+
+template<typename _ParentType = BitstreamContainer>
+struct BitstreamSparsePayload : public BitstreamContainerSet<NativeNaturalType, VoidType, _ParentType> {
+    typedef _ParentType ParentType;
+    typedef BitstreamContainerSet<NativeNaturalType, VoidType, ParentType> Super;
+    typedef typename Super::ElementType ElementType;
+
+    BitstreamSparsePayload(ParentType& _parent, NativeNaturalType _childIndex = 0) :Super(_parent, _childIndex) { }
 };

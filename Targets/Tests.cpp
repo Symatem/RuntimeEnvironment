@@ -143,7 +143,9 @@ Integer32 main(Integer32 argc, Integer8** argv) {
             assert(element.first == index && element.second == index*2);
             ++index;
         });
-        assert(set.eraseElement(7) == false
+        assert(set.findKey(7, index) == false
+            && set.findKey(2, index) == true && index == 2
+            && set.eraseElement(7) == false
             && set.eraseElement(2) == true
             && set.eraseElement(4) == true
             && set.eraseElement(3) == true
@@ -152,6 +154,79 @@ Integer32 main(Integer32 argc, Integer8** argv) {
         iterateElements(set, [&](Pair<NativeNaturalType, NativeNaturalType> element) {
             assert(element.first == index && element.second == index*2);
             ++index;
+        });
+    }
+
+    test("BitstreamContainerVector") {
+        GuardedBitstreamContainer container;
+        BitstreamContainerVector<NativeNaturalType, VoidType> containerVector(container);
+        containerVector.insertElementAt(0, 7);
+        containerVector.increaseChildLength(0, containerVector.getChildOffset(0), 64);
+        containerVector.insertElementAt(0, 5);
+        containerVector.increaseChildLength(0, containerVector.getChildOffset(0), 32);
+        containerVector.insertElementAt(1, 9);
+        containerVector.increaseChildLength(1, containerVector.getChildOffset(1), 96);
+        assert(containerVector.moveElementAt(2, 1) == true
+            && containerVector.moveElementAt(0, 1) == true
+            && containerVector.getElementCount() == 3
+            && containerVector.getKeyAt(0) == 7 && containerVector.getChildLength(0) == 64
+            && containerVector.getKeyAt(1) == 5 && containerVector.getChildLength(1) == 32
+            && containerVector.getKeyAt(2) == 9 && containerVector.getChildLength(2) == 96);
+        containerVector.eraseElementAt(1);
+        assert(containerVector.getElementCount() == 2
+            && containerVector.getKeyAt(0) == 7 && containerVector.getChildLength(0) == 64
+            && containerVector.getKeyAt(1) == 9 && containerVector.getChildLength(1) == 96);
+    }
+
+    test("BitstreamContainerSet") {
+        GuardedBitstreamContainer container;
+        BitstreamContainerSet<NativeNaturalType, VoidType> containerSet(container);
+        assert(containerSet.insertElement(7) == true);
+        containerSet.increaseChildLength(0, containerSet.getChildOffset(0), 64);
+        assert(containerSet.insertElement(5) == true);
+        containerSet.increaseChildLength(0, containerSet.getChildOffset(0), 32);
+        assert(containerSet.insertElement(8) == true);
+        containerSet.increaseChildLength(2, containerSet.getChildOffset(2), 96);
+        assert(containerSet.getElementCount() == 3
+            && containerSet.getChildLength(0) == 32
+            && containerSet.getChildLength(1) == 64
+            && containerSet.getChildLength(2) == 96
+            && containerSet.setKeyAt(1, 4)
+            && containerSet.setKeyAt(1, 9)
+            && containerSet.eraseElement(8) == true
+            && containerSet.getElementCount() == 2
+            && containerSet.getChildLength(0) == 64
+            && containerSet.getChildLength(1) == 32);
+    }
+
+    test("BitstreamPairSet") {
+        GuardedBitstreamContainer container;
+        BitstreamPairSet<NativeNaturalType, NativeNaturalType> pairSet(container);
+        assert(pairSet.insertElement({3, 5})
+            && pairSet.insertElement({3, 7})
+            && pairSet.insertElement({5, 1})
+            && pairSet.insertElement({5, 3})
+            && pairSet.insertElement({5, 7})
+            && pairSet.getFirstKeyCount() == 2
+            && pairSet.getSecondKeyCount(0) == 2
+            && pairSet.getSecondKeyCount(1) == 3);
+        NativeNaturalType firstAt, secondAt;
+        assert(pairSet.findFirstKey(1, firstAt) == false
+            && pairSet.findFirstKey(5, firstAt) == true && firstAt == 1
+            && pairSet.findSecondKey(5, firstAt, secondAt) == false
+            && pairSet.findSecondKey(3, firstAt, secondAt) == true && secondAt == 1
+            && pairSet.findElement({1, 1}, firstAt, secondAt) == false
+            && pairSet.findElement({3, 1}, firstAt, secondAt) == false
+            && pairSet.findElement({3, 7}, firstAt, secondAt) == true && firstAt == 0 && secondAt == 1);
+        assert(pairSet.eraseElement({5, 3}) == true);
+        NativeNaturalType counter = 1;
+        pairSet.iterateFirstKeys([&](NativeNaturalType first) {
+            counter += 2;
+            assert(first == counter);
+        });
+        pairSet.iterateSecondKeys(0, [&](NativeNaturalType second) {
+            assert(second == counter);
+            counter += 2;
         });
     }
 
