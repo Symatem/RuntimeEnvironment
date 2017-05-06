@@ -230,6 +230,29 @@ Integer32 main(Integer32 argc, Integer8** argv) {
         });
     }
 
+    test("ArithmeticCodec Symbol") {
+        Blob blob(createSymbol());
+        NativeNaturalType offset = 0;
+        ArithmeticEncoder encoder(blob, offset, 3);
+        for(NativeNaturalType i = 0; i < 8; ++i)
+            encoder.encodeSymbol(i%3);
+        encoder.encodeTermination();
+        offset = 0;
+        ArithmeticDecoder decoder(blob, offset, encoder.model.symbolCount);
+        for(NativeNaturalType i = 0; i < 8; ++i)
+            assert(decoder.decodeSymbol() == (i%3));
+    }
+
+    test("ArithmeticCodec Bitstream") {
+        Blob plain(createFromString("Hello, World!")), compressed(createSymbol()), decompressed(createSymbol());
+        decompressed.setSize(plain.getSize());
+        NativeNaturalType offset = 0;
+        arithmeticEncodeBlob(compressed, offset, plain, plain.getSize());
+        offset = 0;
+        arithmeticDecodeBlob(decompressed, decompressed.getSize(), compressed, offset);
+        assert(compressed.compare(plain) != 0 && decompressed.compare(plain) == 0);
+    }
+
     test("unloadStorage()") {
         unloadStorage();
     }
