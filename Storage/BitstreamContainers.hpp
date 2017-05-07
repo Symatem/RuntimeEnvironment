@@ -1,74 +1,73 @@
 #include <Storage/DataStructures.hpp>
-#include <stdio.h>
 
 template<typename Container>
-void setElementCount(Container container, NativeNaturalType newElementCount) {
+void setElementCount(Container& container, NativeNaturalType newElementCount) {
     NativeNaturalType elementCount = container.getElementCount();
     if(newElementCount > elementCount)
-        container.insertRange(elementCount, elementCount-newElementCount);
+        container.insertRange(elementCount, newElementCount-elementCount);
     else if(newElementCount < elementCount)
-        container.eraseRange(newElementCount, newElementCount-elementCount);
+        container.eraseRange(newElementCount, elementCount-newElementCount);
 }
 
 template<typename Container>
-void swapElementsAt(Container container, NativeNaturalType a, NativeNaturalType b) {
+void swapElementsAt(Container& container, NativeNaturalType a, NativeNaturalType b) {
     typename Container::ElementType elementA = container.getElementAt(a), elementB = container.getElementAt(b);
     container.setElementAt(a, elementB);
     container.setElementAt(b, elementA);
 }
 
 template<typename Container>
-void iterateElements(Container container, Closure<void(typename Container::ElementType)> callback) {
+void iterateElements(Container& container, Closure<void(typename Container::ElementType)> callback) {
     for(NativeNaturalType at = 0; at < container.getElementCount(); ++at)
         callback(container.getElementAt(at));
 }
 
 template<typename Container>
-void iterateKeys(Container container, Closure<void(typename Container::ElementType::FirstType)> callback) {
+void iterateKeys(Container& container, Closure<void(typename Container::ElementType::FirstType)> callback) {
     for(NativeNaturalType at = 0; at < container.getElementCount(); ++at)
         callback(container.getKeyAt(at));
 }
 
 template<typename Container>
-void iterateValues(Container container, Closure<void(typename Container::ElementType::SecondType)> callback) {
+void iterateValues(Container& container, Closure<void(typename Container::ElementType::SecondType)> callback) {
     for(NativeNaturalType at = 0; at < container.getElementCount(); ++at)
         callback(container.getValueAt(at));
 }
 
 template<typename Container>
-typename Container::ElementType getFirstElement(Container container) {
+typename Container::ElementType getFirstElement(Container& container) {
     return container.getElementAt(0);
 }
 
 template<typename Container>
-typename Container::ElementType getLastElement(Container container) {
+typename Container::ElementType getLastElement(Container& container) {
     return container.getElementAt(container.getElementCount()-1);
 }
 
 template<typename Container>
-void insertAsFirstElement(Container container, typename Container::ElementType element) {
+void insertAsFirstElement(Container& container, typename Container::ElementType element) {
     container.insertElementAt(0, element);
 }
 
 template<typename Container>
-void insertAsLastElement(Container container, typename Container::ElementType element) {
+void insertAsLastElement(Container& container, typename Container::ElementType element) {
     container.insertElementAt(container.getElementCount(), element);
 }
 
 template<typename Container>
-typename Container::ElementType getAndEraseElementAt(Container container, NativeNaturalType at) {
+typename Container::ElementType getAndEraseElementAt(Container& container, NativeNaturalType at) {
     typename Container::ElementType element = container.getElementAt(at);
     container.eraseElementAt(at);
     return element;
 }
 
 template<typename Container>
-typename Container::ElementType eraseFirstElement(Container container) {
+typename Container::ElementType eraseFirstElement(Container& container) {
     return getAndEraseElementAt(container, 0);
 }
 
 template<typename Container>
-typename Container::ElementType eraseLastElement(Container container) {
+typename Container::ElementType eraseLastElement(Container& container) {
     return getAndEraseElementAt(container, container.getElementCount()-1);
 }
 
@@ -99,12 +98,14 @@ struct BitstreamContainer {
     }
 };
 
-struct GuardedBitstreamContainer : public BitstreamContainer {
-    typedef BitstreamContainer Super;
+template<typename _Super>
+struct BitstreamContainerGuard : public _Super {
+    typedef _Super Super;
+    BitstreamContainer parent;
 
-    GuardedBitstreamContainer() :Super(createSymbol()) {}
+    BitstreamContainerGuard() :Super(parent), parent(createSymbol()) {}
 
-    ~GuardedBitstreamContainer() {
+    ~BitstreamContainerGuard() {
         releaseSymbol(Super::blob.symbol);
     }
 };
@@ -218,9 +219,6 @@ struct BitstreamHeap : public BitstreamPairVector<KeyType, ValueType, _ParentTyp
     typedef typename Super::ElementType ElementType;
 
     BitstreamHeap(ParentType& _parent, NativeNaturalType _childIndex = 0) :Super(_parent, _childIndex) { }
-    // void setElementAt(NativeNaturalType at, ElementType element) = delete;
-    void insertRange(NativeNaturalType at, NativeNaturalType elementCount) = delete;
-    void insertElementAt(NativeNaturalType at, ElementType element) = delete;
 
     bool compare(NativeNaturalType atA, NativeNaturalType atB) {
         return SortDirection::compare(Super::getKeyAt(atA), Super::getKeyAt(atB));
@@ -516,13 +514,15 @@ struct BitstreamPairSet : public BitstreamContainerSet<FirstKeyType, BitstreamSe
     }
 
     void iterateSecondKeys(NativeNaturalType firstAt, Closure<void(SecondKeyType)> callback) {
-        iterateKeys(Super::getValueAt(firstAt), callback);
+        auto innerSet = Super::getValueAt(firstAt);
+        iterateKeys(innerSet, callback);
     }
 
     void iterateElements(Closure<void(ElementType)> callback) {
         for(NativeNaturalType firstAt = 0; firstAt < getFirstKeyCount(); ++firstAt) {
             FirstKeyType firstKey = Super::getKeyAt(firstAt);
-            iterateKeys(Super::getValueAt(firstAt), [&](SecondKeyType secondKey) {
+            auto innerSet = Super::getValueAt(firstAt);
+            iterateKeys(innerSet, [&](SecondKeyType secondKey) {
                 callback({firstKey, secondKey});
             });
         }

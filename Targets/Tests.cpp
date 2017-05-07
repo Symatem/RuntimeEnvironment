@@ -43,10 +43,10 @@ Integer32 main(Integer32 argc, Integer8** argv) {
         tryToFillPreDefined();
     }
 
-    test("GuardedBitstreamContainer") {
+    test("BitstreamContainerGuard") {
         Symbol symbol;
         {
-            GuardedBitstreamContainer container;
+            BitstreamContainerGuard<BitstreamVector<VoidType>> container;
             symbol = container.blob.symbol;
             container.blob.setSize(32);
             assert(container.blob.getSize() == 32);
@@ -55,8 +55,7 @@ Integer32 main(Integer32 argc, Integer8** argv) {
     }
 
     test("BitstreamVector") {
-        GuardedBitstreamContainer container;
-        BitstreamVector<NativeNaturalType> vector(container);
+        BitstreamContainerGuard<BitstreamVector<NativeNaturalType>> vector;
         insertAsLastElement(vector, 2);
         insertAsFirstElement(vector, 1);
         vector.insertElementAt(1, 0);
@@ -72,11 +71,14 @@ Integer32 main(Integer32 argc, Integer8** argv) {
         assert(eraseLastElement(vector) == 0
             && eraseFirstElement(vector) == 2
             && vector.getElementCount() == 0);
+        setElementCount(vector, 3);
+        assert(vector.getElementCount() == 3);
+        setElementCount(vector, 0);
+        assert(vector.getElementCount() == 0);
     }
 
     test("BitstreamPairVector") {
-        GuardedBitstreamContainer container;
-        BitstreamPairVector<NativeNaturalType, NativeNaturalType> pairVector(container);
+        BitstreamContainerGuard<BitstreamPairVector<NativeNaturalType, NativeNaturalType>> pairVector;
         insertAsLastElement(pairVector, {2, 0});
         insertAsFirstElement(pairVector, {3, 1});
         pairVector.setKeyAt(0, 0);
@@ -100,13 +102,13 @@ Integer32 main(Integer32 argc, Integer8** argv) {
     }
 
     test("BitstreamHeap") {
-        GuardedBitstreamContainer container;
-        BitstreamHeap<Ascending, NativeNaturalType, NativeNaturalType> heap(container);
+        BitstreamContainerGuard<BitstreamHeap<Ascending, NativeNaturalType, NativeNaturalType>> heap;
         heap.insertElement({2, 4});
         heap.insertElement({0, 0});
         heap.insertElement({4, 8});
         heap.insertElement({1, 2});
         heap.insertElement({3, 6});
+        heap.build();
         assert(heap.getElementCount() == 5);
         NativeNaturalType index = 0;
         for(; index < 5; ++index) {
@@ -127,8 +129,7 @@ Integer32 main(Integer32 argc, Integer8** argv) {
     }
 
     test("BitstreamSet") {
-        GuardedBitstreamContainer container;
-        BitstreamSet<NativeNaturalType, NativeNaturalType> set(container);
+        BitstreamContainerGuard<BitstreamSet<NativeNaturalType, NativeNaturalType>> set;
         assert(set.insertElement({1, 2}) == true
             && set.insertElement({5, 0}) == true
             && set.insertElement({3, 6}) == true
@@ -158,8 +159,7 @@ Integer32 main(Integer32 argc, Integer8** argv) {
     }
 
     test("BitstreamContainerVector") {
-        GuardedBitstreamContainer container;
-        BitstreamContainerVector<NativeNaturalType, VoidType> containerVector(container);
+        BitstreamContainerGuard<BitstreamContainerVector<NativeNaturalType, VoidType>> containerVector;
         containerVector.insertElementAt(0, 7);
         containerVector.increaseChildLength(0, containerVector.getChildOffset(0), 64);
         containerVector.insertElementAt(0, 5);
@@ -179,8 +179,7 @@ Integer32 main(Integer32 argc, Integer8** argv) {
     }
 
     test("BitstreamContainerSet") {
-        GuardedBitstreamContainer container;
-        BitstreamContainerSet<NativeNaturalType, VoidType> containerSet(container);
+        BitstreamContainerGuard<BitstreamContainerSet<NativeNaturalType, VoidType>> containerSet;
         assert(containerSet.insertElement(7) == true);
         containerSet.increaseChildLength(0, containerSet.getChildOffset(0), 64);
         assert(containerSet.insertElement(5) == true);
@@ -200,32 +199,36 @@ Integer32 main(Integer32 argc, Integer8** argv) {
     }
 
     test("BitstreamPairSet") {
-        GuardedBitstreamContainer container;
-        BitstreamPairSet<NativeNaturalType, NativeNaturalType> pairSet(container);
-        assert(pairSet.insertElement({3, 5})
-            && pairSet.insertElement({3, 7})
-            && pairSet.insertElement({5, 1})
-            && pairSet.insertElement({5, 3})
+        BitstreamContainerGuard<BitstreamPairSet<NativeNaturalType, NativeNaturalType>> pairSet;
+        assert(pairSet.insertElement({3, 1})
+            && pairSet.insertElement({3, 3})
+            && pairSet.insertElement({5, 5})
             && pairSet.insertElement({5, 7})
+            && pairSet.insertElement({5, 9})
             && pairSet.getFirstKeyCount() == 2
             && pairSet.getSecondKeyCount(0) == 2
             && pairSet.getSecondKeyCount(1) == 3);
         NativeNaturalType firstAt, secondAt;
         assert(pairSet.findFirstKey(1, firstAt) == false
             && pairSet.findFirstKey(5, firstAt) == true && firstAt == 1
-            && pairSet.findSecondKey(5, firstAt, secondAt) == false
-            && pairSet.findSecondKey(3, firstAt, secondAt) == true && secondAt == 1
+            && pairSet.findSecondKey(1, firstAt, secondAt) == false
+            && pairSet.findSecondKey(5, firstAt, secondAt) == true && secondAt == 0
             && pairSet.findElement({1, 1}, firstAt, secondAt) == false
-            && pairSet.findElement({3, 1}, firstAt, secondAt) == false
-            && pairSet.findElement({3, 7}, firstAt, secondAt) == true && firstAt == 0 && secondAt == 1);
-        assert(pairSet.eraseElement({5, 3}) == true);
+            && pairSet.findElement({3, 5}, firstAt, secondAt) == false
+            && pairSet.findElement({3, 3}, firstAt, secondAt) == true && firstAt == 0 && secondAt == 1);
+        assert(pairSet.eraseElement({5, 9}) == true);
         NativeNaturalType counter = 1;
         pairSet.iterateFirstKeys([&](NativeNaturalType first) {
             counter += 2;
             assert(first == counter);
         });
-        pairSet.iterateSecondKeys(0, [&](NativeNaturalType second) {
+        pairSet.iterateSecondKeys(1, [&](NativeNaturalType second) {
             assert(second == counter);
+            counter += 2;
+        });
+        counter = 1;
+        pairSet.iterateElements([&](Pair<NativeNaturalType, NativeNaturalType> element) {
+            assert(element.first == (counter-1)/4*2+3 && element.second == counter);
             counter += 2;
         });
     }
