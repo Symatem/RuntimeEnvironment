@@ -22,12 +22,10 @@ extern "C" {
 #else
 #define MMAP_FUNC mmap64
 #endif
-auto const mmapBaseAddress = reinterpret_cast<void*>(0x200000000);
 const NativeNaturalType maxPageCount = 1<<22;
 #else
 #define PrintFormatNatural "u"
 #define MMAP_FUNC mmap
-auto const mmapBaseAddress = reinterpret_cast<void*>(0x10000000);
 const NativeNaturalType maxPageCount = 1<<12;
 #endif
 
@@ -180,7 +178,7 @@ void loadStorage(const char* path) {
     assert(signal(SIGINT, onExit) != SIG_ERR);
 
     assert(file < 0);
-    Integer32 mmapFlags = MAP_FIXED;
+    Integer32 mmapFlags = 0;
     if(substrEqual(path, "/dev/zero")) {
         mmapFlags |= MAP_PRIVATE|MAP_ANON;
         file = -1;
@@ -204,7 +202,8 @@ void loadStorage(const char* path) {
         }
     }
 
-    superPage = reinterpret_cast<SuperPage*>(MMAP_FUNC(mmapBaseAddress, bytesForPages(maxPageCount), PROT_READ|PROT_WRITE, mmapFlags, file, 0));
+    superPage = reinterpret_cast<SuperPage*>(MMAP_FUNC(0, bytesForPages(maxPageCount), PROT_READ|PROT_WRITE, mmapFlags, file, 0));
+    printf("superPage: %p\n", superPage);
     assert(superPage != MAP_FAILED);
     if(file < 0 || fileStat.st_size == 0)
         superPage->pagesEnd = minPageCount;
