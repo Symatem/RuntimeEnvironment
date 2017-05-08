@@ -2,30 +2,31 @@
 
 struct ArithmeticCodecStaticModel {
     Natural32 symbolCount, totalFrequency;
-    BlobVector<true, Natural32> symbolFrequencies, cumulativeFrequencies;
+    BitstreamContainerGuard<BitstreamVector<Natural32>> symbolFrequencies, cumulativeFrequencies;
 
-    ArithmeticCodecStaticModel(NativeNaturalType _symbolCount) :symbolCount(_symbolCount), totalFrequency(_symbolCount) {
-        symbolFrequencies.reserve(symbolCount);
-        cumulativeFrequencies.reserve(symbolCount);
+    ArithmeticCodecStaticModel(NativeNaturalType _symbolCount)
+        :symbolCount(_symbolCount), totalFrequency(_symbolCount) {
+        setElementCount(symbolFrequencies, symbolCount);
+        setElementCount(cumulativeFrequencies, symbolCount);
         for(NativeNaturalType symbolIndex = 0; symbolIndex < symbolCount; ++symbolIndex) {
-            symbolFrequencies.writeElementAt(symbolIndex, 1);
-            cumulativeFrequencies.writeElementAt(symbolIndex, symbolIndex+1);
+            symbolFrequencies.setElementAt(symbolIndex, 1);
+            cumulativeFrequencies.setElementAt(symbolIndex, symbolIndex+1);
         }
     }
 
     Natural32 lowerFrequency(NativeNaturalType symbolIndex) {
-        return (symbolIndex == 0) ? 0 : cumulativeFrequencies.readElementAt(symbolIndex-1);
+        return (symbolIndex == 0) ? 0 : cumulativeFrequencies.getElementAt(symbolIndex-1);
     }
 
     Natural32 upperFrequency(NativeNaturalType symbolIndex) {
-        return cumulativeFrequencies.readElementAt(symbolIndex);
+        return cumulativeFrequencies.getElementAt(symbolIndex);
     }
 
     void updateFrequency(NativeNaturalType symbolIndex) {
         totalFrequency = lowerFrequency(symbolIndex);
         for(; symbolIndex < symbolCount; ++symbolIndex) {
-            totalFrequency += symbolFrequencies.readElementAt(symbolIndex);
-            cumulativeFrequencies.writeElementAt(symbolIndex, totalFrequency);
+            totalFrequency += symbolFrequencies.getElementAt(symbolIndex);
+            cumulativeFrequencies.setElementAt(symbolIndex, totalFrequency);
         }
     }
 
@@ -36,31 +37,32 @@ struct ArithmeticCodecAdaptiveModel : public ArithmeticCodecStaticModel {
     ArithmeticCodecAdaptiveModel(NativeNaturalType _symbolCount) :ArithmeticCodecStaticModel(_symbolCount) {}
 
     void update(NativeNaturalType symbolIndex) {
-        symbolFrequencies.writeElementAt(symbolIndex, symbolFrequencies.readElementAt(symbolIndex)+1);
+        symbolFrequencies.setElementAt(symbolIndex, symbolFrequencies.getElementAt(symbolIndex)+1);
         updateFrequency(symbolIndex);
     }
 };
 
 struct ArithmeticCodecSlidingWindowModel : public ArithmeticCodecStaticModel {
-    BlobVector<true, Natural32> symbolRingBuffer;
+    BitstreamContainerGuard<BitstreamVector<Natural32>> symbolRingBuffer;
     NativeNaturalType ringBufferIndex = 0;
     bool notFirstRound = false;
 
-    ArithmeticCodecSlidingWindowModel(NativeNaturalType _symbolCount) :ArithmeticCodecStaticModel(_symbolCount) {
-        symbolRingBuffer.reserve(4);
+    ArithmeticCodecSlidingWindowModel(NativeNaturalType _symbolCount)
+        :ArithmeticCodecStaticModel(_symbolCount) {
+        setElementCount(symbolRingBuffer, 4);
     }
 
     void update(NativeNaturalType incrementSymbolIndex) {
-        NativeNaturalType decrementSymbolIndex = (notFirstRound) ? symbolRingBuffer.readElementAt(ringBufferIndex) : symbolCount;
+        NativeNaturalType decrementSymbolIndex = (notFirstRound) ? symbolRingBuffer.getElementAt(ringBufferIndex) : symbolCount;
         if(decrementSymbolIndex != incrementSymbolIndex) {
             if(notFirstRound)
-                symbolFrequencies.writeElementAt(decrementSymbolIndex, symbolFrequencies.readElementAt(decrementSymbolIndex)-1);
-            symbolFrequencies.writeElementAt(incrementSymbolIndex, symbolFrequencies.readElementAt(incrementSymbolIndex)+1);
+                symbolFrequencies.setElementAt(decrementSymbolIndex, symbolFrequencies.getElementAt(decrementSymbolIndex)-1);
+            symbolFrequencies.setElementAt(incrementSymbolIndex, symbolFrequencies.getElementAt(incrementSymbolIndex)+1);
             updateFrequency(min(decrementSymbolIndex, incrementSymbolIndex));
         }
-        symbolRingBuffer.writeElementAt(ringBufferIndex, incrementSymbolIndex);
+        symbolRingBuffer.setElementAt(ringBufferIndex, incrementSymbolIndex);
         ++ringBufferIndex;
-        if(ringBufferIndex == symbolRingBuffer.size()) {
+        if(ringBufferIndex == symbolRingBuffer.getElementCount()) {
             ringBufferIndex = 0;
             notFirstRound = true;
         }
@@ -76,7 +78,8 @@ struct ArithmeticCodec {
                     half = full/2+1, quarter = full/4+1;
     Natural64 low = 0, high = full, distance;
 
-    ArithmeticCodec(Blob& _blob, NativeNaturalType& _offset, NativeNaturalType _symbolCount) :model(_symbolCount), blob(_blob), offset(_offset) {}
+    ArithmeticCodec(Blob& _blob, NativeNaturalType& _offset, NativeNaturalType _symbolCount)
+        :model(_symbolCount), blob(_blob), offset(_offset) {}
 
     void updateRange(NativeNaturalType symbolIndex) {
         Natural32 lowerFrequency = model.lowerFrequency(symbolIndex),
@@ -112,7 +115,8 @@ struct ArithmeticCodec {
 struct ArithmeticEncoder : public ArithmeticCodec {
     NativeNaturalType underflowCounter = 0;
 
-    ArithmeticEncoder(Blob& _blob, NativeNaturalType& _offset, NativeNaturalType _symbolCount) :ArithmeticCodec(_blob, _offset, _symbolCount) {}
+    ArithmeticEncoder(Blob& _blob, NativeNaturalType& _offset, NativeNaturalType _symbolCount)
+        :ArithmeticCodec(_blob, _offset, _symbolCount) {}
 
     void encodeBit(bool bit) {
         blob.increaseSize(offset, 1);
@@ -160,7 +164,8 @@ struct ArithmeticDecoder : public ArithmeticCodec {
     Natural32 buffer;
     NativeNaturalType offsetCorrection;
 
-    ArithmeticDecoder(Blob& _blob, NativeNaturalType& _offset, NativeNaturalType _symbolCount) :ArithmeticCodec(_blob, _offset, _symbolCount), buffer(0) {
+    ArithmeticDecoder(Blob& _blob, NativeNaturalType& _offset, NativeNaturalType _symbolCount)
+        :ArithmeticCodec(_blob, _offset, _symbolCount), buffer(0) {
         const NativeNaturalType maxLength = BitMask<NativeNaturalType>::ceilLog2(full)-1;
         for(offsetCorrection = 0; decodeBit() && offsetCorrection < maxLength; ++offsetCorrection);
         buffer <<= maxLength-offsetCorrection;

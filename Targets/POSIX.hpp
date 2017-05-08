@@ -202,9 +202,8 @@ void loadStorage(const char* path) {
         }
     }
 
-    while(maxPageCount > 0) {
+    while(maxPageCount > 0x10) {
         superPage = reinterpret_cast<SuperPage*>(MMAP_FUNC(0, bytesForPages(maxPageCount), PROT_READ|PROT_WRITE, mmapFlags, file, 0));
-        printf("mmap: %p 0x%llx 0x%llx\n", superPage, maxPageCount, bytesForPages(maxPageCount));
         if(superPage != MAP_FAILED)
             break;
         maxPageCount >>= 1;

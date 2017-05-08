@@ -16,7 +16,7 @@ void beginTest(NativeNaturalType index, const char* name) {
 
 void assertFailed(const char* message) {
     printf("\e[1m[FAIL]\e[0m %s: %s\n", currentTest, message);
-    printf("\e[0;31m\u2716 Test %lld/%lld failed\e[0m\n", testIndex, testCount);
+    printf("\e[0;31m\u2716 Test %" PrintFormatNatural "/%" PrintFormatNatural " failed\e[0m\n", testIndex, testCount);
     abort();
     // signal(SIGTRAP);
 }
@@ -28,7 +28,7 @@ void printBlob(Blob& blob) {
         blob.externalOperate<false>(&buffer, offset, sliceLength);
         offset += sliceLength;
         for(NativeNaturalType i = 0; i < sliceLength; ++i)
-            printf("%llu", (buffer>>i)&1);
+            printf("%" PrintFormatNatural, (buffer>>i)&1);
     }
     printf("\n");
 }
@@ -261,7 +261,7 @@ Integer32 main(Integer32 argc, Integer8** argv) {
     }
 
     beginTest(testCount, nullptr);
-    printf("\e[0;32m\u2714 All %lld tests succeeded\e[0m\n", testCount);
+    printf("\e[0;32m\u2714 All %" PrintFormatNatural " tests succeeded\e[0m\n", testCount);
     return 0;
 }
 

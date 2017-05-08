@@ -158,15 +158,7 @@ struct BinaryOntologyEncoder : public BinaryOntologyCodec {
 struct BinaryOntologyDecoder : public BinaryOntologyCodec {
     StaticHuffmanDecoder symbolHuffmanDecoder;
 
-    BinaryOntologyDecoder() :BinaryOntologyCodec(), symbolHuffmanDecoder(blob, offset) {
-        symbolHuffmanDecoder.symbolVector.symbol = BinaryOntologyCodecAux0Symbol;
-        symbolHuffmanDecoder.huffmanChildren.symbol = BinaryOntologyCodecAux1Symbol;
-    }
-
-    ~BinaryOntologyDecoder() {
-        symbolHuffmanDecoder.symbolVector.symbol = VoidSymbol;
-        symbolHuffmanDecoder.huffmanChildren.symbol = VoidSymbol;
-    }
+    BinaryOntologyDecoder() :BinaryOntologyCodec(), symbolHuffmanDecoder(blob, offset) {}
 
     NativeNaturalType decodeNatural() {
         NativeNaturalType value;
@@ -244,9 +236,9 @@ struct BinaryOntologyDecoder : public BinaryOntologyCodec {
         if(symbolOption == SymbolOptionStaticHuffman) {
             symbolHuffmanDecoder.decodeTree();
             for(NativeNaturalType i = 0; i < symbolHuffmanDecoder.symbolCount; ++i) { // TODO
-                Symbol symbol = symbolHuffmanDecoder.symbolVector.readElementAt(i);
+                Symbol symbol = symbolHuffmanDecoder.symbolVector.getElementAt(i);
                 if(symbol >= preDefinedSymbolsCount)
-                    symbolHuffmanDecoder.symbolVector.writeElementAt(i, createSymbol());
+                    symbolHuffmanDecoder.symbolVector.setElementAt(i, createSymbol());
             }
         }
         symbolsInChunk = decodeNatural();
