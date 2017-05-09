@@ -258,18 +258,18 @@ Integer32 main(Integer32 argc, Integer8** argv) {
         } ifIsCommand("deserializeHRL") {
             assert(parameterCount == 1 || parameterCount == 2);
             HrlDeserializer deserializer;
-            deserializer.queue.symbol = createSymbol();
+            deserializer.queue.blob.symbol = createSymbol();
             deserializer.input = readNatural();
             deserializer.package = (parameterCount >= 2) ? readNatural() : VoidSymbol;
             Symbol exception = deserializer.deserialize();
             if(exception == VoidSymbol) {
-                sendArrayHeader(deserializer.queue.size());
-                deserializer.queue.iterateElements([](Symbol symbol) {
+                sendArrayHeader(deserializer.queue.getElementCount());
+                iterateElements(deserializer.queue, [](Symbol symbol) {
                     sendNatural(symbol);
                 });
             } else
                 sendNatural(exception);
-            unlink(deserializer.queue.symbol);
+            unlink(deserializer.queue.blob.symbol);
         } else ifIsCommand("encodeOntologyBinary") {
             assert(parameterCount == 0);
             BinaryOntologyEncoder encoder;
@@ -290,17 +290,17 @@ Integer32 main(Integer32 argc, Integer8** argv) {
                 static_cast<QueryMode>((mask/3)%3),
                 static_cast<QueryMode>((mask/9)%3)
             };
-            BlobVector<true, Symbol> result;
+            BitstreamContainerGuard<BitstreamVector<Symbol>> result;
             auto count = query(static_cast<QueryMask>(mask), triple, [&](Triple triple) {
                 for(NativeNaturalType i = 0; i < 3; ++i)
                     if(mode[i] == Varying)
-                        result.push_back(triple.pos[i]);
+                        insertAsLastElement(result, triple.pos[i]);
             });
             if(countOnly)
                 sendNatural(count);
             else {
-                sendArrayHeader(result.size());
-                result.iterateElements([](Symbol symbol) {
+                sendArrayHeader(result.getElementCount());
+                iterateElements(result, [](Symbol symbol) {
                     sendNatural(symbol);
                 });
             }

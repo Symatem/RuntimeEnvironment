@@ -9,8 +9,9 @@
 struct HrlDeserializer {
     Symbol parentEntry, input, package = VoidSymbol;
     BlobIndex<true> locals;
-    BlobVector<true, Symbol> stack;
-    BlobVector<false, Symbol> queue;
+    BitstreamContainerGuard<BitstreamVector<Symbol>> stack;
+    BitstreamContainer queueContainer;
+    BitstreamVector<Symbol> queue = BitstreamVector<Symbol>(queueContainer);
     NativeNaturalType tokenBegin, tokenEnd, inputEnd, row, column;
 
     bool tokenBeginsWithString(const char* str) {
@@ -36,9 +37,9 @@ struct HrlDeserializer {
         if(package != VoidSymbol)
             link({package, HoldsSymbol, symbol});
         if(valueCountIs(stackEntry, UnnestEntitySymbol, 0)) {
-            BlobVector<false, Symbol> stackEntrysQueue;
-            stackEntrysQueue.symbol = stackEntry;
-            stackEntrysQueue.insert(0, symbol);
+            BitstreamContainer stackEntrysQueueContainer(stackEntry);
+            BitstreamVector<Symbol> stackEntrysQueue(stackEntrysQueueContainer);
+            insertAsFirstElement(stackEntrysQueue, symbol);
         } else {
             Symbol entity, attribute;
             if(!getUncertain(stackEntry, UnnestEntitySymbol, entity) ||
@@ -140,7 +141,7 @@ struct HrlDeserializer {
                 } else
                     symbol = sliceText<false>();
             }
-            checkReturn(nextSymbol(queue.symbol, symbol, package));
+            checkReturn(nextSymbol(queue.blob.symbol, symbol, package));
         }
         tokenBegin = tokenEnd+1;
         return VoidSymbol;
@@ -149,7 +150,7 @@ struct HrlDeserializer {
     Symbol fillInAnonymous(Symbol& entity) {
         if(entity == VoidSymbol) {
             entity = createSymbol();
-            link({queue.symbol, EntitySymbol, entity});
+            link({queue.blob.symbol, EntitySymbol, entity});
             checkReturn(nextSymbol(parentEntry, entity, package));
         }
         return VoidSymbol;
@@ -158,8 +159,8 @@ struct HrlDeserializer {
     Symbol seperateTokens(bool semicolon) {
         checkReturn(parseToken());
         Symbol entity = VoidSymbol;
-        getUncertain(queue.symbol, EntitySymbol, entity);
-        if(queue.empty()) {
+        getUncertain(queue.blob.symbol, EntitySymbol, entity);
+        if(queue.isEmpty()) {
             if(semicolon) {
                 if(entity != VoidSymbol)
                     return throwException("Pointless semicolon");
@@ -167,13 +168,13 @@ struct HrlDeserializer {
             }
             return VoidSymbol;
         }
-        if(semicolon && queue.size() == 1) {
+        if(semicolon && queue.getElementCount() == 1) {
             if(entity == VoidSymbol) {
-                entity = queue.pop_back();
-                link({queue.symbol, EntitySymbol, entity});
+                entity = eraseLastElement(queue);
+                link({queue.blob.symbol, EntitySymbol, entity});
                 checkReturn(nextSymbol(parentEntry, entity));
             } else
-                link({entity, queue.pop_back(), entity});
+                link({entity, eraseLastElement(queue), entity});
             return VoidSymbol;
         }
         checkReturn(fillInAnonymous(entity));
@@ -181,10 +182,10 @@ struct HrlDeserializer {
             setSolitary({parentEntry, UnnestEntitySymbol, VoidSymbol});
         else
             setSolitary({parentEntry, UnnestEntitySymbol, entity}, true);
-        Symbol attribute = queue.pop_back();
+        Symbol attribute = eraseLastElement(queue);
         setSolitary({parentEntry, UnnestAttributeSymbol, attribute}, true);
-        while(!queue.empty())
-            link({entity, attribute, queue.pop_back()});
+        while(!queue.isEmpty())
+            link({entity, attribute, eraseLastElement(queue)});
         return VoidSymbol;
     }
 
@@ -192,7 +193,7 @@ struct HrlDeserializer {
         row = column = 1;
         if(!tripleExists({input, BlobTypeSymbol, UTF8Symbol}))
             return throwException("Invalid Blob Type");
-        stack.push_back(queue.symbol);
+        insertAsLastElement(stack, queue.blob.symbol);
         Blob srcBlob(input);
         inputEnd = srcBlob.getSize()/8;
         for(tokenBegin = tokenEnd = 0; tokenEnd < inputEnd; ++tokenEnd) {
@@ -227,41 +228,41 @@ struct HrlDeserializer {
                     break;
                 case '(':
                     checkReturn(parseToken());
-                    parentEntry = queue.symbol;
-                    queue.symbol = createSymbol();
-                    stack.push_back(queue.symbol);
+                    parentEntry = queue.blob.symbol;
+                    queue.blob.symbol = createSymbol();
+                    insertAsLastElement(stack, queue.blob.symbol);
                     break;
                 case ';':
-                    if(stack.size() == 1)
+                    if(stack.getElementCount() == 1)
                         return throwException("Semicolon outside of any brackets");
                     checkReturn(seperateTokens(true));
-                    if(!valueCountIs(queue.symbol, UnnestEntitySymbol, 0))
+                    if(!valueCountIs(queue.blob.symbol, UnnestEntitySymbol, 0))
                         return throwException("Unnesting failed");
                     break;
                 case ')': {
-                    if(stack.size() == 1)
+                    if(stack.getElementCount() == 1)
                         return throwException("Unmatched closing bracket");
                     checkReturn(seperateTokens(false));
-                    if(stack.size() == 2 && valueCountIs(parentEntry, UnnestEntitySymbol, 0)) {
+                    if(stack.getElementCount() == 2 && valueCountIs(parentEntry, UnnestEntitySymbol, 0)) {
                         Symbol entity;
-                        if(!getUncertain(queue.symbol, EntitySymbol, entity) ||
+                        if(!getUncertain(queue.blob.symbol, EntitySymbol, entity) ||
                            query(MVV, {entity, VoidSymbol, VoidSymbol}) == 0)
                             return throwException("Nothing declared");
                     }
-                    if(!valueCountIs(queue.symbol, UnnestEntitySymbol, 0))
+                    if(!valueCountIs(queue.blob.symbol, UnnestEntitySymbol, 0))
                         return throwException("Unnesting failed");
-                    unlink(queue.symbol);
-                    stack.pop_back();
-                    queue.symbol = parentEntry;
-                    parentEntry = (stack.size() < 2) ? VoidSymbol : stack.readElementAt(stack.size()-2);
+                    unlink(queue.blob.symbol);
+                    eraseLastElement(stack);
+                    queue.blob.symbol = parentEntry;
+                    parentEntry = (stack.getElementCount() < 2) ? VoidSymbol : stack.getElementAt(stack.getElementCount()-2);
                 }   break;
             }
             ++column;
         }
         checkReturn(parseToken());
-        if(stack.size() != 1)
+        if(stack.getElementCount() != 1)
             return throwException("Missing closing bracket");
-        if(!valueCountIs(queue.symbol, UnnestEntitySymbol, 0))
+        if(!valueCountIs(queue.blob.symbol, UnnestEntitySymbol, 0))
             return throwException("Unnesting failed");
         locals.iterateElements([](Symbol local) {
             Blob(local).setSize(0);

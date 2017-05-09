@@ -99,12 +99,12 @@ EXPORT void chaCha20(Symbol dst, Symbol src) {
 
 EXPORT Symbol deserializeHRL(Symbol inputSymbol, Symbol outputSymbol, Symbol packageSymbol) {
     HrlDeserializer deserializer;
-    deserializer.queue.symbol = (outputSymbol == VoidSymbol) ? createSymbol() : outputSymbol;
+    deserializer.queue.blob.symbol = (outputSymbol == VoidSymbol) ? createSymbol() : outputSymbol;
     deserializer.input = inputSymbol;
     deserializer.package = packageSymbol;
     Symbol exception = deserializer.deserialize();
     if(outputSymbol == VoidSymbol)
-        unlink(deserializer.queue.symbol);
+        unlink(deserializer.queue.blob.symbol);
     return exception;
 }
 
@@ -122,12 +122,12 @@ EXPORT NativeNaturalType query(QueryMask mask, Symbol entity, Symbol attribute, 
         static_cast<QueryMode>((mask/3)%3),
         static_cast<QueryMode>((mask/9)%3)
     };
-    BlobVector<true, Symbol> result;
+    BitstreamContainerGuard<BitstreamVector<Symbol>> result;
     result.symbol = resultSymbol;
     auto count = query(mask, {entity, attribute, value}, [&](Triple triple) {
         for(NativeNaturalType i = 0; i < 3; ++i)
             if(mode[i] == Varying)
-                result.push_back(triple.pos[i]);
+                insertAsLastElement(result, triple.pos[i]);
     });
     if(resultSymbol)
         result.symbol = VoidSymbol;

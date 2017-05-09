@@ -76,6 +76,7 @@ typename Container::ElementType eraseLastElement(Container& container) {
 struct BitstreamContainer {
     Blob blob;
 
+    BitstreamContainer() {}
     BitstreamContainer(Symbol symbol) :blob(Blob(symbol)) {}
 
     void increaseChildLength(NativeNaturalType at, NativeNaturalType offset, NativeNaturalType length) {
