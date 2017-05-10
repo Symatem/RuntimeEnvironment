@@ -9,7 +9,7 @@ struct StaticHuffmanCodec {
 };
 
 struct StaticHuffmanEncoder : public StaticHuffmanCodec {
-    BitstreamContainerGuard<BitstreamSet<Symbol, NativeNaturalType>> symbolMap;
+    GuardedBitstreamDataStructure<BitstreamSet<Symbol, NativeNaturalType>> symbolMap;
     Blob huffmanCodes;
 
     void countSymbol(Symbol symbol) {
@@ -44,7 +44,7 @@ struct StaticHuffmanEncoder : public StaticHuffmanCodec {
         NativeNaturalType index = 0,
                           huffmanChildrenCount = symbolCount-1,
                           huffmanParentsCount = huffmanChildrenCount*2;
-        BitstreamContainerGuard<BitstreamHeap<Ascending, NativeNaturalType, Symbol>> symbolHeap;
+        GuardedBitstreamDataStructure<BitstreamHeap<Ascending, NativeNaturalType, Symbol>> symbolHeap;
         setElementCount(symbolHeap, symbolCount);
         iterateElements(symbolMap, [&](Pair<Symbol, NativeNaturalType> pair) {
             symbolHeap.setElementAt(index, {pair.second, index});
@@ -56,8 +56,8 @@ struct StaticHuffmanEncoder : public StaticHuffmanCodec {
             NativeNaturalType parent;
             bool bit;
         };
-        BitstreamContainerGuard<BitstreamVector<HuffmanParentNode>> huffmanParents;
-        BitstreamContainerGuard<BitstreamVector<NativeNaturalType>> huffmanChildren;
+        GuardedBitstreamDataStructure<BitstreamVector<HuffmanParentNode>> huffmanParents;
+        GuardedBitstreamDataStructure<BitstreamVector<NativeNaturalType>> huffmanChildren;
         setElementCount(huffmanParents, huffmanParentsCount);
         setElementCount(huffmanChildren, huffmanParentsCount);
         for(NativeNaturalType index = 0; symbolHeap.getElementCount() > 1; ++index) {
@@ -97,7 +97,7 @@ struct StaticHuffmanEncoder : public StaticHuffmanCodec {
             NativeNaturalType index;
             Natural8 state;
         };
-        BitstreamContainerGuard<BitstreamVector<HuffmanStackElement>> stack;
+        GuardedBitstreamDataStructure<BitstreamVector<HuffmanStackElement>> stack;
         insertAsLastElement(stack, {huffmanParentsCount, 0});
         while(!stack.isEmpty()) {
             auto element = getLastElement(stack);
@@ -133,8 +133,8 @@ struct StaticHuffmanEncoder : public StaticHuffmanCodec {
 };
 
 struct StaticHuffmanDecoder : public StaticHuffmanCodec {
-    BitstreamContainerGuard<BitstreamVector<Symbol>> symbolVector;
-    BitstreamContainerGuard<BitstreamVector<NativeNaturalType>> huffmanChildren;
+    GuardedBitstreamDataStructure<BitstreamVector<Symbol>> symbolVector;
+    GuardedBitstreamDataStructure<BitstreamVector<NativeNaturalType>> huffmanChildren;
 
     Symbol decodeSymbol() {
         NativeNaturalType index;
@@ -171,7 +171,7 @@ struct StaticHuffmanDecoder : public StaticHuffmanCodec {
             return;
         }
         setElementCount(huffmanChildren, (symbolCount-1)*2);
-        BitstreamContainerGuard<BitstreamVector<NativeNaturalType>> stack;
+        GuardedBitstreamDataStructure<BitstreamVector<NativeNaturalType>> stack;
         NativeNaturalType symbolIndex = 0, huffmanChildrenIndex = 0;
         while(huffmanChildrenIndex < symbolCount-1) {
             Symbol symbol = decodeBvlNatural(blob, offset);

@@ -2,7 +2,7 @@
 
 struct ArithmeticCodecStaticModel {
     Natural32 symbolCount, totalFrequency;
-    BitstreamContainerGuard<BitstreamVector<Natural32>> symbolFrequencies, cumulativeFrequencies;
+    GuardedBitstreamDataStructure<BitstreamVector<Natural32>> symbolFrequencies, cumulativeFrequencies;
 
     ArithmeticCodecStaticModel(NativeNaturalType _symbolCount)
         :symbolCount(_symbolCount), totalFrequency(_symbolCount) {
@@ -43,7 +43,7 @@ struct ArithmeticCodecAdaptiveModel : public ArithmeticCodecStaticModel {
 };
 
 struct ArithmeticCodecSlidingWindowModel : public ArithmeticCodecStaticModel {
-    BitstreamContainerGuard<BitstreamVector<Natural32>> symbolRingBuffer;
+    GuardedBitstreamDataStructure<BitstreamVector<Natural32>> symbolRingBuffer;
     NativeNaturalType ringBufferIndex = 0;
     bool notFirstRound = false;
 

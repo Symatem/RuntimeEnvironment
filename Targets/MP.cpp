@@ -290,7 +290,7 @@ Integer32 main(Integer32 argc, Integer8** argv) {
                 static_cast<QueryMode>((mask/3)%3),
                 static_cast<QueryMode>((mask/9)%3)
             };
-            BitstreamContainerGuard<BitstreamVector<Symbol>> result;
+            GuardedBitstreamDataStructure<BitstreamVector<Symbol>> result;
             auto count = query(static_cast<QueryMask>(mask), triple, [&](Triple triple) {
                 for(NativeNaturalType i = 0; i < 3; ++i)
                     if(mode[i] == Varying)

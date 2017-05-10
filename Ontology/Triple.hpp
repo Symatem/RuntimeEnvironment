@@ -53,6 +53,18 @@ struct Triple {
         return pos[0] == other.pos[0] && pos[1] == other.pos[1] && pos[2] == other.pos[2];
     }
 
+    bool operator<(Triple const& other) {
+        if(pos[2] < other.pos[2])
+            return true;
+        if(pos[2] > other.pos[2])
+            return false;
+        if(pos[1] < other.pos[1])
+            return true;
+        if(pos[1] > other.pos[1])
+            return false;
+        return pos[0] < other.pos[0];
+    }
+
     bool operator>(Triple const& other) {
         if(pos[2] > other.pos[2])
             return true;
@@ -202,18 +214,18 @@ NativeNaturalType searchMIV(NativeNaturalType subIndex, Triple triple, Closure<v
     NativeNaturalType alphaIndex;
     if(!tripleIndex.find(triple.pos[0], alphaIndex))
         return 0;
-    BlobSet<true, Symbol> result;
+    GuardedBitstreamDataStructure<BitstreamSet<Symbol>> result;
     BlobPairSet<false, Symbol> beta;
     beta.symbol = tripleIndex.readElementAt(alphaIndex).second[subIndex];
     beta.iterateElements([&](Pair<Symbol, Symbol> betaResult) {
         result.insertElement(betaResult.second);
     });
     if(callback)
-        result.iterateElements([&](Symbol gamma) {
+        iterateElements(result, [&](Symbol gamma) {
             triple.pos[2] = gamma;
             callback(triple.normalized(subIndex));
         });
-    return result.size();
+    return result.getElementCount();
 }
 
 NativeNaturalType searchMVI(NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
@@ -311,7 +323,7 @@ NativeNaturalType query(QueryMask mask, Triple triple = {VoidSymbol, VoidSymbol,
     assert(mask < sizeof(lookup)/sizeof(QueryMethod));
     QueryMethod method = lookup[mask];
     Triple match = triple;
-    BlobSet<true, Triple> resultSet;
+    GuardedBitstreamDataStructure<BitstreamSet<Triple>> resultSet;
     auto monoIndexLambda = [&](Triple result) {
         static const NativeNaturalType maskDivisor[] = {1, 3, 9};
         for(NativeNaturalType i = 0; i < 3; ++i) {
@@ -330,7 +342,7 @@ NativeNaturalType query(QueryMask mask, Triple triple = {VoidSymbol, VoidSymbol,
                 method.subIndex = EAV;
                 method.function = &searchVVV;
                 (*method.function)(method.subIndex, triple, monoIndexLambda);
-                return resultSet.size();
+                return resultSet.getElementCount();
             }
         case TriIndex:
             if(method.subIndex >= 3) {
@@ -434,7 +446,7 @@ bool unlink(Symbol symbol) {
         return false;
     }
     Pair<Symbol, Symbol[6]> element = tripleIndex.readElementAt(alphaIndex);
-    BlobSet<true, Symbol> dirty;
+    GuardedBitstreamDataStructure<BitstreamSet<Symbol>> dirty;
     forEachSubIndex {
         BlobPairSet<false, Symbol> beta;
         beta.symbol = element.second[subIndex];
@@ -447,14 +459,14 @@ bool unlink(Symbol symbol) {
         });
     }
     eraseSymbol(element, alphaIndex, symbol);
-    dirty.iterateElements([&](Symbol symbol) {
+    iterateElements(dirty, [&](Symbol symbol) {
         tryToReleaseSymbol(symbol);
     });
     return true;
 }
 
 void setSolitary(Triple triple, bool linkVoidSymbol = false) {
-    BlobSet<true, Symbol> dirty;
+    GuardedBitstreamDataStructure<BitstreamSet<Symbol>> dirty;
     bool toLink = (linkVoidSymbol || triple.pos[2] != VoidSymbol);
     query(MMV, triple, [&](Triple result) {
         if(triple.pos[2] == result.pos[2])
@@ -464,13 +476,13 @@ void setSolitary(Triple triple, bool linkVoidSymbol = false) {
     });
     if(toLink)
         link(triple);
-    dirty.iterateElements([&](Symbol symbol) {
+    iterateElements(dirty, [&](Symbol symbol) {
         unlinkWithoutReleasing({triple.pos[0], triple.pos[1], symbol});
     });
     if(!linkVoidSymbol)
         dirty.insertElement(triple.pos[0]);
     dirty.insertElement(triple.pos[1]);
-    dirty.iterateElements([&](Symbol symbol) {
+    iterateElements(dirty, [&](Symbol symbol) {
         tryToReleaseSymbol(symbol);
     });
 }
@@ -482,10 +494,10 @@ bool getUncertain(Symbol entity, Symbol attribute, Symbol& value) {
 }
 
 void scrutinizeExistence(Symbol symbol) {
-    BlobSet<true, Symbol> symbols;
+    GuardedBitstreamDataStructure<BitstreamSet<Symbol>> symbols;
     symbols.insertElement(symbol);
-    while(!symbols.empty()) {
-        symbol = symbols.pop_back();
+    while(!symbols.isEmpty()) {
+        symbol = eraseLastElement(symbols);
         if(query(VMM, {VoidSymbol, HoldsSymbol, symbol}) > 0)
             continue;
         query(MMV, {symbol, HoldsSymbol, VoidSymbol}, [&](Triple result) {

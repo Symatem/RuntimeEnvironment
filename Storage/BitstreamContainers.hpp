@@ -1,5 +1,51 @@
 #include <Storage/DataStructures.hpp>
 
+struct BitstreamContainer {
+    Blob blob;
+
+    void increaseChildLength(NativeNaturalType at, NativeNaturalType offset, NativeNaturalType length) {
+        assert(at == 0);
+        blob.increaseSize(offset, length);
+    }
+
+    void decreaseChildLength(NativeNaturalType at, NativeNaturalType offset, NativeNaturalType length) {
+        assert(at == 0);
+        blob.decreaseSize(offset, length);
+    }
+
+    NativeNaturalType getChildOffset(NativeNaturalType at) {
+        assert(at == 0);
+        return 0;
+    }
+
+    NativeNaturalType getChildLength(NativeNaturalType at) {
+        return blob.getSize();
+    }
+};
+
+template<typename _Super>
+struct BitstreamDataStructure : public _Super {
+    typedef _Super Super;
+    BitstreamContainer parent;
+
+    BitstreamDataStructure() :Super(parent) {}
+};
+
+template<typename _Super>
+struct GuardedBitstreamDataStructure : public BitstreamDataStructure<_Super> {
+    typedef BitstreamDataStructure<_Super> Super;
+
+    GuardedBitstreamDataStructure() {
+        Super::parent.blob = createSymbol();
+    }
+
+    ~GuardedBitstreamDataStructure() {
+        releaseSymbol(Super::parent.blob.symbol);
+    }
+};
+
+
+
 template<typename Container>
 void setElementCount(Container& container, NativeNaturalType newElementCount) {
     NativeNaturalType elementCount = container.getElementCount();
@@ -72,44 +118,6 @@ typename Container::ElementType eraseLastElement(Container& container) {
 }
 
 
-
-struct BitstreamContainer {
-    Blob blob;
-
-    BitstreamContainer() {}
-    BitstreamContainer(Symbol symbol) :blob(Blob(symbol)) {}
-
-    void increaseChildLength(NativeNaturalType at, NativeNaturalType offset, NativeNaturalType length) {
-        assert(at == 0);
-        blob.increaseSize(offset, length);
-    }
-
-    void decreaseChildLength(NativeNaturalType at, NativeNaturalType offset, NativeNaturalType length) {
-        assert(at == 0);
-        blob.decreaseSize(offset, length);
-    }
-
-    NativeNaturalType getChildOffset(NativeNaturalType at) {
-        assert(at == 0);
-        return 0;
-    }
-
-    NativeNaturalType getChildLength(NativeNaturalType at) {
-        return blob.getSize();
-    }
-};
-
-template<typename _Super>
-struct BitstreamContainerGuard : public _Super {
-    typedef _Super Super;
-    BitstreamContainer parent;
-
-    BitstreamContainerGuard() :Super(parent), parent(createSymbol()) {}
-
-    ~BitstreamContainerGuard() {
-        releaseSymbol(Super::blob.symbol);
-    }
-};
 
 template<typename _ElementType, typename _ParentType = BitstreamContainer>
 struct BitstreamVector {

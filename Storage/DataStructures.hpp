@@ -156,7 +156,7 @@ struct BlobPairVector : public BlobVector<guarded, Pair<KeyType, ValueType>> {
     }
 };
 
-template<bool guarded, typename KeyType, typename ValueType = VoidType[0]>
+/*template<bool guarded, typename KeyType, typename ValueType = VoidType[0]>
 struct BlobHeap : public BlobPairVector<guarded, KeyType, ValueType> {
     typedef BlobPairVector<guarded, KeyType, ValueType> Super;
     typedef typename Super::ElementType ElementType;
@@ -239,7 +239,7 @@ struct BlobHeap : public BlobPairVector<guarded, KeyType, ValueType> {
         erase(0);
         return element;
     }
-};
+};*/
 
 template<bool guarded, typename KeyType, typename ValueType = VoidType[0]>
 struct BlobSet : public BlobPairVector<guarded, KeyType, ValueType> {
@@ -390,7 +390,6 @@ struct BlobPairSet : public BlobSet<guarded, ElementType, ElementType> {
 };
 
 #else
-// #include <stdio.h>
 
 template<bool guarded, typename ElementType>
 struct BlobPairSet : public BlobVector<guarded, ElementType> {

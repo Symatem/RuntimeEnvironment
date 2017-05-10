@@ -9,9 +9,8 @@
 struct HrlDeserializer {
     Symbol parentEntry, input, package = VoidSymbol;
     BlobIndex<true> locals;
-    BitstreamContainerGuard<BitstreamVector<Symbol>> stack;
-    BitstreamContainer queueContainer;
-    BitstreamVector<Symbol> queue = BitstreamVector<Symbol>(queueContainer);
+    GuardedBitstreamDataStructure<BitstreamVector<Symbol>> stack;
+    BitstreamDataStructure<BitstreamVector<Symbol>> queue;
     NativeNaturalType tokenBegin, tokenEnd, inputEnd, row, column;
 
     bool tokenBeginsWithString(const char* str) {
@@ -37,8 +36,7 @@ struct HrlDeserializer {
         if(package != VoidSymbol)
             link({package, HoldsSymbol, symbol});
         if(valueCountIs(stackEntry, UnnestEntitySymbol, 0)) {
-            BitstreamContainer stackEntrysQueueContainer(stackEntry);
-            BitstreamVector<Symbol> stackEntrysQueue(stackEntrysQueueContainer);
+            BitstreamDataStructure<BitstreamVector<Symbol>> stackEntrysQueue;
             insertAsFirstElement(stackEntrysQueue, symbol);
         } else {
             Symbol entity, attribute;

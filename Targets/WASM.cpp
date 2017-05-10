@@ -122,15 +122,16 @@ EXPORT NativeNaturalType query(QueryMask mask, Symbol entity, Symbol attribute, 
         static_cast<QueryMode>((mask/3)%3),
         static_cast<QueryMode>((mask/9)%3)
     };
-    BitstreamContainerGuard<BitstreamVector<Symbol>> result;
-    result.symbol = resultSymbol;
+    BitstreamContainer resultContainer;
+    BitstreamVector<Symbol> result(resultContainer);
+    result.blob.symbol = (resultSymbol == VoidSymbol) ? createSymbol() : resultSymbol;
     auto count = query(mask, {entity, attribute, value}, [&](Triple triple) {
         for(NativeNaturalType i = 0; i < 3; ++i)
             if(mode[i] == Varying)
                 insertAsLastElement(result, triple.pos[i]);
     });
-    if(resultSymbol)
-        result.symbol = VoidSymbol;
+    if(resultSymbol != VoidSymbol)
+        unlink(result.blob.symbol);
     return count;
 }
 

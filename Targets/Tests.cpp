@@ -43,10 +43,10 @@ Integer32 main(Integer32 argc, Integer8** argv) {
         tryToFillPreDefined();
     }
 
-    test("BitstreamContainerGuard") {
+    test("GuardedBitstreamDataStructure") {
         Symbol symbol;
         {
-            BitstreamContainerGuard<BitstreamVector<VoidType>> container;
+            GuardedBitstreamDataStructure<BitstreamVector<VoidType>> container;
             symbol = container.blob.symbol;
             container.blob.setSize(32);
             assert(container.blob.getSize() == 32);
@@ -55,7 +55,7 @@ Integer32 main(Integer32 argc, Integer8** argv) {
     }
 
     test("BitstreamVector") {
-        BitstreamContainerGuard<BitstreamVector<NativeNaturalType>> vector;
+        GuardedBitstreamDataStructure<BitstreamVector<NativeNaturalType>> vector;
         insertAsLastElement(vector, 2);
         insertAsFirstElement(vector, 1);
         vector.insertElementAt(1, 0);
@@ -78,7 +78,7 @@ Integer32 main(Integer32 argc, Integer8** argv) {
     }
 
     test("BitstreamPairVector") {
-        BitstreamContainerGuard<BitstreamPairVector<NativeNaturalType, NativeNaturalType>> pairVector;
+        GuardedBitstreamDataStructure<BitstreamPairVector<NativeNaturalType, NativeNaturalType>> pairVector;
         insertAsLastElement(pairVector, {2, 0});
         insertAsFirstElement(pairVector, {3, 1});
         pairVector.setKeyAt(0, 0);
@@ -102,7 +102,7 @@ Integer32 main(Integer32 argc, Integer8** argv) {
     }
 
     test("BitstreamHeap") {
-        BitstreamContainerGuard<BitstreamHeap<Ascending, NativeNaturalType, NativeNaturalType>> heap;
+        GuardedBitstreamDataStructure<BitstreamHeap<Ascending, NativeNaturalType, NativeNaturalType>> heap;
         heap.insertElement({2, 4});
         heap.insertElement({0, 0});
         heap.insertElement({4, 8});
@@ -129,7 +129,7 @@ Integer32 main(Integer32 argc, Integer8** argv) {
     }
 
     test("BitstreamSet") {
-        BitstreamContainerGuard<BitstreamSet<NativeNaturalType, NativeNaturalType>> set;
+        GuardedBitstreamDataStructure<BitstreamSet<NativeNaturalType, NativeNaturalType>> set;
         assert(set.insertElement({1, 2}) == true
             && set.insertElement({5, 0}) == true
             && set.insertElement({3, 6}) == true
@@ -159,7 +159,7 @@ Integer32 main(Integer32 argc, Integer8** argv) {
     }
 
     test("BitstreamContainerVector") {
-        BitstreamContainerGuard<BitstreamContainerVector<NativeNaturalType, VoidType>> containerVector;
+        GuardedBitstreamDataStructure<BitstreamContainerVector<NativeNaturalType, VoidType>> containerVector;
         containerVector.insertElementAt(0, 7);
         containerVector.increaseChildLength(0, containerVector.getChildOffset(0), 64);
         containerVector.insertElementAt(0, 5);
@@ -179,7 +179,7 @@ Integer32 main(Integer32 argc, Integer8** argv) {
     }
 
     test("BitstreamContainerSet") {
-        BitstreamContainerGuard<BitstreamContainerSet<NativeNaturalType, VoidType>> containerSet;
+        GuardedBitstreamDataStructure<BitstreamContainerSet<NativeNaturalType, VoidType>> containerSet;
         assert(containerSet.insertElement(7) == true);
         containerSet.increaseChildLength(0, containerSet.getChildOffset(0), 64);
         assert(containerSet.insertElement(5) == true);
@@ -199,7 +199,7 @@ Integer32 main(Integer32 argc, Integer8** argv) {
     }
 
     test("BitstreamPairSet") {
-        BitstreamContainerGuard<BitstreamPairSet<NativeNaturalType, NativeNaturalType>> pairSet;
+        GuardedBitstreamDataStructure<BitstreamPairSet<NativeNaturalType, NativeNaturalType>> pairSet;
         assert(pairSet.insertElement({3, 1})
             && pairSet.insertElement({3, 3})
             && pairSet.insertElement({5, 5})
@@ -254,6 +254,15 @@ Integer32 main(Integer32 argc, Integer8** argv) {
         offset = 0;
         arithmeticDecodeBlob(decompressed, decompressed.getSize(), compressed, offset);
         assert(compressed.compare(plain) != 0 && decompressed.compare(plain) == 0);
+    }
+
+    test("Triple") {
+        Triple triple = {1, 2, 3};
+        assert(query(QueryMask::MMM, triple) == 0);
+        assert(link(triple) == true);
+        assert(query(QueryMask::MMM, triple) == 1);
+        assert(unlink(triple) == true);
+        assert(query(QueryMask::MMM, triple) == 0);
     }
 
     test("unloadStorage()") {
