@@ -130,11 +130,11 @@ Integer32 main(Integer32 argc, Integer8** argv) {
 
     test("BitstreamSet") {
         GuardedBitstreamDataStructure<BitstreamSet<NativeNaturalType, NativeNaturalType>> set;
-        assert(set.insertElement({1, 2}) == true
-            && set.insertElement({5, 0}) == true
-            && set.insertElement({3, 6}) == true
-            && set.insertElement({0, 8}) == true
-            && set.insertElement({2, 4}) == true
+        assert(insertElement(set, {1, 2}) == true
+            && insertElement(set, {5, 0}) == true
+            && insertElement(set, {3, 6}) == true
+            && insertElement(set, {0, 8}) == true
+            && insertElement(set, {2, 4}) == true
             && set.getElementCount() == 5
             && set.setKeyAt(4, 1) == false
             && set.setKeyAt(0, 4) == true
@@ -146,10 +146,10 @@ Integer32 main(Integer32 argc, Integer8** argv) {
         });
         assert(set.findKey(7, index) == false
             && set.findKey(2, index) == true && index == 2
-            && set.eraseElement(7) == false
-            && set.eraseElement(2) == true
-            && set.eraseElement(4) == true
-            && set.eraseElement(3) == true
+            && eraseElement(set, 7) == false
+            && eraseElement(set, 2) == true
+            && eraseElement(set, 4) == true
+            && eraseElement(set, 3) == true
             && set.getElementCount() == 2);
         index = 0;
         iterateElements(set, [&](Pair<NativeNaturalType, NativeNaturalType> element) {
@@ -180,11 +180,11 @@ Integer32 main(Integer32 argc, Integer8** argv) {
 
     test("BitstreamContainerSet") {
         GuardedBitstreamDataStructure<BitstreamContainerSet<NativeNaturalType, VoidType>> containerSet;
-        assert(containerSet.insertElement(7) == true);
+        assert(insertElement(containerSet, 7) == true);
         containerSet.increaseChildLength(0, containerSet.getChildOffset(0), 64);
-        assert(containerSet.insertElement(5) == true);
+        assert(insertElement(containerSet, 5) == true);
         containerSet.increaseChildLength(0, containerSet.getChildOffset(0), 32);
-        assert(containerSet.insertElement(8) == true);
+        assert(insertElement(containerSet, 8) == true);
         containerSet.increaseChildLength(2, containerSet.getChildOffset(2), 96);
         assert(containerSet.getElementCount() == 3
             && containerSet.getChildLength(0) == 32
@@ -192,7 +192,7 @@ Integer32 main(Integer32 argc, Integer8** argv) {
             && containerSet.getChildLength(2) == 96
             && containerSet.setKeyAt(1, 4)
             && containerSet.setKeyAt(1, 9)
-            && containerSet.eraseElement(8) == true
+            && eraseElement(containerSet, 8) == true
             && containerSet.getElementCount() == 2
             && containerSet.getChildLength(0) == 64
             && containerSet.getChildLength(1) == 32);

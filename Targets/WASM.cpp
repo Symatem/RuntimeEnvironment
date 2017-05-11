@@ -99,7 +99,7 @@ EXPORT void chaCha20(Symbol dst, Symbol src) {
 
 EXPORT Symbol deserializeHRL(Symbol inputSymbol, Symbol outputSymbol, Symbol packageSymbol) {
     HrlDeserializer deserializer;
-    deserializer.queue.blob.symbol = (outputSymbol == VoidSymbol) ? createSymbol() : outputSymbol;
+    deserializer.queue.blob = (outputSymbol == VoidSymbol) ? createSymbol() : outputSymbol;
     deserializer.input = inputSymbol;
     deserializer.package = packageSymbol;
     Symbol exception = deserializer.deserialize();
@@ -124,7 +124,7 @@ EXPORT NativeNaturalType query(QueryMask mask, Symbol entity, Symbol attribute, 
     };
     BitstreamContainer resultContainer;
     BitstreamVector<Symbol> result(resultContainer);
-    result.blob.symbol = (resultSymbol == VoidSymbol) ? createSymbol() : resultSymbol;
+    result.blob = (resultSymbol == VoidSymbol) ? createSymbol() : resultSymbol;
     auto count = query(mask, {entity, attribute, value}, [&](Triple triple) {
         for(NativeNaturalType i = 0; i < 3; ++i)
             if(mode[i] == Varying)

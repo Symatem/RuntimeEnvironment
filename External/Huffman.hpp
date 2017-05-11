@@ -17,7 +17,7 @@ struct StaticHuffmanEncoder : public StaticHuffmanCodec {
         if(symbolMap.findKey(symbol, index))
             symbolMap.setValueAt(index, symbolMap.getValueAt(index)+1);
         else
-            symbolMap.insertElement({symbol, 1});
+            insertElement(symbolMap, {symbol, 1});
     }
 
     void encodeSymbol(Symbol symbol) {

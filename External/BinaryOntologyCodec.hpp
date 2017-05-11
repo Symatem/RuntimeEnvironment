@@ -68,8 +68,7 @@ struct BinaryOntologyEncoder : public BinaryOntologyCodec {
 
     void encodeAttribute(bool doWrite, Symbol betaSymbol, Symbol attribute) {
         NativeNaturalType secondAt;
-        BlobPairSet<false, Symbol> beta;
-        beta.symbol = betaSymbol;
+        BitstreamDataStructure<BitstreamPairSet<Symbol, Symbol>> beta(betaSymbol);
         beta.findFirstKey(attribute, secondAt);
         encodeSymbol(doWrite, attribute);
         if(doWrite)
@@ -82,9 +81,8 @@ struct BinaryOntologyEncoder : public BinaryOntologyCodec {
     void encodeEntity(bool doWrite, Symbol entity, Symbol betaSymbol) {
         Blob srcBlob(entity);
         NativeNaturalType srcBlobLength = srcBlob.getSize();
-        BlobPairSet<false, Symbol> beta;
-        beta.symbol = betaSymbol;
-        if(srcBlobLength == 0 && beta.empty()) {
+        BitstreamDataStructure<BitstreamPairSet<Symbol, Symbol>> beta(betaSymbol);
+        if(srcBlobLength == 0 && beta.isEmpty()) {
             ++emptySymbolsInChunk;
             return;
         }
@@ -114,14 +112,14 @@ struct BinaryOntologyEncoder : public BinaryOntologyCodec {
         if(doWrite)
             encodeNatural(beta.getFirstKeyCount());
         beta.iterateFirstKeys([&](Symbol attribute) {
-            encodeAttribute(doWrite, beta.symbol, attribute);
+            encodeAttribute(doWrite, beta.blob.symbol, attribute);
         });
     }
 
     void encodeEntities(bool doWrite) {
         for(NativeNaturalType at = symbolIndexOffset, end = symbolIndexOffset+symbolsInChunk; at < end; ++at) {
-            auto alphaResult = tripleIndex.readElementAt(at);
-            encodeEntity(doWrite, alphaResult.first, alphaResult.second[EAV]);
+            auto alphaResult = tripleIndex.getElementAt(at);
+            encodeEntity(doWrite, alphaResult.first, alphaResult.second.subIndices[EAV]);
         }
     }
 
@@ -140,7 +138,7 @@ struct BinaryOntologyEncoder : public BinaryOntologyCodec {
 
     void encode() {
         symbolIndexOffset = 0;
-        symbolsInChunk = tripleIndex.size();
+        symbolsInChunk = tripleIndex.getElementCount();
         encodeChunk();
 
         Natural8 padding = 8-offset%8;

@@ -18,6 +18,10 @@ const Symbol preDefinedSymbolsCount = sizeof(PreDefinedSymbols)/sizeof(void*);
     NativeNaturalType indexCount = (indexMode == MonoIndex) ? 1 : 3; \
     for(NativeNaturalType subIndex = 0; subIndex < indexCount; ++subIndex)
 
+struct TripleSubIndexStruct {
+    Symbol subIndices[6];
+};
+
 struct Triple {
     Symbol pos[3];
 
@@ -25,12 +29,12 @@ struct Triple {
     Triple(Symbol _entity, Symbol _attribute, Symbol _value)
         :pos{_entity, _attribute, _value} {}
 
-    Triple forwardIndex(NativeNaturalType* subIndices, NativeNaturalType subIndex) {
-        return {subIndices[subIndex], pos[(subIndex+1)%3], pos[(subIndex+2)%3]};
+    Triple forwardIndex(TripleSubIndexStruct& subIndices, NativeNaturalType subIndex) {
+        return {subIndices.subIndices[subIndex], pos[(subIndex+1)%3], pos[(subIndex+2)%3]};
     }
 
-    Triple invertedIndex(NativeNaturalType* subIndices, NativeNaturalType subIndex) {
-        return {subIndices[subIndex+3], pos[(subIndex+2)%3], pos[(subIndex+1)%3]};
+    Triple invertedIndex(TripleSubIndexStruct& subIndices, NativeNaturalType subIndex) {
+        return {subIndices.subIndices[subIndex+3], pos[(subIndex+2)%3], pos[(subIndex+1)%3]};
     }
 
     Triple reordered(NativeNaturalType subIndex) {
@@ -101,27 +105,24 @@ enum QueryMask {
     MMI, VMI, IMI, MVI, VVI, IVI, MII, VII, III
 };
 
-BlobSet<false, Symbol, Symbol[6]> tripleIndex;
+BitstreamDataStructure<BitstreamSet<Symbol, TripleSubIndexStruct>> tripleIndex;
+// BlobSet<false, Symbol, TripleSubIndexStruct> tripleIndex;
 
 bool linkInSubIndex(Triple triple) {
-    BlobPairSet<false, Symbol> beta;
-    beta.symbol = triple.pos[0];
+    BitstreamDataStructure<BitstreamPairSet<Symbol, Symbol>> beta(triple.pos[0]);
     return beta.insertElement({triple.pos[1], triple.pos[2]});
 }
 
 bool linkTriplePartial(Triple triple, NativeNaturalType subIndex) {
     NativeNaturalType alphaIndex;
-    Pair<Symbol, Symbol[6]> element;
-    if(!tripleIndex.find(triple.pos[subIndex], alphaIndex)) {
+    Pair<Symbol, TripleSubIndexStruct> element;
+    if(!tripleIndex.findKey(triple.pos[subIndex], alphaIndex)) {
         element.first = triple.pos[subIndex];
-        for(NativeNaturalType i = 0; i < 6; ++i) {
-            BlobPairSet<false, Symbol> beta;
-            beta.symbol = element.second[i] = createSymbol();
-            beta.initialize();
-        }
-        tripleIndex.insert(alphaIndex, element);
+        for(NativeNaturalType i = 0; i < 6; ++i)
+            element.second.subIndices[i] = createSymbol();
+        tripleIndex.insertElementAt(alphaIndex, element);
     } else
-        element = tripleIndex.readElementAt(alphaIndex);
+        element = tripleIndex.getElementAt(alphaIndex);
     if(!linkInSubIndex(triple.forwardIndex(element.second, subIndex)))
         return false;
     if(indexMode == HexaIndex)
@@ -140,10 +141,9 @@ bool link(Triple triple) {
 
 NativeNaturalType searchMMM(NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
     NativeNaturalType alphaIndex, betaIndex, gammaIndex;
-    if(!tripleIndex.find(triple.pos[0], alphaIndex))
+    if(!tripleIndex.findKey(triple.pos[0], alphaIndex))
         return 0;
-    BlobPairSet<false, Symbol> beta;
-    beta.symbol = tripleIndex.readElementAt(alphaIndex).second[subIndex];
+    BitstreamDataStructure<BitstreamPairSet<Symbol, Symbol>> beta(tripleIndex.getElementAt(alphaIndex).second.subIndices[subIndex]);
     if(!beta.findElement({triple.pos[1], triple.pos[2]}, betaIndex, gammaIndex))
         return 0;
     if(callback)
@@ -153,10 +153,9 @@ NativeNaturalType searchMMM(NativeNaturalType subIndex, Triple triple, Closure<v
 
 NativeNaturalType searchMMI(NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
     NativeNaturalType alphaIndex, betaIndex;
-    if(!tripleIndex.find(triple.pos[0], alphaIndex))
+    if(!tripleIndex.findKey(triple.pos[0], alphaIndex))
         return 0;
-    BlobPairSet<false, Symbol> beta;
-    beta.symbol = tripleIndex.readElementAt(alphaIndex).second[subIndex];
+    BitstreamDataStructure<BitstreamPairSet<Symbol, Symbol>> beta(tripleIndex.getElementAt(alphaIndex).second.subIndices[subIndex]);
     if(!beta.findFirstKey(triple.pos[1], betaIndex))
         return 0;
     if(callback)
@@ -166,7 +165,7 @@ NativeNaturalType searchMMI(NativeNaturalType subIndex, Triple triple, Closure<v
 
 NativeNaturalType searchMII(NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
     NativeNaturalType alphaIndex;
-    if(!tripleIndex.find(triple.pos[0], alphaIndex))
+    if(!tripleIndex.findKey(triple.pos[0], alphaIndex))
         return 0;
     if(callback)
         callback(triple);
@@ -179,10 +178,9 @@ NativeNaturalType searchIII(NativeNaturalType subIndex, Triple triple, Closure<v
 
 NativeNaturalType searchMMV(NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
     NativeNaturalType alphaIndex, betaIndex;
-    if(!tripleIndex.find(triple.pos[0], alphaIndex))
+    if(!tripleIndex.findKey(triple.pos[0], alphaIndex))
         return 0;
-    BlobPairSet<false, Symbol> beta;
-    beta.symbol = tripleIndex.readElementAt(alphaIndex).second[subIndex];
+    BitstreamDataStructure<BitstreamPairSet<Symbol, Symbol>> beta(tripleIndex.getElementAt(alphaIndex).second.subIndices[subIndex]);
     if(!beta.findFirstKey(triple.pos[1], betaIndex))
         return 0;
     if(callback)
@@ -195,10 +193,9 @@ NativeNaturalType searchMMV(NativeNaturalType subIndex, Triple triple, Closure<v
 
 NativeNaturalType searchMVV(NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
     NativeNaturalType alphaIndex, count = 0;
-    if(!tripleIndex.find(triple.pos[0], alphaIndex))
+    if(!tripleIndex.findKey(triple.pos[0], alphaIndex))
         return 0;
-    BlobPairSet<false, Symbol> beta;
-    beta.symbol = tripleIndex.readElementAt(alphaIndex).second[subIndex];
+    BitstreamDataStructure<BitstreamPairSet<Symbol, Symbol>> beta(tripleIndex.getElementAt(alphaIndex).second.subIndices[subIndex]);
     beta.iterateElements([&](Pair<Symbol, Symbol> betaResult) {
         if(callback) {
             triple.pos[1] = betaResult.first;
@@ -212,13 +209,12 @@ NativeNaturalType searchMVV(NativeNaturalType subIndex, Triple triple, Closure<v
 
 NativeNaturalType searchMIV(NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
     NativeNaturalType alphaIndex;
-    if(!tripleIndex.find(triple.pos[0], alphaIndex))
+    if(!tripleIndex.findKey(triple.pos[0], alphaIndex))
         return 0;
     GuardedBitstreamDataStructure<BitstreamSet<Symbol>> result;
-    BlobPairSet<false, Symbol> beta;
-    beta.symbol = tripleIndex.readElementAt(alphaIndex).second[subIndex];
+    BitstreamDataStructure<BitstreamPairSet<Symbol, Symbol>> beta(tripleIndex.getElementAt(alphaIndex).second.subIndices[subIndex]);
     beta.iterateElements([&](Pair<Symbol, Symbol> betaResult) {
-        result.insertElement(betaResult.second);
+        insertElement(result, betaResult.second);
     });
     if(callback)
         iterateElements(result, [&](Symbol gamma) {
@@ -230,10 +226,9 @@ NativeNaturalType searchMIV(NativeNaturalType subIndex, Triple triple, Closure<v
 
 NativeNaturalType searchMVI(NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
     NativeNaturalType alphaIndex;
-    if(!tripleIndex.find(triple.pos[0], alphaIndex))
+    if(!tripleIndex.findKey(triple.pos[0], alphaIndex))
         return 0;
-    BlobPairSet<false, Symbol> beta;
-    beta.symbol = tripleIndex.readElementAt(alphaIndex).second[subIndex];
+    BitstreamDataStructure<BitstreamPairSet<Symbol, Symbol>> beta(tripleIndex.getElementAt(alphaIndex).second.subIndices[subIndex]);
     if(callback)
         beta.iterateFirstKeys([&](Symbol betaResult) {
             triple.pos[1] = betaResult;
@@ -244,18 +239,17 @@ NativeNaturalType searchMVI(NativeNaturalType subIndex, Triple triple, Closure<v
 
 NativeNaturalType searchVII(NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
     if(callback)
-        tripleIndex.iterateElements([&](Pair<Symbol, Symbol[6]> alphaResult) {
+        iterateElements(tripleIndex, [&](Pair<Symbol, TripleSubIndexStruct> alphaResult) {
             triple.pos[0] = alphaResult.first;
             callback(triple.normalized(subIndex));
         });
-    return tripleIndex.size();
+    return tripleIndex.getElementCount();
 }
 
 NativeNaturalType searchVVI(NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
     NativeNaturalType count = 0;
-    tripleIndex.iterateElements([&](Pair<Symbol, Symbol[6]> alphaResult) {
-        BlobPairSet<false, Symbol> beta;
-        beta.symbol = alphaResult.second[subIndex];
+    iterateElements(tripleIndex, [&](Pair<Symbol, TripleSubIndexStruct> alphaResult) {
+        BitstreamDataStructure<BitstreamPairSet<Symbol, Symbol>> beta(alphaResult.second.subIndices[subIndex]);
         if(callback) {
             triple.pos[0] = alphaResult.first;
             beta.iterateFirstKeys([&](Symbol betaResult) {
@@ -270,10 +264,9 @@ NativeNaturalType searchVVI(NativeNaturalType subIndex, Triple triple, Closure<v
 
 NativeNaturalType searchVVV(NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
     NativeNaturalType count = 0;
-    tripleIndex.iterateElements([&](Pair<Symbol, Symbol[6]> alphaResult) {
+    iterateElements(tripleIndex, [&](Pair<Symbol, TripleSubIndexStruct> alphaResult) {
         triple.pos[0] = alphaResult.first;
-        BlobPairSet<false, Symbol> beta;
-        beta.symbol = alphaResult.second[subIndex];
+        BitstreamDataStructure<BitstreamPairSet<Symbol, Symbol>> beta(alphaResult.second.subIndices[subIndex]);
         beta.iterateElements([&](Pair<Symbol, Symbol> betaResult) {
             if(callback) {
                 triple.pos[1] = betaResult.first;
@@ -333,7 +326,7 @@ NativeNaturalType query(QueryMask mask, Triple triple = {VoidSymbol, VoidSymbol,
             else if(mode == Match && match.pos[i] != result.pos[i])
                 return;
         }
-        if(resultSet.insertElement(result) && callback)
+        if(insertElement(resultSet, result) && callback)
             callback(result);
     };
     switch(indexMode) {
@@ -371,20 +364,15 @@ void setIndexMode(IndexMode _indexMode) {
                 linkTriplePartial(result, subIndex);
         });
     } else
-        tripleIndex.iterateElements([&](Pair<Symbol, Symbol[6]> alphaResult) {
-            for(NativeNaturalType subIndex = _indexMode; subIndex < indexMode; ++subIndex) {
-                BlobPairSet<false, Symbol> beta;
-                beta.symbol = alphaResult.second[subIndex];
-                beta.clear();
-                releaseSymbol(beta.symbol);
-            }
+        iterateElements(tripleIndex, [&](Pair<Symbol, TripleSubIndexStruct> alphaResult) {
+            for(NativeNaturalType subIndex = _indexMode; subIndex < indexMode; ++subIndex)
+                releaseSymbol(alphaResult.second.subIndices[subIndex]);
         });
     indexMode = _indexMode;
 }
 
 bool unlinkInSubIndex(Triple triple) {
-    BlobPairSet<false, Symbol> beta;
-    beta.symbol = triple.pos[0];
+    BitstreamDataStructure<BitstreamPairSet<Symbol, Symbol>> beta(triple.pos[0]);
     return beta.eraseElement({triple.pos[1], triple.pos[2]});
 }
 
@@ -393,9 +381,9 @@ bool unlinkWithoutReleasing(Triple triple, bool skipEnabled = false, Symbol skip
     forEachSubIndex {
         if(skipEnabled && triple.pos[subIndex] == skip)
             continue;
-        if(!tripleIndex.find(triple.pos[subIndex], alphaIndex))
+        if(!tripleIndex.findKey(triple.pos[subIndex], alphaIndex))
             return false;
-        Pair<Symbol, Symbol[6]> element = tripleIndex.readElementAt(alphaIndex);
+        Pair<Symbol, TripleSubIndexStruct> element = tripleIndex.getElementAt(alphaIndex);
         if(!unlinkInSubIndex(triple.forwardIndex(element.second, subIndex)))
             return false;
         if(indexMode == HexaIndex)
@@ -406,26 +394,21 @@ bool unlinkWithoutReleasing(Triple triple, bool skipEnabled = false, Symbol skip
     return true;
 }
 
-void eraseSymbol(Pair<Symbol, Symbol[6]>& element, NativeNaturalType alphaIndex, Symbol symbol) {
-    for(NativeNaturalType subIndex = 0; subIndex < indexMode; ++subIndex) {
-        BlobPairSet<false, Symbol> beta;
-        beta.symbol = element.second[subIndex];
-        beta.clear();
-        releaseSymbol(beta.symbol);
-    }
-    tripleIndex.erase(alphaIndex);
+void eraseSymbol(Pair<Symbol, TripleSubIndexStruct>& element, NativeNaturalType alphaIndex, Symbol symbol) {
+    for(NativeNaturalType subIndex = 0; subIndex < indexMode; ++subIndex)
+        releaseSymbol(element.second.subIndices[subIndex]);
+    tripleIndex.eraseElementAt(alphaIndex);
     releaseSymbol(symbol);
 }
 
 void tryToReleaseSymbol(Symbol symbol) {
     NativeNaturalType alphaIndex;
-    if(!tripleIndex.find(symbol, alphaIndex))
+    if(!tripleIndex.findKey(symbol, alphaIndex))
         return;
-    Pair<Symbol, Symbol[6]> element = tripleIndex.readElementAt(alphaIndex);
+    Pair<Symbol, TripleSubIndexStruct> element = tripleIndex.getElementAt(alphaIndex);
     forEachSubIndex {
-        BlobPairSet<false, Symbol> beta;
-        beta.symbol = element.second[subIndex];
-        if(!beta.empty())
+        BitstreamDataStructure<BitstreamPairSet<Symbol, Symbol>> beta(element.second.subIndices[subIndex]);
+        if(!beta.isEmpty())
             return;
     }
     eraseSymbol(element, alphaIndex, symbol);
@@ -441,20 +424,19 @@ bool unlink(Triple triple) {
 
 bool unlink(Symbol symbol) {
     NativeNaturalType alphaIndex;
-    if(!tripleIndex.find(symbol, alphaIndex)) {
+    if(!tripleIndex.findKey(symbol, alphaIndex)) {
         releaseSymbol(symbol);
         return false;
     }
-    Pair<Symbol, Symbol[6]> element = tripleIndex.readElementAt(alphaIndex);
+    Pair<Symbol, TripleSubIndexStruct> element = tripleIndex.getElementAt(alphaIndex);
     GuardedBitstreamDataStructure<BitstreamSet<Symbol>> dirty;
     forEachSubIndex {
-        BlobPairSet<false, Symbol> beta;
-        beta.symbol = element.second[subIndex];
+        BitstreamDataStructure<BitstreamPairSet<Symbol, Symbol>> beta(element.second.subIndices[subIndex]);
         beta.iterateFirstKeys([&](Symbol betaResult) {
-            dirty.insertElement(betaResult);
+            insertElement(dirty, betaResult);
         });
         beta.iterateElements([&](Pair<Symbol, Symbol> betaResult) {
-            dirty.insertElement(betaResult.second);
+            insertElement(dirty, betaResult.second);
             unlinkWithoutReleasing(Triple(symbol, betaResult.first, betaResult.second).normalized(subIndex), true, symbol);
         });
     }
@@ -472,7 +454,7 @@ void setSolitary(Triple triple, bool linkVoidSymbol = false) {
         if(triple.pos[2] == result.pos[2])
             toLink = false;
         else
-            dirty.insertElement(result.pos[2]);
+            insertElement(dirty, result.pos[2]);
     });
     if(toLink)
         link(triple);
@@ -480,8 +462,8 @@ void setSolitary(Triple triple, bool linkVoidSymbol = false) {
         unlinkWithoutReleasing({triple.pos[0], triple.pos[1], symbol});
     });
     if(!linkVoidSymbol)
-        dirty.insertElement(triple.pos[0]);
-    dirty.insertElement(triple.pos[1]);
+        insertElement(dirty, triple.pos[0]);
+    insertElement(dirty, triple.pos[1]);
     iterateElements(dirty, [&](Symbol symbol) {
         tryToReleaseSymbol(symbol);
     });
@@ -495,13 +477,13 @@ bool getUncertain(Symbol entity, Symbol attribute, Symbol& value) {
 
 void scrutinizeExistence(Symbol symbol) {
     GuardedBitstreamDataStructure<BitstreamSet<Symbol>> symbols;
-    symbols.insertElement(symbol);
+    insertElement(symbols, symbol);
     while(!symbols.isEmpty()) {
         symbol = eraseLastElement(symbols);
         if(query(VMM, {VoidSymbol, HoldsSymbol, symbol}) > 0)
             continue;
         query(MMV, {symbol, HoldsSymbol, VoidSymbol}, [&](Triple result) {
-            symbols.insertElement(result.pos[2]);
+            insertElement(symbols, result.pos[2]);
         });
         unlink(symbol); // TODO
     }
@@ -551,9 +533,9 @@ bool tryToFillPreDefined(NativeNaturalType additionalSymbols = 0) {
     superPage->version = 0;
     memcpy(superPage->gitRef, gitRef, sizeof(superPage->gitRef));
     superPage->architectureSize = BitMask<NativeNaturalType>::ceilLog2(architectureSize)-1;
-    tripleIndex.symbol = TripleIndexSymbol;
+    tripleIndex.blob = TripleIndexSymbol;
     blobIndex.symbol = BlobIndexSymbol;
-    if(!tripleIndex.empty())
+    if(!tripleIndex.isEmpty())
         return false;
     superPage->symbolsEnd = preDefinedSymbolsCount+additionalSymbols;
     for(Symbol symbol = 0; symbol < preDefinedSymbolsCount-5; ++symbol) {

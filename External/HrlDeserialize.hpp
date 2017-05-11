@@ -36,7 +36,7 @@ struct HrlDeserializer {
         if(package != VoidSymbol)
             link({package, HoldsSymbol, symbol});
         if(valueCountIs(stackEntry, UnnestEntitySymbol, 0)) {
-            BitstreamDataStructure<BitstreamVector<Symbol>> stackEntrysQueue;
+            BitstreamDataStructure<BitstreamVector<Symbol>> stackEntrysQueue(stackEntry);
             insertAsFirstElement(stackEntrysQueue, symbol);
         } else {
             Symbol entity, attribute;
@@ -227,7 +227,7 @@ struct HrlDeserializer {
                 case '(':
                     checkReturn(parseToken());
                     parentEntry = queue.blob.symbol;
-                    queue.blob.symbol = createSymbol();
+                    queue.blob = createSymbol();
                     insertAsLastElement(stack, queue.blob.symbol);
                     break;
                 case ';':
@@ -251,7 +251,7 @@ struct HrlDeserializer {
                         return throwException("Unnesting failed");
                     unlink(queue.blob.symbol);
                     eraseLastElement(stack);
-                    queue.blob.symbol = parentEntry;
+                    queue.blob = parentEntry;
                     parentEntry = (stack.getElementCount() < 2) ? VoidSymbol : stack.getElementAt(stack.getElementCount()-2);
                 }   break;
             }
