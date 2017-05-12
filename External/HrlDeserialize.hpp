@@ -8,7 +8,7 @@
 
 struct HrlDeserializer {
     Symbol parentEntry, input, package = VoidSymbol;
-    BlobIndex<true> locals;
+    GuardedBitstreamDataStructure<BitstreamContentIndex<>> locals;
     GuardedBitstreamDataStructure<BitstreamVector<Symbol>> stack;
     BitstreamDataStructure<BitstreamVector<Symbol>> queue;
     NativeNaturalType tokenBegin, tokenEnd, inputEnd, row, column;
@@ -262,7 +262,7 @@ struct HrlDeserializer {
             return throwException("Missing closing bracket");
         if(!valueCountIs(queue.blob.symbol, UnnestEntitySymbol, 0))
             return throwException("Unnesting failed");
-        locals.iterateElements([](Symbol local) {
+        iterateElements(locals, [](Symbol local) {
             Blob(local).setSize(0);
         });
         return VoidSymbol;

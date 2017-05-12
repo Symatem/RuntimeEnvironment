@@ -1,44 +1,30 @@
-#include <Storage/BitstreamContainers.hpp>
+#include <Storage/DataStructures.hpp>
 
 bool unlink(Symbol symbol);
 
-template<bool guarded>
-struct BlobIndex : public BlobSet<guarded, Symbol> {
-    typedef BlobSet<guarded, Symbol> Super;
+template<typename _ParentType = BitstreamContainer>
+struct BitstreamContentIndex : public BitstreamSet<Symbol, VoidType, _ParentType> {
+    typedef _ParentType ParentType;
+    typedef BitstreamSet<Symbol, VoidType, ParentType> Super;
+    typedef typename Super::ElementType ElementType;
 
-    BlobIndex() :Super() {}
-    BlobIndex(const BlobIndex<false>& other) :Super(other) {}
-    BlobIndex(const BlobIndex<true>& other) :Super(other) {}
+    BitstreamContentIndex(ParentType& _parent, NativeNaturalType _childIndex = 0) :Super(_parent, _childIndex) { }
 
-    NativeNaturalType find(Symbol key) const {
-        return binarySearch<NativeNaturalType>(0, Super::size(), [&](NativeNaturalType at) {
-            return Blob(key).compare(Blob(Super::readElementAt(at))) < 0;
+    bool findKey(Symbol key, NativeNaturalType& at) {
+        at = binarySearch<NativeNaturalType>(0, Super::getElementCount(), [&](NativeNaturalType at) {
+            return Blob(key).compare(Blob(Super::getElementAt(at))) < 0;
         });
-    }
-
-    bool find(Symbol element, NativeNaturalType& at) const {
-        at = find(element);
-        if(at == Super::size())
-            return false;
-        return (Blob(element).compare(Blob(Super::readElementAt(at))) == 0);
+        return (at < Super::getElementCount() && Super::getKeyAt(at) == key);
     }
 
     void insertElement(Symbol& element) {
         NativeNaturalType at;
-        if(find(element, at)) {
+        if(findKey(element, at)) {
             unlink(element);
-            element = Super::readElementAt(at);
+            element = Super::getElementAt(at);
         } else
-            Super::insert(at, element);
-    }
-
-    bool eraseElement(Symbol element) {
-        NativeNaturalType at;
-        if(!find(element, at))
-            return false;
-        Super::erase(at);
-        return true;
+            Super::insertElementAt(at, element);
     }
 };
 
-BlobIndex<false> blobIndex;
+BitstreamDataStructure<BitstreamContentIndex<>> blobIndex;

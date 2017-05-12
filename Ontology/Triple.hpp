@@ -534,7 +534,7 @@ bool tryToFillPreDefined(NativeNaturalType additionalSymbols = 0) {
     memcpy(superPage->gitRef, gitRef, sizeof(superPage->gitRef));
     superPage->architectureSize = BitMask<NativeNaturalType>::ceilLog2(architectureSize)-1;
     tripleIndex.blob = TripleIndexSymbol;
-    blobIndex.symbol = BlobIndexSymbol;
+    blobIndex.blob = BlobIndexSymbol;
     if(!tripleIndex.isEmpty())
         return false;
     superPage->symbolsEnd = preDefinedSymbolsCount+additionalSymbols;
