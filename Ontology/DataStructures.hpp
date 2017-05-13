@@ -2,13 +2,13 @@
 
 bool unlink(Symbol symbol);
 
-template<typename _ParentType = BitstreamContainer>
-struct BitstreamContentIndex : public BitstreamSet<Symbol, VoidType, _ParentType> {
+template<typename _ParentType = BitVectorContainer>
+struct ContentIndex : public Set<Symbol, VoidType, _ParentType> {
     typedef _ParentType ParentType;
-    typedef BitstreamSet<Symbol, VoidType, ParentType> Super;
+    typedef Set<Symbol, VoidType, ParentType> Super;
     typedef typename Super::ElementType ElementType;
 
-    BitstreamContentIndex(ParentType& _parent, NativeNaturalType _childIndex = 0) :Super(_parent, _childIndex) { }
+    ContentIndex(ParentType& _parent, NativeNaturalType _childIndex = 0) :Super(_parent, _childIndex) { }
 
     bool findKey(Symbol key, NativeNaturalType& at) {
         at = binarySearch<NativeNaturalType>(0, Super::getElementCount(), [&](NativeNaturalType at) {
@@ -27,4 +27,4 @@ struct BitstreamContentIndex : public BitstreamSet<Symbol, VoidType, _ParentType
     }
 };
 
-BitstreamDataStructure<BitstreamContentIndex<>> blobIndex;
+DataStructure<ContentIndex<>> blobIndex;

@@ -1,4 +1,4 @@
-#include <External/HrlDeserialize.hpp>
+#include <External/BinaryOntologyCodec.hpp>
 
 const NativeNaturalType bitsPerChunk = 1<<19;
 
@@ -97,17 +97,6 @@ EXPORT void chaCha20(Symbol dst, Symbol src) {
     Blob(dst).chaCha20(context);
 }
 
-EXPORT Symbol deserializeHRL(Symbol inputSymbol, Symbol outputSymbol, Symbol packageSymbol) {
-    HrlDeserializer deserializer;
-    deserializer.queue.blob = (outputSymbol == VoidSymbol) ? createSymbol() : outputSymbol;
-    deserializer.input = inputSymbol;
-    deserializer.package = packageSymbol;
-    Symbol exception = deserializer.deserialize();
-    if(outputSymbol == VoidSymbol)
-        unlink(deserializer.queue.blob.symbol);
-    return exception;
-}
-
 EXPORT bool link(Symbol entity, Symbol attribute, Symbol value) {
     return link({entity, attribute, value});
 }
@@ -122,16 +111,14 @@ EXPORT NativeNaturalType query(QueryMask mask, Symbol entity, Symbol attribute, 
         static_cast<QueryMode>((mask/3)%3),
         static_cast<QueryMode>((mask/9)%3)
     };
-    BitstreamContainer resultContainer;
-    BitstreamVector<Symbol> result(resultContainer);
-    result.blob = (resultSymbol == VoidSymbol) ? createSymbol() : resultSymbol;
+    DataStructure<Vector<Symbol>> result((resultSymbol == VoidSymbol) ? createSymbol() : resultSymbol);
     auto count = query(mask, {entity, attribute, value}, [&](Triple triple) {
         for(NativeNaturalType i = 0; i < 3; ++i)
             if(mode[i] == Varying)
                 insertAsLastElement(result, triple.pos[i]);
     });
     if(resultSymbol != VoidSymbol)
-        unlink(result.blob.symbol);
+        unlink(result.getBitVector().symbol);
     return count;
 }
 

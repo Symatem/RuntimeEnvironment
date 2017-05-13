@@ -43,19 +43,19 @@ Integer32 main(Integer32 argc, Integer8** argv) {
         tryToFillPreDefined();
     }
 
-    test("GuardedBitstreamDataStructure") {
+    test("GuardedDataStructure") {
         Symbol symbol;
         {
-            GuardedBitstreamDataStructure<BitstreamVector<VoidType>> container;
-            symbol = container.blob.symbol;
-            container.blob.setSize(32);
-            assert(container.blob.getSize() == 32);
+            GuardedDataStructure<Vector<VoidType>> container;
+            symbol = container.getBitVector().symbol;
+            container.getBitVector().setSize(32);
+            assert(container.getBitVector().getSize() == 32);
         }
         assert(Blob(symbol).getSize() == 0);
     }
 
-    test("BitstreamVector") {
-        GuardedBitstreamDataStructure<BitstreamVector<NativeNaturalType>> vector;
+    test("Vector") {
+        GuardedDataStructure<Vector<NativeNaturalType>> vector;
         insertAsLastElement(vector, 2);
         insertAsFirstElement(vector, 1);
         vector.insertElementAt(1, 0);
@@ -77,8 +77,8 @@ Integer32 main(Integer32 argc, Integer8** argv) {
         assert(vector.getElementCount() == 0);
     }
 
-    test("BitstreamPairVector") {
-        GuardedBitstreamDataStructure<BitstreamPairVector<NativeNaturalType, NativeNaturalType>> pairVector;
+    test("PairVector") {
+        GuardedDataStructure<PairVector<NativeNaturalType, NativeNaturalType>> pairVector;
         insertAsLastElement(pairVector, {2, 0});
         insertAsFirstElement(pairVector, {3, 1});
         pairVector.setKeyAt(0, 0);
@@ -101,8 +101,8 @@ Integer32 main(Integer32 argc, Integer8** argv) {
         });
     }
 
-    test("BitstreamHeap") {
-        GuardedBitstreamDataStructure<BitstreamHeap<Ascending, NativeNaturalType, NativeNaturalType>> heap;
+    test("Heap") {
+        GuardedDataStructure<Heap<Ascending, NativeNaturalType, NativeNaturalType>> heap;
         heap.insertElement({2, 4});
         heap.insertElement({0, 0});
         heap.insertElement({4, 8});
@@ -128,8 +128,8 @@ Integer32 main(Integer32 argc, Integer8** argv) {
         });
     }
 
-    test("BitstreamSet") {
-        GuardedBitstreamDataStructure<BitstreamSet<NativeNaturalType, NativeNaturalType>> set;
+    test("Set") {
+        GuardedDataStructure<Set<NativeNaturalType, NativeNaturalType>> set;
         assert(insertElement(set, {1, 2}) == true
             && insertElement(set, {5, 0}) == true
             && insertElement(set, {3, 6}) == true
@@ -158,8 +158,8 @@ Integer32 main(Integer32 argc, Integer8** argv) {
         });
     }
 
-    test("BitstreamContainerVector") {
-        GuardedBitstreamDataStructure<BitstreamContainerVector<NativeNaturalType, VoidType>> containerVector;
+    test("DataStructureVector") {
+        GuardedDataStructure<DataStructureVector<NativeNaturalType, VoidType>> containerVector;
         containerVector.insertElementAt(0, 7);
         containerVector.increaseChildLength(0, containerVector.getChildOffset(0), 64);
         containerVector.insertElementAt(0, 5);
@@ -178,8 +178,8 @@ Integer32 main(Integer32 argc, Integer8** argv) {
             && containerVector.getKeyAt(1) == 9 && containerVector.getChildLength(1) == 96);
     }
 
-    test("BitstreamContainerSet") {
-        GuardedBitstreamDataStructure<BitstreamContainerSet<NativeNaturalType, VoidType>> containerSet;
+    test("DataStructureSet") {
+        GuardedDataStructure<DataStructureSet<NativeNaturalType, VoidType>> containerSet;
         assert(insertElement(containerSet, 7) == true);
         containerSet.increaseChildLength(0, containerSet.getChildOffset(0), 64);
         assert(insertElement(containerSet, 5) == true);
@@ -198,8 +198,8 @@ Integer32 main(Integer32 argc, Integer8** argv) {
             && containerSet.getChildLength(1) == 32);
     }
 
-    test("BitstreamPairSet") {
-        GuardedBitstreamDataStructure<BitstreamPairSet<NativeNaturalType, NativeNaturalType>> pairSet;
+    test("PairSet") {
+        GuardedDataStructure<PairSet<NativeNaturalType, NativeNaturalType>> pairSet;
         assert(pairSet.insertElement({3, 1})
             && pairSet.insertElement({3, 3})
             && pairSet.insertElement({5, 5})
@@ -246,7 +246,7 @@ Integer32 main(Integer32 argc, Integer8** argv) {
             assert(decoder.decodeSymbol() == (i%3));
     }
 
-    test("ArithmeticCodec Bitstream") {
+    test("ArithmeticCodec BitVector") {
         Blob plain(createFromString("Hello, World!")), compressed(createSymbol()), decompressed(createSymbol());
         decompressed.setSize(plain.getSize());
         NativeNaturalType offset = 0;

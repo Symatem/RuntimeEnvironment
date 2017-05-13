@@ -255,21 +255,6 @@ Integer32 main(Integer32 argc, Integer8** argv) {
             ChaCha20 context;
             Blob(src).externalOperate<false>(&context, 0, sizeOfInBits<ChaCha20>::value);
             Blob(dst).chaCha20(context);
-        } ifIsCommand("deserializeHRL") {
-            assert(parameterCount == 1 || parameterCount == 2);
-            HrlDeserializer deserializer;
-            deserializer.queue.blob.symbol = createSymbol();
-            deserializer.input = readNatural();
-            deserializer.package = (parameterCount >= 2) ? readNatural() : VoidSymbol;
-            Symbol exception = deserializer.deserialize();
-            if(exception == VoidSymbol) {
-                sendArrayHeader(deserializer.queue.getElementCount());
-                iterateElements(deserializer.queue, [](Symbol symbol) {
-                    sendNatural(symbol);
-                });
-            } else
-                sendNatural(exception);
-            unlink(deserializer.queue.blob.symbol);
         } else ifIsCommand("encodeOntologyBinary") {
             assert(parameterCount == 0);
             BinaryOntologyEncoder encoder;
@@ -290,7 +275,7 @@ Integer32 main(Integer32 argc, Integer8** argv) {
                 static_cast<QueryMode>((mask/3)%3),
                 static_cast<QueryMode>((mask/9)%3)
             };
-            GuardedBitstreamDataStructure<BitstreamVector<Symbol>> result;
+            GuardedDataStructure<Vector<Symbol>> result;
             auto count = query(static_cast<QueryMask>(mask), triple, [&](Triple triple) {
                 for(NativeNaturalType i = 0; i < 3; ++i)
                     if(mode[i] == Varying)

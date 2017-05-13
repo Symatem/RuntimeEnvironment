@@ -1,19 +1,19 @@
 #include <Storage/Blob.hpp>
 
-struct BitstreamContainer {
-    Blob blob;
+struct BitVectorContainer {
+    Blob bitVector;
 
-    BitstreamContainer() {}
-    BitstreamContainer(Symbol symbol) :blob(symbol) {}
+    BitVectorContainer() {}
+    BitVectorContainer(Symbol symbol) :bitVector(symbol) {}
 
     void increaseChildLength(NativeNaturalType at, NativeNaturalType offset, NativeNaturalType length) {
         assert(at == 0);
-        blob.increaseSize(offset, length);
+        bitVector.increaseSize(offset, length);
     }
 
     void decreaseChildLength(NativeNaturalType at, NativeNaturalType offset, NativeNaturalType length) {
         assert(at == 0);
-        blob.decreaseSize(offset, length);
+        bitVector.decreaseSize(offset, length);
     }
 
     NativeNaturalType getChildOffset(NativeNaturalType at) {
@@ -22,27 +22,31 @@ struct BitstreamContainer {
     }
 
     NativeNaturalType getChildLength(NativeNaturalType at) {
-        return blob.getSize();
+        return bitVector.getSize();
+    }
+
+    Blob& getBitVector() {
+        return bitVector;
     }
 };
 
 template<typename _Super>
-struct BitstreamDataStructure : public _Super {
+struct DataStructure : public _Super {
     typedef _Super Super;
-    BitstreamContainer parent;
+    BitVectorContainer parent;
 
-    BitstreamDataStructure() :Super(parent) {}
-    BitstreamDataStructure(Symbol symbol) :Super(parent), parent(symbol) {}
+    DataStructure() :Super(parent) {}
+    DataStructure(Symbol symbol) :Super(parent), parent(symbol) {}
 };
 
 template<typename _Super>
-struct GuardedBitstreamDataStructure : public BitstreamDataStructure<_Super> {
-    typedef BitstreamDataStructure<_Super> Super;
+struct GuardedDataStructure : public DataStructure<_Super> {
+    typedef DataStructure<_Super> Super;
 
-    GuardedBitstreamDataStructure() :Super(createSymbol()) {}
+    GuardedDataStructure() :Super(createSymbol()) {}
 
-    ~GuardedBitstreamDataStructure() {
-        releaseSymbol(Super::parent.blob.symbol);
+    ~GuardedDataStructure() {
+        releaseSymbol(Super::getBitVector().symbol);
     }
 };
 
@@ -139,15 +143,18 @@ bool eraseElement(Container& container, typename Container::ElementType::FirstTy
 
 
 
-template<typename _ElementType, typename _ParentType = BitstreamContainer>
-struct BitstreamVector {
+template<typename _ElementType, typename _ParentType = BitVectorContainer>
+struct Vector {
     typedef _ElementType ElementType;
     typedef _ParentType ParentType;
     ParentType& parent;
-    Blob& blob;
     NativeNaturalType childIndex;
 
-    BitstreamVector(ParentType& _parent, NativeNaturalType _childIndex = 0) :parent(_parent), blob(_parent.blob), childIndex(_childIndex) { }
+    Vector(ParentType& _parent, NativeNaturalType _childIndex = 0) :parent(_parent), childIndex(_childIndex) { }
+
+    Blob& getBitVector() {
+        return parent.getBitVector();
+    }
 
     NativeNaturalType getElementCount() {
         return parent.getChildLength(childIndex)/sizeOfInBits<ElementType>::value;
@@ -162,12 +169,12 @@ struct BitstreamVector {
     }
 
     void setElementAt(NativeNaturalType at, ElementType element) {
-        blob.externalOperate<true>(&element, getOffsetOfElement(at), sizeOfInBits<ElementType>::value);
+        getBitVector().template externalOperate<true>(&element, getOffsetOfElement(at), sizeOfInBits<ElementType>::value);
     }
 
     ElementType getElementAt(NativeNaturalType at) {
         ElementType element;
-        blob.externalOperate<false>(&element, getOffsetOfElement(at), sizeOfInBits<ElementType>::value);
+        getBitVector().template externalOperate<false>(&element, getOffsetOfElement(at), sizeOfInBits<ElementType>::value);
         return element;
     }
 
@@ -202,13 +209,13 @@ struct BitstreamVector {
     }
 };
 
-template<typename KeyType, typename ValueType, typename _ParentType = BitstreamContainer>
-struct BitstreamPairVector : public BitstreamVector<Pair<KeyType, ValueType>, _ParentType> {
+template<typename KeyType, typename ValueType, typename _ParentType = BitVectorContainer>
+struct PairVector : public Vector<Pair<KeyType, ValueType>, _ParentType> {
     typedef _ParentType ParentType;
     typedef Pair<KeyType, ValueType> ElementType;
-    typedef BitstreamVector<ElementType, ParentType> Super;
+    typedef Vector<ElementType, ParentType> Super;
 
-    BitstreamPairVector(ParentType& _parent, NativeNaturalType _childIndex = 0) :Super(_parent, _childIndex) { }
+    PairVector(ParentType& _parent, NativeNaturalType _childIndex = 0) :Super(_parent, _childIndex) { }
 
     NativeNaturalType getOffsetOfKey(NativeNaturalType at) {
         return Super::getOffsetOfElement(at);
@@ -219,35 +226,35 @@ struct BitstreamPairVector : public BitstreamVector<Pair<KeyType, ValueType>, _P
     }
 
     bool setKeyAt(NativeNaturalType at, KeyType key) {
-        Super::blob.template externalOperate<true>(&key, getOffsetOfKey(at), sizeOfInBits<KeyType>::value);
+        Super::getBitVector().template externalOperate<true>(&key, getOffsetOfKey(at), sizeOfInBits<KeyType>::value);
         return true;
     }
 
     bool setValueAt(NativeNaturalType at, ValueType value) {
-        Super::blob.template externalOperate<true>(&value, getOffsetOfValue(at), sizeOfInBits<ValueType>::value);
+        Super::getBitVector().template externalOperate<true>(&value, getOffsetOfValue(at), sizeOfInBits<ValueType>::value);
         return true;
     }
 
     KeyType getKeyAt(NativeNaturalType at) {
         KeyType key;
-        Super::blob.template externalOperate<false>(&key, getOffsetOfKey(at), sizeOfInBits<KeyType>::value);
+        Super::getBitVector().template externalOperate<false>(&key, getOffsetOfKey(at), sizeOfInBits<KeyType>::value);
         return key;
     }
 
     ValueType getValueAt(NativeNaturalType at) {
         ValueType value;
-        Super::blob.template externalOperate<false>(&value, getOffsetOfValue(at), sizeOfInBits<ValueType>::value);
+        Super::getBitVector().template externalOperate<false>(&value, getOffsetOfValue(at), sizeOfInBits<ValueType>::value);
         return value;
     }
 };
 
-template<typename SortDirection, typename KeyType, typename ValueType = VoidType, typename _ParentType = BitstreamContainer>
-struct BitstreamHeap : public BitstreamPairVector<KeyType, ValueType, _ParentType> {
+template<typename SortDirection, typename KeyType, typename ValueType = VoidType, typename _ParentType = BitVectorContainer>
+struct Heap : public PairVector<KeyType, ValueType, _ParentType> {
     typedef _ParentType ParentType;
-    typedef BitstreamPairVector<KeyType, ValueType, ParentType> Super;
+    typedef PairVector<KeyType, ValueType, ParentType> Super;
     typedef typename Super::ElementType ElementType;
 
-    BitstreamHeap(ParentType& _parent, NativeNaturalType _childIndex = 0) :Super(_parent, _childIndex) { }
+    Heap(ParentType& _parent, NativeNaturalType _childIndex = 0) :Super(_parent, _childIndex) { }
 
     bool compare(NativeNaturalType atA, NativeNaturalType atB) {
         return SortDirection::compare(Super::getKeyAt(atA), Super::getKeyAt(atB));
@@ -323,13 +330,13 @@ struct BitstreamHeap : public BitstreamPairVector<KeyType, ValueType, _ParentTyp
     }
 };
 
-template<typename KeyType, typename ValueType = VoidType, typename _ParentType = BitstreamContainer>
-struct BitstreamSet : public BitstreamPairVector<KeyType, ValueType, _ParentType> {
+template<typename KeyType, typename ValueType = VoidType, typename _ParentType = BitVectorContainer>
+struct Set : public PairVector<KeyType, ValueType, _ParentType> {
     typedef _ParentType ParentType;
-    typedef BitstreamPairVector<KeyType, ValueType, ParentType> Super;
+    typedef PairVector<KeyType, ValueType, ParentType> Super;
     typedef typename Super::ElementType ElementType;
 
-    BitstreamSet(ParentType& _parent, NativeNaturalType _childIndex = 0) :Super(_parent, _childIndex) {}
+    Set(ParentType& _parent, NativeNaturalType _childIndex = 0) :Super(_parent, _childIndex) {}
 
     bool findKey(KeyType key, NativeNaturalType& at) {
         at = binarySearch<NativeNaturalType>(0, Super::getElementCount(), [&](NativeNaturalType at) {
@@ -352,14 +359,14 @@ struct BitstreamSet : public BitstreamPairVector<KeyType, ValueType, _ParentType
 
 
 
-template<typename KeyType, typename ValueType, typename _ParentType = BitstreamContainer>
-struct BitstreamContainerVector : public BitstreamPairVector<KeyType, NativeNaturalType, _ParentType> {
+template<typename KeyType, typename ValueType, typename _ParentType = BitVectorContainer>
+struct DataStructureVector : public PairVector<KeyType, NativeNaturalType, _ParentType> {
     typedef _ParentType ParentType;
-    typedef BitstreamPairVector<KeyType, NativeNaturalType, ParentType> Super;
+    typedef PairVector<KeyType, NativeNaturalType, ParentType> Super;
     typedef typename Super::ElementType InnerElementType;
     typedef Pair<KeyType, ValueType> ElementType;
 
-    BitstreamContainerVector(ParentType& _parent, NativeNaturalType _childIndex = 0) :Super(_parent, _childIndex) { }
+    DataStructureVector(ParentType& _parent, NativeNaturalType _childIndex = 0) :Super(_parent, _childIndex) { }
 
     NativeNaturalType getElementCount() {
         return (Super::isEmpty()) ? 0 : Super::getValueAt(0)/sizeOfInBits<InnerElementType>::value;
@@ -383,15 +390,18 @@ struct BitstreamContainerVector : public BitstreamPairVector<KeyType, NativeNatu
             Super::setValueAt(at, Super::getValueAt(at)+elementCount*sizeOfInBits<InnerElementType>::value);
     }
 
+    template<bool childrenAsWell = true>
     void eraseRange(NativeNaturalType at, NativeNaturalType elementCount) {
         NativeNaturalType newElementCount = getElementCount()-elementCount,
                           sliceLength = getChildEnd(at+elementCount-1)-getChildBegin(at);
-        Super::parent.decreaseChildLength(Super::childIndex, getChildOffset(at), sliceLength);
+        if(childrenAsWell)
+            Super::parent.decreaseChildLength(Super::childIndex, getChildOffset(at), sliceLength);
         Super::eraseRange(at, elementCount);
-        for(; at < newElementCount; ++at)
-            Super::setValueAt(at, Super::getValueAt(at)-sliceLength);
         for(NativeNaturalType at = 0; at < newElementCount; ++at)
             Super::setValueAt(at, Super::getValueAt(at)-elementCount*sizeOfInBits<InnerElementType>::value);
+        if(childrenAsWell)
+            for(; at < newElementCount; ++at)
+                Super::setValueAt(at, Super::getValueAt(at)-sliceLength);
     }
 
     void insertElementAt(NativeNaturalType at, KeyType key) {
@@ -413,7 +423,7 @@ struct BitstreamContainerVector : public BitstreamPairVector<KeyType, NativeNatu
         insertElementAt(dstAt, Super::getKeyAt(srcAt));
         NativeNaturalType dstOffset = getChildOffset(dstAt);
         increaseChildLength(dstAt, dstOffset, length);
-        Super::blob.interoperation(Super::blob, dstOffset, srcOffset, length);
+        Super::getBitVector().interoperation(Super::getBitVector(), dstOffset, srcOffset, length);
         if(!upward)
             ++srcAt;
         eraseElementAt(srcAt);
@@ -455,13 +465,13 @@ struct BitstreamContainerVector : public BitstreamPairVector<KeyType, NativeNatu
     }
 };
 
-template<typename KeyType, typename ValueType, typename _ParentType = BitstreamContainer>
-struct BitstreamContainerSet : public BitstreamContainerVector<KeyType, ValueType, _ParentType> {
+template<typename KeyType, typename ValueType, typename _ParentType = BitVectorContainer>
+struct DataStructureSet : public DataStructureVector<KeyType, ValueType, _ParentType> {
     typedef _ParentType ParentType;
-    typedef BitstreamContainerVector<KeyType, ValueType, ParentType> Super;
+    typedef DataStructureVector<KeyType, ValueType, ParentType> Super;
     typedef typename Super::ElementType ElementType;
 
-    BitstreamContainerSet(ParentType& _parent, NativeNaturalType _childIndex = 0) :Super(_parent, _childIndex) { }
+    DataStructureSet(ParentType& _parent, NativeNaturalType _childIndex = 0) :Super(_parent, _childIndex) { }
 
     bool findKey(KeyType key, NativeNaturalType& at) {
         at = binarySearch<NativeNaturalType>(0, Super::getElementCount(), [&](NativeNaturalType at) {
@@ -482,14 +492,14 @@ struct BitstreamContainerSet : public BitstreamContainerVector<KeyType, ValueTyp
     }
 };
 
-template<typename FirstKeyType, typename SecondKeyType, typename _ParentType = BitstreamContainer>
-struct BitstreamPairSet : public BitstreamContainerSet<FirstKeyType, BitstreamSet<SecondKeyType, VoidType, BitstreamPairSet<FirstKeyType, SecondKeyType, _ParentType>>, _ParentType> {
+template<typename FirstKeyType, typename SecondKeyType, typename _ParentType = BitVectorContainer>
+struct PairSet : public DataStructureSet<FirstKeyType, Set<SecondKeyType, VoidType, PairSet<FirstKeyType, SecondKeyType, _ParentType>>, _ParentType> {
     typedef _ParentType ParentType;
-    typedef BitstreamSet<SecondKeyType, VoidType, BitstreamPairSet<FirstKeyType, SecondKeyType, ParentType>> ValueType;
-    typedef BitstreamContainerSet<FirstKeyType, ValueType, ParentType> Super;
+    typedef Set<SecondKeyType, VoidType, PairSet<FirstKeyType, SecondKeyType, ParentType>> ValueType;
+    typedef DataStructureSet<FirstKeyType, ValueType, ParentType> Super;
     typedef Pair<FirstKeyType, SecondKeyType> ElementType;
 
-    BitstreamPairSet(ParentType& _parent, NativeNaturalType _childIndex = 0) :Super(_parent, _childIndex) { }
+    PairSet(ParentType& _parent, NativeNaturalType _childIndex = 0) :Super(_parent, _childIndex) { }
 
     FirstKeyType getFirstKeyCount() {
         return Super::getElementCount();
@@ -551,11 +561,11 @@ struct BitstreamPairSet : public BitstreamContainerSet<FirstKeyType, BitstreamSe
     }
 };
 
-template<typename _ParentType = BitstreamContainer>
-struct BitstreamSparsePayload : public BitstreamContainerSet<NativeNaturalType, VoidType, _ParentType> {
+template<typename _ParentType = BitVectorContainer>
+struct BitMap : public DataStructureSet<NativeNaturalType, VoidType, _ParentType> {
     typedef _ParentType ParentType;
-    typedef BitstreamContainerSet<NativeNaturalType, VoidType, ParentType> Super;
+    typedef DataStructureSet<NativeNaturalType, VoidType, ParentType> Super;
     typedef typename Super::ElementType ElementType;
 
-    BitstreamSparsePayload(ParentType& _parent, NativeNaturalType _childIndex = 0) :Super(_parent, _childIndex) { }
+    BitMap(ParentType& _parent, NativeNaturalType _childIndex = 0) :Super(_parent, _childIndex) { }
 };

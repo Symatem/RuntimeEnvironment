@@ -68,7 +68,7 @@ struct BinaryOntologyEncoder : public BinaryOntologyCodec {
 
     void encodeAttribute(bool doWrite, Symbol betaSymbol, Symbol attribute) {
         NativeNaturalType secondAt;
-        BitstreamDataStructure<BitstreamPairSet<Symbol, Symbol>> beta(betaSymbol);
+        DataStructure<PairSet<Symbol, Symbol>> beta(betaSymbol);
         beta.findFirstKey(attribute, secondAt);
         encodeSymbol(doWrite, attribute);
         if(doWrite)
@@ -81,7 +81,7 @@ struct BinaryOntologyEncoder : public BinaryOntologyCodec {
     void encodeEntity(bool doWrite, Symbol entity, Symbol betaSymbol) {
         Blob srcBlob(entity);
         NativeNaturalType srcBlobLength = srcBlob.getSize();
-        BitstreamDataStructure<BitstreamPairSet<Symbol, Symbol>> beta(betaSymbol);
+        DataStructure<PairSet<Symbol, Symbol>> beta(betaSymbol);
         if(srcBlobLength == 0 && beta.isEmpty()) {
             ++emptySymbolsInChunk;
             return;
@@ -112,7 +112,7 @@ struct BinaryOntologyEncoder : public BinaryOntologyCodec {
         if(doWrite)
             encodeNatural(beta.getFirstKeyCount());
         beta.iterateFirstKeys([&](Symbol attribute) {
-            encodeAttribute(doWrite, beta.blob.symbol, attribute);
+            encodeAttribute(doWrite, beta.getBitVector().symbol, attribute);
         });
     }
 

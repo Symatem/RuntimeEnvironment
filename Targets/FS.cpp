@@ -283,7 +283,7 @@ int symatem_unlink(const char* path) {
     }
 
     if(query(VMM, {VoidSymbol, LinkSymbol, node}) == 0) {
-        GuardedBitstreamDataStructure<BitstreamSet<Symbol>> dirty;
+        GuardedDataStructure<Set<Symbol>> dirty;
         query(MIV, {node, VoidSymbol, VoidSymbol}, [&](Triple result) {
             dirty.insertElement(result.pos[2]);
         });
