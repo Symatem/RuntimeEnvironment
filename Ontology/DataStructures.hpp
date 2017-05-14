@@ -28,3 +28,19 @@ struct ContentIndex : public Set<Symbol, VoidType, _ParentType> {
 };
 
 DataStructure<ContentIndex<>> blobIndex;
+
+
+
+struct OntologyStruct {
+    Symbol subIndices[6], bitMap;
+
+    auto getSubIndex(NativeNaturalType subIndex) {
+        return DataStructure<PairSet<Symbol, Symbol>>(subIndices[subIndex]);
+    }
+
+    auto getBitMap() {
+        return DataStructure<BitMap<>>(bitMap);
+    }
+};
+
+DataStructure<Set<Symbol, OntologyStruct>> tripleIndex;

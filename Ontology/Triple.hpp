@@ -18,10 +18,6 @@ const Symbol preDefinedSymbolsCount = sizeof(PreDefinedSymbols)/sizeof(void*);
     NativeNaturalType indexCount = (indexMode == MonoIndex) ? 1 : 3; \
     for(NativeNaturalType subIndex = 0; subIndex < indexCount; ++subIndex)
 
-struct TripleSubIndexStruct {
-    Symbol subIndices[6];
-};
-
 struct Triple {
     Symbol pos[3];
 
@@ -29,11 +25,11 @@ struct Triple {
     Triple(Symbol _entity, Symbol _attribute, Symbol _value)
         :pos{_entity, _attribute, _value} {}
 
-    Triple forwardIndex(TripleSubIndexStruct& subIndices, NativeNaturalType subIndex) {
+    Triple forwardIndex(OntologyStruct& subIndices, NativeNaturalType subIndex) {
         return {subIndices.subIndices[subIndex], pos[(subIndex+1)%3], pos[(subIndex+2)%3]};
     }
 
-    Triple invertedIndex(TripleSubIndexStruct& subIndices, NativeNaturalType subIndex) {
+    Triple invertedIndex(OntologyStruct& subIndices, NativeNaturalType subIndex) {
         return {subIndices.subIndices[subIndex+3], pos[(subIndex+2)%3], pos[(subIndex+1)%3]};
     }
 
@@ -105,8 +101,6 @@ enum QueryMask {
     MMI, VMI, IMI, MVI, VVI, IVI, MII, VII, III
 };
 
-DataStructure<Set<Symbol, TripleSubIndexStruct>> tripleIndex;
-
 bool linkInSubIndex(Triple triple) {
     DataStructure<PairSet<Symbol, Symbol>> beta(triple.pos[0]);
     return beta.insertElement({triple.pos[1], triple.pos[2]});
@@ -114,7 +108,7 @@ bool linkInSubIndex(Triple triple) {
 
 bool linkTriplePartial(Triple triple, NativeNaturalType subIndex) {
     NativeNaturalType alphaIndex;
-    Pair<Symbol, TripleSubIndexStruct> element;
+    Pair<Symbol, OntologyStruct> element;
     if(!tripleIndex.findKey(triple.pos[subIndex], alphaIndex)) {
         element.first = triple.pos[subIndex];
         for(NativeNaturalType i = 0; i < 6; ++i)
@@ -142,7 +136,7 @@ NativeNaturalType searchMMM(NativeNaturalType subIndex, Triple triple, Closure<v
     NativeNaturalType alphaIndex, betaIndex, gammaIndex;
     if(!tripleIndex.findKey(triple.pos[0], alphaIndex))
         return 0;
-    DataStructure<PairSet<Symbol, Symbol>> beta(tripleIndex.getElementAt(alphaIndex).second.subIndices[subIndex]);
+    auto beta = tripleIndex.getValueAt(alphaIndex).getSubIndex(subIndex);
     if(!beta.findElement({triple.pos[1], triple.pos[2]}, betaIndex, gammaIndex))
         return 0;
     if(callback)
@@ -154,7 +148,7 @@ NativeNaturalType searchMMI(NativeNaturalType subIndex, Triple triple, Closure<v
     NativeNaturalType alphaIndex, betaIndex;
     if(!tripleIndex.findKey(triple.pos[0], alphaIndex))
         return 0;
-    DataStructure<PairSet<Symbol, Symbol>> beta(tripleIndex.getElementAt(alphaIndex).second.subIndices[subIndex]);
+    auto beta = tripleIndex.getValueAt(alphaIndex).getSubIndex(subIndex);
     if(!beta.findFirstKey(triple.pos[1], betaIndex))
         return 0;
     if(callback)
@@ -179,7 +173,7 @@ NativeNaturalType searchMMV(NativeNaturalType subIndex, Triple triple, Closure<v
     NativeNaturalType alphaIndex, betaIndex;
     if(!tripleIndex.findKey(triple.pos[0], alphaIndex))
         return 0;
-    DataStructure<PairSet<Symbol, Symbol>> beta(tripleIndex.getElementAt(alphaIndex).second.subIndices[subIndex]);
+    auto beta = tripleIndex.getValueAt(alphaIndex).getSubIndex(subIndex);
     if(!beta.findFirstKey(triple.pos[1], betaIndex))
         return 0;
     if(callback)
@@ -194,7 +188,7 @@ NativeNaturalType searchMVV(NativeNaturalType subIndex, Triple triple, Closure<v
     NativeNaturalType alphaIndex, count = 0;
     if(!tripleIndex.findKey(triple.pos[0], alphaIndex))
         return 0;
-    DataStructure<PairSet<Symbol, Symbol>> beta(tripleIndex.getElementAt(alphaIndex).second.subIndices[subIndex]);
+    auto beta = tripleIndex.getValueAt(alphaIndex).getSubIndex(subIndex);
     beta.iterateElements([&](Pair<Symbol, Symbol> betaResult) {
         if(callback) {
             triple.pos[1] = betaResult.first;
@@ -211,7 +205,7 @@ NativeNaturalType searchMIV(NativeNaturalType subIndex, Triple triple, Closure<v
     if(!tripleIndex.findKey(triple.pos[0], alphaIndex))
         return 0;
     GuardedDataStructure<Set<Symbol>> result;
-    DataStructure<PairSet<Symbol, Symbol>> beta(tripleIndex.getElementAt(alphaIndex).second.subIndices[subIndex]);
+    auto beta = tripleIndex.getValueAt(alphaIndex).getSubIndex(subIndex);
     beta.iterateElements([&](Pair<Symbol, Symbol> betaResult) {
         insertElement(result, betaResult.second);
     });
@@ -227,7 +221,7 @@ NativeNaturalType searchMVI(NativeNaturalType subIndex, Triple triple, Closure<v
     NativeNaturalType alphaIndex;
     if(!tripleIndex.findKey(triple.pos[0], alphaIndex))
         return 0;
-    DataStructure<PairSet<Symbol, Symbol>> beta(tripleIndex.getElementAt(alphaIndex).second.subIndices[subIndex]);
+    auto beta = tripleIndex.getValueAt(alphaIndex).getSubIndex(subIndex);
     if(callback)
         beta.iterateFirstKeys([&](Symbol betaResult) {
             triple.pos[1] = betaResult;
@@ -238,7 +232,7 @@ NativeNaturalType searchMVI(NativeNaturalType subIndex, Triple triple, Closure<v
 
 NativeNaturalType searchVII(NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
     if(callback)
-        iterateElements(tripleIndex, [&](Pair<Symbol, TripleSubIndexStruct> alphaResult) {
+        iterateElements(tripleIndex, [&](Pair<Symbol, OntologyStruct> alphaResult) {
             triple.pos[0] = alphaResult.first;
             callback(triple.normalized(subIndex));
         });
@@ -247,8 +241,8 @@ NativeNaturalType searchVII(NativeNaturalType subIndex, Triple triple, Closure<v
 
 NativeNaturalType searchVVI(NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
     NativeNaturalType count = 0;
-    iterateElements(tripleIndex, [&](Pair<Symbol, TripleSubIndexStruct> alphaResult) {
-        DataStructure<PairSet<Symbol, Symbol>> beta(alphaResult.second.subIndices[subIndex]);
+    iterateElements(tripleIndex, [&](Pair<Symbol, OntologyStruct> alphaResult) {
+        auto beta = alphaResult.second.getSubIndex(subIndex);
         if(callback) {
             triple.pos[0] = alphaResult.first;
             beta.iterateFirstKeys([&](Symbol betaResult) {
@@ -263,9 +257,9 @@ NativeNaturalType searchVVI(NativeNaturalType subIndex, Triple triple, Closure<v
 
 NativeNaturalType searchVVV(NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
     NativeNaturalType count = 0;
-    iterateElements(tripleIndex, [&](Pair<Symbol, TripleSubIndexStruct> alphaResult) {
+    iterateElements(tripleIndex, [&](Pair<Symbol, OntologyStruct> alphaResult) {
         triple.pos[0] = alphaResult.first;
-        DataStructure<PairSet<Symbol, Symbol>> beta(alphaResult.second.subIndices[subIndex]);
+        auto beta = alphaResult.second.getSubIndex(subIndex);
         beta.iterateElements([&](Pair<Symbol, Symbol> betaResult) {
             if(callback) {
                 triple.pos[1] = betaResult.first;
@@ -363,7 +357,7 @@ void setIndexMode(IndexMode _indexMode) {
                 linkTriplePartial(result, subIndex);
         });
     } else
-        iterateElements(tripleIndex, [&](Pair<Symbol, TripleSubIndexStruct> alphaResult) {
+        iterateElements(tripleIndex, [&](Pair<Symbol, OntologyStruct> alphaResult) {
             for(NativeNaturalType subIndex = _indexMode; subIndex < indexMode; ++subIndex)
                 releaseSymbol(alphaResult.second.subIndices[subIndex]);
         });
@@ -382,20 +376,20 @@ bool unlinkWithoutReleasing(Triple triple, bool skipEnabled = false, Symbol skip
             continue;
         if(!tripleIndex.findKey(triple.pos[subIndex], alphaIndex))
             return false;
-        Pair<Symbol, TripleSubIndexStruct> element = tripleIndex.getElementAt(alphaIndex);
-        if(!unlinkInSubIndex(triple.forwardIndex(element.second, subIndex)))
+        auto alpha = tripleIndex.getValueAt(alphaIndex);
+        if(!unlinkInSubIndex(triple.forwardIndex(alpha, subIndex)))
             return false;
         if(indexMode == HexaIndex)
-            assert(unlinkInSubIndex(triple.invertedIndex(element.second, subIndex)));
+            assert(unlinkInSubIndex(triple.invertedIndex(alpha, subIndex)));
     }
     if(triple.pos[1] == BlobTypeSymbol)
         modifiedBlob(triple.pos[0]);
     return true;
 }
 
-void eraseSymbol(Pair<Symbol, TripleSubIndexStruct>& element, NativeNaturalType alphaIndex, Symbol symbol) {
+void eraseSymbol(OntologyStruct& alpha, NativeNaturalType alphaIndex, Symbol symbol) {
     for(NativeNaturalType subIndex = 0; subIndex < indexMode; ++subIndex)
-        releaseSymbol(element.second.subIndices[subIndex]);
+        releaseSymbol(alpha.subIndices[subIndex]);
     tripleIndex.eraseElementAt(alphaIndex);
     releaseSymbol(symbol);
 }
@@ -404,13 +398,13 @@ void tryToReleaseSymbol(Symbol symbol) {
     NativeNaturalType alphaIndex;
     if(!tripleIndex.findKey(symbol, alphaIndex))
         return;
-    Pair<Symbol, TripleSubIndexStruct> element = tripleIndex.getElementAt(alphaIndex);
+    auto alpha = tripleIndex.getValueAt(alphaIndex);
     forEachSubIndex {
-        DataStructure<PairSet<Symbol, Symbol>> beta(element.second.subIndices[subIndex]);
+        auto beta = alpha.getSubIndex(subIndex);
         if(!beta.isEmpty())
             return;
     }
-    eraseSymbol(element, alphaIndex, symbol);
+    eraseSymbol(alpha, alphaIndex, symbol);
 }
 
 bool unlink(Triple triple) {
@@ -427,10 +421,10 @@ bool unlink(Symbol symbol) {
         releaseSymbol(symbol);
         return false;
     }
-    Pair<Symbol, TripleSubIndexStruct> element = tripleIndex.getElementAt(alphaIndex);
+    auto alpha = tripleIndex.getValueAt(alphaIndex);
     GuardedDataStructure<Set<Symbol>> dirty;
     forEachSubIndex {
-        DataStructure<PairSet<Symbol, Symbol>> beta(element.second.subIndices[subIndex]);
+        auto beta = alpha.getSubIndex(subIndex);
         beta.iterateFirstKeys([&](Symbol betaResult) {
             insertElement(dirty, betaResult);
         });
@@ -439,7 +433,7 @@ bool unlink(Symbol symbol) {
             unlinkWithoutReleasing(Triple(symbol, betaResult.first, betaResult.second).normalized(subIndex), true, symbol);
         });
     }
-    eraseSymbol(element, alphaIndex, symbol);
+    eraseSymbol(alpha, alphaIndex, symbol);
     iterateElements(dirty, [&](Symbol symbol) {
         tryToReleaseSymbol(symbol);
     });
