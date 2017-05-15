@@ -156,6 +156,10 @@ struct Vector {
         return parent.getBitVector();
     }
 
+    bool operator==(Vector<ElementType, ParentType>& other) {
+        return childIndex == other.childIndex && getBitVector() == other.getBitVector();
+    }
+
     NativeNaturalType getElementCount() {
         return parent.getChildLength(childIndex)/sizeOfInBits<ElementType>::value;
     }
@@ -360,13 +364,13 @@ struct Set : public PairVector<KeyType, ValueType, _ParentType> {
 
 
 template<typename KeyType, typename ValueType, typename _ParentType = BitVectorContainer>
-struct DataStructureVector : public PairVector<KeyType, NativeNaturalType, _ParentType> {
+struct MetaVector : public PairVector<KeyType, NativeNaturalType, _ParentType> {
     typedef _ParentType ParentType;
     typedef PairVector<KeyType, NativeNaturalType, ParentType> Super;
     typedef typename Super::ElementType InnerElementType;
     typedef Pair<KeyType, ValueType> ElementType;
 
-    DataStructureVector(ParentType& _parent, NativeNaturalType _childIndex = 0) :Super(_parent, _childIndex) { }
+    MetaVector(ParentType& _parent, NativeNaturalType _childIndex = 0) :Super(_parent, _childIndex) { }
 
     NativeNaturalType getElementCount() {
         return (Super::isEmpty()) ? 0 : Super::getValueAt(0)/sizeOfInBits<InnerElementType>::value;
@@ -466,12 +470,12 @@ struct DataStructureVector : public PairVector<KeyType, NativeNaturalType, _Pare
 };
 
 template<typename KeyType, typename ValueType, typename _ParentType = BitVectorContainer>
-struct DataStructureSet : public DataStructureVector<KeyType, ValueType, _ParentType> {
+struct MetaSet : public MetaVector<KeyType, ValueType, _ParentType> {
     typedef _ParentType ParentType;
-    typedef DataStructureVector<KeyType, ValueType, ParentType> Super;
+    typedef MetaVector<KeyType, ValueType, ParentType> Super;
     typedef typename Super::ElementType ElementType;
 
-    DataStructureSet(ParentType& _parent, NativeNaturalType _childIndex = 0) :Super(_parent, _childIndex) { }
+    MetaSet(ParentType& _parent, NativeNaturalType _childIndex = 0) :Super(_parent, _childIndex) { }
 
     bool findKey(KeyType key, NativeNaturalType& at) {
         at = binarySearch<NativeNaturalType>(0, Super::getElementCount(), [&](NativeNaturalType at) {
@@ -493,10 +497,10 @@ struct DataStructureSet : public DataStructureVector<KeyType, ValueType, _Parent
 };
 
 template<typename FirstKeyType, typename SecondKeyType, typename _ParentType = BitVectorContainer>
-struct PairSet : public DataStructureSet<FirstKeyType, Set<SecondKeyType, VoidType, PairSet<FirstKeyType, SecondKeyType, _ParentType>>, _ParentType> {
+struct PairSet : public MetaSet<FirstKeyType, Set<SecondKeyType, VoidType, PairSet<FirstKeyType, SecondKeyType, _ParentType>>, _ParentType> {
     typedef _ParentType ParentType;
     typedef Set<SecondKeyType, VoidType, PairSet<FirstKeyType, SecondKeyType, ParentType>> ValueType;
-    typedef DataStructureSet<FirstKeyType, ValueType, ParentType> Super;
+    typedef MetaSet<FirstKeyType, ValueType, ParentType> Super;
     typedef Pair<FirstKeyType, SecondKeyType> ElementType;
 
     PairSet(ParentType& _parent, NativeNaturalType _childIndex = 0) :Super(_parent, _childIndex) { }
@@ -562,10 +566,117 @@ struct PairSet : public DataStructureSet<FirstKeyType, Set<SecondKeyType, VoidTy
 };
 
 template<typename _ParentType = BitVectorContainer>
-struct BitMap : public DataStructureSet<NativeNaturalType, VoidType, _ParentType> {
+struct BitMap : public MetaSet<NativeNaturalType, VoidType, _ParentType> {
     typedef _ParentType ParentType;
-    typedef DataStructureSet<NativeNaturalType, VoidType, ParentType> Super;
+    typedef MetaSet<NativeNaturalType, VoidType, ParentType> Super;
     typedef typename Super::ElementType ElementType;
 
     BitMap(ParentType& _parent, NativeNaturalType _childIndex = 0) :Super(_parent, _childIndex) { }
+
+    NativeNaturalType getSliceBeginAddress(NativeNaturalType sliceIndex) {
+        return Super::getKeyAt(sliceIndex);
+    }
+
+    NativeNaturalType getSliceEndAddress(NativeNaturalType sliceIndex) {
+        return getSliceBeginAddress(sliceIndex)+Super::getChildLength(sliceIndex);
+    }
+
+    template<bool includeFront = false>
+    bool getSliceContaining(NativeNaturalType address, NativeNaturalType& sliceIndex) {
+        if(Super::findKey(address, sliceIndex) && includeFront)
+            return true;
+        if(!Super::isEmpty() && sliceIndex > 0 && address < getSliceEndAddress(sliceIndex-1)) {
+            --sliceIndex;
+            return true;
+        }
+        return false;
+    }
+
+    bool getSliceContaining(NativeNaturalType address, NativeNaturalType length, NativeNaturalType& sliceIndex) {
+        if(!getSliceContaining<false>(address, sliceIndex))
+            return false;
+        return getSliceEndAddress(sliceIndex) <= address+length;
+    }
+
+    bool mergeSlices(NativeNaturalType sliceIndex) {
+        if(getSliceBeginAddress(sliceIndex+1)-getSliceBeginAddress(sliceIndex) != Super::getChildLength(sliceIndex))
+            return false;
+        Super::template eraseRange<false>(sliceIndex+1, 1);
+        return true;
+    }
+
+    NativeNaturalType fillSlice(NativeNaturalType address, NativeNaturalType length) {
+        NativeNaturalType endAddress = address+length, sliceIndex,
+                          frontSliceIndex, sliceOffset, sliceLength, sliceAddress;
+        bool frontSlice = getSliceContaining(address, sliceIndex), backSlice = false;
+        if(frontSlice) {
+            sliceOffset = address-getSliceBeginAddress(sliceIndex);
+            sliceLength = Super::getChildLength(sliceIndex)-sliceOffset;
+            sliceOffset += Super::getChildOffset(sliceIndex);
+            if(length <= sliceLength)
+                return sliceOffset;
+            frontSliceIndex = sliceIndex++;
+        }
+        while(sliceIndex < Super::getElementCount()) {
+            if(endAddress < getSliceEndAddress(sliceIndex)) {
+                sliceAddress = getSliceBeginAddress(sliceIndex);
+                backSlice = (endAddress > sliceAddress);
+                break;
+            }
+            Super::eraseElementAt(sliceIndex);
+            // TODO: Optimize, recyle this slice if !frontSlice
+        }
+        if(frontSlice) {
+            length -= sliceLength;
+            if(backSlice)
+                length -= endAddress-sliceAddress;
+            Super::increaseChildLength(frontSliceIndex, sliceOffset+sliceLength, length);
+            if(backSlice)
+                Super::template eraseRange<false>(sliceIndex, 1);
+        } else {
+            if(backSlice) {
+                length = endAddress-sliceAddress;
+                Super::setKeyAt(sliceIndex, address);
+            } else
+                Super::insertElementAt(sliceIndex, address);
+            sliceOffset = Super::getChildOffset(sliceIndex);
+            Super::increaseChildLength(sliceIndex, sliceOffset, length);
+        }
+        if(!backSlice && sliceIndex < Super::getElementCount()-1)
+            mergeSlices(sliceIndex);
+        if(!frontSlice && sliceIndex > 0)
+            mergeSlices(sliceIndex-1);
+        return sliceOffset;
+    }
+
+    void clearSlice(NativeNaturalType address, NativeNaturalType length) {
+        NativeNaturalType endAddress = address+length, sliceIndex;
+        if(getSliceContaining(address, sliceIndex)) {
+            NativeNaturalType sliceOffset = address-getSliceBeginAddress(sliceIndex),
+                              sliceLength = Super::getChildLength(sliceIndex)-sliceOffset;
+            bool splitFrontSlice = (sliceLength > length);
+            if(splitFrontSlice) {
+                sliceLength = length;
+                Super::insertElementAt(sliceIndex+1, endAddress);
+            }
+            sliceOffset += Super::getChildOffset(sliceIndex);
+            Super::decreaseChildLength(sliceIndex, sliceOffset, sliceLength);
+            if(splitFrontSlice) {
+                Super::setValueAt(sliceIndex+1, sliceOffset);
+                return;
+            }
+            ++sliceIndex;
+        }
+        while(sliceIndex < Super::getElementCount()) {
+            if(endAddress < getSliceEndAddress(sliceIndex)) {
+                NativeNaturalType sliceAddress = getSliceBeginAddress(sliceIndex);
+                if(endAddress > sliceAddress) {
+                    Super::decreaseChildLength(sliceIndex, Super::getChildOffset(sliceIndex), endAddress-sliceAddress);
+                    Super::setKeyAt(sliceIndex, endAddress);
+                }
+                break;
+            }
+            Super::eraseElementAt(sliceIndex);
+        }
+    }
 };

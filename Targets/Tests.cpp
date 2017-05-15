@@ -158,8 +158,8 @@ Integer32 main(Integer32 argc, Integer8** argv) {
         });
     }
 
-    test("DataStructureVector") {
-        GuardedDataStructure<DataStructureVector<NativeNaturalType, VoidType>> containerVector;
+    test("MetaVector") {
+        GuardedDataStructure<MetaVector<NativeNaturalType, VoidType>> containerVector;
         containerVector.insertElementAt(0, 7);
         containerVector.increaseChildLength(0, containerVector.getChildOffset(0), 64);
         containerVector.insertElementAt(0, 5);
@@ -178,8 +178,8 @@ Integer32 main(Integer32 argc, Integer8** argv) {
             && containerVector.getKeyAt(1) == 9 && containerVector.getChildLength(1) == 96);
     }
 
-    test("DataStructureSet") {
-        GuardedDataStructure<DataStructureSet<NativeNaturalType, VoidType>> containerSet;
+    test("MetaSet") {
+        GuardedDataStructure<MetaSet<NativeNaturalType, VoidType>> containerSet;
         assert(insertElement(containerSet, 7) == true);
         containerSet.increaseChildLength(0, containerSet.getChildOffset(0), 64);
         assert(insertElement(containerSet, 5) == true);
@@ -231,6 +231,51 @@ Integer32 main(Integer32 argc, Integer8** argv) {
             assert(element.first == (counter-1)/4*2+3 && element.second == counter);
             counter += 2;
         });
+    }
+
+    test("BitMap") {
+        GuardedDataStructure<BitMap<>> bitMap;
+        NativeNaturalType sliceIndex;
+        assert(bitMap.getElementCount() == 0);
+        bitMap.fillSlice(64, 16);
+        assert(bitMap.getSliceContaining(0, sliceIndex) == false && sliceIndex == 0
+            && bitMap.getSliceContaining(64, sliceIndex) == false && sliceIndex == 0
+            && bitMap.getSliceContaining(65, sliceIndex) == true && sliceIndex == 0
+            && bitMap.getSliceContaining(80, sliceIndex) == false && sliceIndex == 1);
+        bitMap.fillSlice(0, 16);
+        assert(bitMap.getElementCount() == 2
+            && bitMap.getSliceBeginAddress(0) == 0 && bitMap.getChildLength(0) == 16
+            && bitMap.getSliceBeginAddress(1) == 64 && bitMap.getChildLength(1) == 16);
+        bitMap.fillSlice(8, 16);
+        bitMap.fillSlice(56, 16);
+        assert(bitMap.getElementCount() == 2
+            && bitMap.getSliceBeginAddress(0) == 0 && bitMap.getChildLength(0) == 24
+            && bitMap.getSliceBeginAddress(1) == 56 && bitMap.getChildLength(1) == 24);
+        bitMap.fillSlice(24, 8);
+        bitMap.fillSlice(48, 8);
+        assert(bitMap.getElementCount() == 2
+            && bitMap.getSliceBeginAddress(0) == 0 && bitMap.getChildLength(0) == 32
+            && bitMap.getSliceBeginAddress(1) == 48 && bitMap.getChildLength(1) == 32);
+        bitMap.fillSlice(24, 32);
+        assert(bitMap.getElementCount() == 1
+            && bitMap.getSliceBeginAddress(0) == 0 && bitMap.getChildLength(0) == 80);
+        bitMap.clearSlice(32, 16);
+        assert(bitMap.getElementCount() == 2
+            && bitMap.getSliceBeginAddress(0) == 0 && bitMap.getChildLength(0) == 32
+            && bitMap.getSliceBeginAddress(1) == 48 && bitMap.getChildLength(1) == 32);
+        bitMap.clearSlice(24, 8);
+        bitMap.clearSlice(48, 8);
+        assert(bitMap.getElementCount() == 2
+            && bitMap.getSliceBeginAddress(0) == 0 && bitMap.getChildLength(0) == 24
+            && bitMap.getSliceBeginAddress(1) == 56 && bitMap.getChildLength(1) == 24);
+        bitMap.clearSlice(16, 16);
+        bitMap.clearSlice(48, 16);
+        assert(bitMap.getElementCount() == 2
+            && bitMap.getSliceBeginAddress(0) == 0 && bitMap.getChildLength(0) == 16
+            && bitMap.getSliceBeginAddress(1) == 64 && bitMap.getChildLength(1) == 16);
+        bitMap.clearSlice(64, 16);
+        bitMap.clearSlice(0, 16);
+        assert(bitMap.getElementCount() == 0);
     }
 
     test("ArithmeticCodec Symbol") {
