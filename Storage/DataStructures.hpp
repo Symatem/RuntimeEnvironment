@@ -459,7 +459,7 @@ struct MetaVector : public PairVector<KeyType, NativeNaturalType, _ParentType> {
     }
 
     NativeNaturalType getChildEnd(NativeNaturalType at) {
-        if(at == getElementCount()-1)
+        if(at+1 == getElementCount())
             return Super::parent.getChildLength(Super::childIndex);
         return Super::getValueAt(at+1);
     }
@@ -612,7 +612,7 @@ struct BitMap : public MetaSet<NativeNaturalType, VoidType, _ParentType> {
         if(frontSlice) {
             sliceOffset = address-getSliceBeginAddress(sliceIndex);
             sliceLength = Super::getChildLength(sliceIndex)-sliceOffset;
-            sliceOffset += Super::getChildOffset(sliceIndex);
+            sliceOffset += Super::getChildBegin(sliceIndex);
             if(length <= sliceLength)
                 return sliceOffset;
             frontSliceIndex = sliceIndex++;
@@ -639,10 +639,10 @@ struct BitMap : public MetaSet<NativeNaturalType, VoidType, _ParentType> {
                 Super::setKeyAt(sliceIndex, address);
             } else
                 Super::insertElementAt(sliceIndex, address);
-            sliceOffset = Super::getChildOffset(sliceIndex);
+            sliceOffset = Super::getChildBegin(sliceIndex);
             Super::increaseChildLength(sliceIndex, sliceOffset, length);
         }
-        if(!backSlice && sliceIndex < Super::getElementCount()-1)
+        if(!backSlice && sliceIndex+1 < Super::getElementCount())
             mergeSlices(sliceIndex);
         if(!frontSlice && sliceIndex > 0)
             mergeSlices(sliceIndex-1);
@@ -659,7 +659,7 @@ struct BitMap : public MetaSet<NativeNaturalType, VoidType, _ParentType> {
                 sliceLength = length;
                 Super::insertElementAt(sliceIndex+1, endAddress);
             }
-            sliceOffset += Super::getChildOffset(sliceIndex);
+            sliceOffset += Super::getChildBegin(sliceIndex);
             Super::decreaseChildLength(sliceIndex, sliceOffset, sliceLength);
             if(splitFrontSlice) {
                 Super::setValueAt(sliceIndex+1, sliceOffset);
@@ -671,12 +671,59 @@ struct BitMap : public MetaSet<NativeNaturalType, VoidType, _ParentType> {
             if(endAddress < getSliceEndAddress(sliceIndex)) {
                 NativeNaturalType sliceAddress = getSliceBeginAddress(sliceIndex);
                 if(endAddress > sliceAddress) {
-                    Super::decreaseChildLength(sliceIndex, Super::getChildOffset(sliceIndex), endAddress-sliceAddress);
+                    Super::decreaseChildLength(sliceIndex, Super::getChildBegin(sliceIndex), endAddress-sliceAddress);
                     Super::setKeyAt(sliceIndex, endAddress);
                 }
                 break;
             }
             Super::eraseElementAt(sliceIndex);
         }
+    }
+
+    bool moveSlice(NativeNaturalType dstAddress, NativeNaturalType srcAddress, NativeNaturalType length) {
+        bool downward = (dstAddress < srcAddress);
+        NativeNaturalType sliceIndex, eraseLength = length, eraseAddress = dstAddress, addressDiff = downward ? srcAddress-dstAddress : dstAddress-srcAddress;
+        if(length < addressDiff) {
+            NativeNaturalType beginAddress = downward ? dstAddress : srcAddress,
+                              endAddress = beginAddress+addressDiff;
+            beginAddress += length;
+            if(getSliceContaining<true>(beginAddress, sliceIndex) || (sliceIndex < Super::getElementCount() && getSliceBeginAddress(sliceIndex) < endAddress))
+                return false;
+        } else if(length > addressDiff) {
+            eraseLength = addressDiff;
+            if(!downward)
+                eraseAddress = dstAddress+addressDiff;
+        }
+        clearSlice(eraseAddress, eraseLength);
+        if(downward) {
+            Super::findKey(srcAddress, sliceIndex);
+            if(getSliceEndAddress(sliceIndex) > srcAddress+length) {
+                NativeNaturalType spareLength = getSliceEndAddress(sliceIndex)-(srcAddress+length);
+                Super::insertElementAt(sliceIndex+1, getSliceBeginAddress(sliceIndex)+spareLength);
+                Super::setValueAt(sliceIndex+1, Super::getChildBegin(sliceIndex)+spareLength);
+            }
+        } else {
+            if(getSliceContaining<true>(srcAddress, sliceIndex) && getSliceBeginAddress(sliceIndex) < srcAddress) {
+                NativeNaturalType spareLength = srcAddress-getSliceBeginAddress(sliceIndex);
+                Super::insertElementAt(sliceIndex+1, getSliceEndAddress(sliceIndex)-spareLength);
+                Super::setValueAt(sliceIndex+1, Super::getChildEnd(sliceIndex)-spareLength);
+                ++sliceIndex;
+            }
+        }
+        NativeNaturalType lowestSliceIndex = sliceIndex;
+        while(sliceIndex < Super::getElementCount()) {
+            NativeNaturalType sliceAddress = getSliceBeginAddress(sliceIndex);
+            if(sliceAddress >= srcAddress+length)
+                break;
+            Super::setKeyAt(sliceIndex++, downward ? sliceAddress-addressDiff : sliceAddress+addressDiff);
+        }
+        if(downward) {
+            if(lowestSliceIndex > 0)
+                mergeSlices(lowestSliceIndex-1);
+        } else {
+            if(sliceIndex < Super::getElementCount())
+                mergeSlices(sliceIndex-1);
+        }
+        return true;
     }
 };
