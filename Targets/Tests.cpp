@@ -289,6 +289,18 @@ Integer32 main(Integer32 argc, Integer8** argv) {
         bitMap.moveSlice(32, 24, 8);
         assert(bitMap.getElementCount() == 1
             && bitMap.getSliceBeginAddress(0) == 32 && bitMap.getChildLength(0) == 8);
+        bitMap.fillSlice(24, 8);
+        assert(bitMap.moveSlice(16, 32, 8) == false
+            && bitMap.moveSlice(16, 24, 8) == true);
+        assert(bitMap.getElementCount() == 2
+            && bitMap.getSliceBeginAddress(0) == 16 && bitMap.getChildLength(0) == 8
+            && bitMap.getSliceBeginAddress(1) == 32 && bitMap.getChildLength(1) == 8);
+        bitMap.moveSlice(24, 32, 8);
+        assert(bitMap.getElementCount() == 1
+            && bitMap.getSliceBeginAddress(0) == 16 && bitMap.getChildLength(0) == 16);
+        bitMap.moveSlice(16, 24, 8);
+        assert(bitMap.getElementCount() == 1
+            && bitMap.getSliceBeginAddress(0) == 16 && bitMap.getChildLength(0) == 8);
     }
 
     test("ArithmeticCodec Symbol") {
