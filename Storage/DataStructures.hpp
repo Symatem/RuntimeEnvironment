@@ -1,4 +1,4 @@
-#include <Storage/Blob.hpp>
+#include <Storage/BitVector.hpp>
 
 struct BitVectorContainer {
     Blob bitVector;

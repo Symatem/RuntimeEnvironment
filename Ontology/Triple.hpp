@@ -127,7 +127,7 @@ bool link(Triple triple) {
     forEachSubIndex
         if(!linkTriplePartial(triple, subIndex))
             return false;
-    if(triple.pos[1] == BlobTypeSymbol)
+    if(triple.pos[1] == BitMapTypeSymbol)
         modifiedBlob(triple.pos[0]);
     return true;
 }
@@ -382,7 +382,7 @@ bool unlinkWithoutReleasing(Triple triple, bool skipEnabled = false, Symbol skip
         if(indexMode == HexaIndex)
             assert(unlinkInSubIndex(triple.invertedIndex(alpha, subIndex)));
     }
-    if(triple.pos[1] == BlobTypeSymbol)
+    if(triple.pos[1] == BitMapTypeSymbol)
         modifiedBlob(triple.pos[0]);
     return true;
 }
@@ -485,17 +485,17 @@ void scrutinizeExistence(Symbol symbol) {
 template<typename DataType>
 Symbol createFromData(DataType src) {
     static_assert(sizeOfInBits<DataType>::value == architectureSize);
-    Symbol blobType = VoidSymbol;
+    Symbol bitMapType = VoidSymbol;
     if(isSame<DataType, NativeNaturalType>::value)
-        blobType = NaturalSymbol;
+        bitMapType = NaturalSymbol;
     else if(isSame<DataType, NativeIntegerType>::value)
-        blobType = IntegerSymbol;
+        bitMapType = IntegerSymbol;
     else if(isSame<DataType, NativeFloatType>::value)
-        blobType = FloatSymbol;
+        bitMapType = FloatSymbol;
     else
         assert(false);
     Symbol symbol = createSymbol();
-    link({symbol, BlobTypeSymbol, blobType});
+    link({symbol, BitMapTypeSymbol, bitMapType});
     Blob(symbol).write(src);
     return symbol;
 }
@@ -509,7 +509,7 @@ Symbol createFromSlice(Symbol src, NativeNaturalType srcOffset, NativeNaturalTyp
 }
 
 void stringToBlob(const char* src, NativeNaturalType length, Symbol dstSymbol) {
-    link({dstSymbol, BlobTypeSymbol, UTF8Symbol});
+    link({dstSymbol, BitMapTypeSymbol, UTF8Symbol});
     Blob dstBlob(dstSymbol);
     dstBlob.increaseSize(0, length*8);
     dstBlob.externalOperate<true>(const_cast<Integer8*>(src), 0, length*8);
@@ -527,7 +527,6 @@ bool tryToFillPreDefined(NativeNaturalType additionalSymbols = 0) {
     memcpy(superPage->gitRef, gitRef, sizeof(superPage->gitRef));
     superPage->architectureSize = BitMask<NativeNaturalType>::ceilLog2(architectureSize)-1;
     tripleIndex.parent.bitVector = TripleIndexSymbol;
-    blobIndex.parent.bitVector = BlobIndexSymbol;
     if(!tripleIndex.isEmpty())
         return false;
     superPage->symbolsEnd = preDefinedSymbolsCount+additionalSymbols;
@@ -535,7 +534,6 @@ bool tryToFillPreDefined(NativeNaturalType additionalSymbols = 0) {
         const char* str = PreDefinedSymbols[symbol];
         stringToBlob(str, strlen(str), symbol);
         link({RunTimeEnvironmentSymbol, HoldsSymbol, symbol});
-        blobIndex.insertElement(symbol);
     }
     Symbol ArchitectureSize = createFromData<NativeNaturalType>(architectureSize);
     link({RunTimeEnvironmentSymbol, HoldsSymbol, ArchitectureSize});

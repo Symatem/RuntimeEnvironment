@@ -1,22 +1,22 @@
 #include <Storage/SuperPage.hpp>
 
-struct BlobBucketHeader : public BasePage {
+struct BitVectorBucketHeader : public BasePage {
     Natural16 type, count, freeIndex;
 };
 
-struct BlobBucket {
-    BlobBucketHeader header;
+struct BitVectorBucket {
+    BitVectorBucketHeader header;
 
     NativeNaturalType getSizeBits() const {
         return BitMask<NativeNaturalType>::ceilLog2(getDataBits());
     }
 
     NativeNaturalType getDataBits() const {
-        return blobBucketType[header.type];
+        return bitVectorBucketType[header.type];
     }
 
     NativeNaturalType getSizeOffset() const {
-        return sizeOfInBits<BlobBucketHeader>::value;
+        return sizeOfInBits<BitVectorBucketHeader>::value;
     }
 
     NativeNaturalType getDataOffset() const {
@@ -72,12 +72,12 @@ struct BlobBucket {
     void freeIndex(NativeNaturalType index, PageRefType pageRef) {
         assert(getSize(index) > 0);
         if(isFull()) {
-            assert(superPage->fullBlobBuckets.erase<Key>(pageRef));
-            assert(superPage->freeBlobBuckets[header.type].insert(pageRef));
+            assert(superPage->fullBitVectorBuckets.erase<Key>(pageRef));
+            assert(superPage->freeBitVectorBuckets[header.type].insert(pageRef));
         }
         --header.count;
         if(isEmpty()) {
-            assert(superPage->freeBlobBuckets[header.type].erase<Key>(pageRef));
+            assert(superPage->freeBitVectorBuckets[header.type].erase<Key>(pageRef));
             releasePage(pageRef);
         } else {
             setSize(index, 0);
@@ -94,8 +94,8 @@ struct BlobBucket {
         setSize(index, size);
         setSymbol(index, symbol);
         if(isFull()) {
-            assert(superPage->fullBlobBuckets.insert(pageRef));
-            assert(superPage->freeBlobBuckets[header.type].erase<Key>(pageRef));
+            assert(superPage->fullBitVectorBuckets.insert(pageRef));
+            assert(superPage->freeBitVectorBuckets[header.type].erase<Key>(pageRef));
         }
         return index;
     }
@@ -129,12 +129,12 @@ struct BlobBucket {
     }
 
     static Natural16 getType(NativeNaturalType size) {
-        return binarySearch<NativeNaturalType>(0, blobBucketTypeCount, [&](NativeNaturalType index) {
-            return blobBucketType[index] < size;
+        return binarySearch<NativeNaturalType>(0, bitVectorBucketTypeCount, [&](NativeNaturalType index) {
+            return bitVectorBucketType[index] < size;
         });
     }
 
     static bool isBucketAllocatable(NativeNaturalType size) {
-        return size <= blobBucketType[blobBucketTypeCount-1];
+        return size <= bitVectorBucketType[bitVectorBucketTypeCount-1];
     }
 };

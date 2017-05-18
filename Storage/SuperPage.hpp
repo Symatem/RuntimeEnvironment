@@ -5,8 +5,8 @@ struct FreePage : public BasePage {
 };
 
 // TODO: Redistribution if there are many almost empty buckets of the same type
-const NativeNaturalType blobBucketType[] = {8, 16, 32, 64, 128, 320, 576, 1344, 2432, 4544, 8064, 16192},
-                        blobBucketTypeCount = sizeof(blobBucketType)/sizeof(NativeNaturalType);
+const NativeNaturalType bitVectorBucketType[] = {8, 16, 32, 64, 128, 320, 576, 1344, 2432, 4544, 8064, 16192},
+                        bitVectorBucketTypeCount = sizeof(bitVectorBucketType)/sizeof(NativeNaturalType);
 
 struct SuperPage : public BasePage {
     Natural64 version;
@@ -14,7 +14,7 @@ struct SuperPage : public BasePage {
     Symbol symbolsEnd;
     PageRefType pagesEnd, freePage;
     BpTreeSet<Symbol> freeSymbols;
-    BpTreeSet<PageRefType> fullBlobBuckets, freeBlobBuckets[blobBucketTypeCount];
+    BpTreeSet<PageRefType> fullBitVectorBuckets, freeBitVectorBuckets[bitVectorBucketTypeCount];
     BpTreeMap<Symbol, NativeNaturalType> blobs;
 } *superPage;
 

@@ -19,10 +19,10 @@ struct BinaryOntologyCodec {
         SymbolOptionStaticHuffman
     } symbolOption = SymbolOptionStaticHuffman;
 
-    enum BlobOption {
-        BlobOptionRaw,
-        BlobOptionArithmetic
-    } blobOption = BlobOptionRaw;
+    enum BitMapOption {
+        BitMapOptionRaw,
+        BitMapOptionArithmetic
+    } bitMapOption = BitMapOptionRaw;
 
     BinaryOntologyCodec() {
         blob = Blob(BinaryOntologyCodecSymbol);
@@ -92,17 +92,17 @@ struct BinaryOntologyEncoder : public BinaryOntologyCodec {
             if(srcBlobLength == 0)
                 encodeNatural(0);
             else {
-                // TODO: Sparse Blob Support
+                // TODO: Sparse BitMap Support
                 encodeNatural(1); // Slice count: 1
                 encodeNatural(0); // 1. Slice offset: 0
                 encodeNatural(srcBlobLength); // 1. Slice length
-                switch(blobOption) {
-                    case BlobOptionRaw:
+                switch(bitMapOption) {
+                    case BitMapOptionRaw:
                         blob.increaseSize(offset, srcBlobLength);
                         blob.interoperation(srcBlob, offset, 0, srcBlobLength);
                         offset += srcBlobLength;
                         break;
-                    case BlobOptionArithmetic:
+                    case BitMapOptionArithmetic:
                         arithmeticEncodeBlob(blob, offset, srcBlob, srcBlobLength);
                         break;
                 }
@@ -127,7 +127,7 @@ struct BinaryOntologyEncoder : public BinaryOntologyCodec {
         encodeNatural(chunkOption);
         encodeNatural(numberOption);
         encodeNatural(symbolOption);
-        encodeNatural(blobOption);
+        encodeNatural(bitMapOption);
         emptySymbolsInChunk = 0;
         encodeEntities(false);
         if(symbolOption == SymbolOptionStaticHuffman)
@@ -205,17 +205,17 @@ struct BinaryOntologyDecoder : public BinaryOntologyCodec {
         if(sliceCount == 0) {
             sliceOffset = 0;
             sliceLength = 0;
-        } else { // TODO: Sparse Blob Support
+        } else { // TODO: Sparse BitMap Support
             sliceOffset = decodeNatural();
             sliceLength = decodeNatural();
         }
         dstBlob.setSize(sliceLength);
-        switch(blobOption) {
-            case BlobOptionRaw:
+        switch(bitMapOption) {
+            case BitMapOptionRaw:
                 dstBlob.interoperation(blob, 0, offset, sliceLength);
                 offset += sliceLength;
                 break;
-            case BlobOptionArithmetic:
+            case BitMapOptionArithmetic:
                 arithmeticDecodeBlob(dstBlob, sliceLength, blob, offset);
                 break;
             default:
@@ -230,7 +230,7 @@ struct BinaryOntologyDecoder : public BinaryOntologyCodec {
         chunkOption = static_cast<ChunkOption>(decodeNatural());
         numberOption = static_cast<NumberOption>(decodeNatural());
         symbolOption = static_cast<SymbolOption>(decodeNatural());
-        blobOption = static_cast<BlobOption>(decodeNatural());
+        bitMapOption = static_cast<BitMapOption>(decodeNatural());
         if(symbolOption == SymbolOptionStaticHuffman) {
             symbolHuffmanDecoder.decodeTree();
             for(NativeNaturalType i = 0; i < symbolHuffmanDecoder.symbolCount; ++i) { // TODO

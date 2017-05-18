@@ -64,23 +64,23 @@ void printStats() {
     metaStructs.inhabitedMetaData += sizeOfInBits<SuperPage>::value;
     NativeNaturalType totalBits = superPage->pagesEnd*bitsPerPage,
                       recyclableBits = countFreePages()*bitsPerPage;
-    NativeNaturalType recyclableSymbolCount = 0, blobCount = 0, blobInBucketTypes[blobBucketTypeCount+1];
-    for(NativeNaturalType i = 0; i < blobBucketTypeCount+1; ++i)
+    NativeNaturalType recyclableSymbolCount = 0, blobCount = 0, blobInBucketTypes[bitVectorBucketTypeCount+1];
+    for(NativeNaturalType i = 0; i < bitVectorBucketTypeCount+1; ++i)
         blobInBucketTypes[i] = 0;
 
     superPage->freeSymbols.generateStats(metaStructs, [&](BpTreeSet<Symbol>::Iterator<false>& iter) {
         ++recyclableSymbolCount;
     });
-    superPage->fullBlobBuckets.generateStats(metaStructs, [&](BpTreeSet<PageRefType>::Iterator<false>& iter) {
-        dereferencePage<BlobBucket>(iter.getKey())->generateStats(fullBuckets);
+    superPage->fullBitVectorBuckets.generateStats(metaStructs, [&](BpTreeSet<PageRefType>::Iterator<false>& iter) {
+        dereferencePage<BitVectorBucket>(iter.getKey())->generateStats(fullBuckets);
     });
-    for(NativeNaturalType i = 0; i < blobBucketTypeCount; ++i)
-        superPage->freeBlobBuckets[i].generateStats(metaStructs, [&](BpTreeSet<PageRefType>::Iterator<false>& iter) {
-            dereferencePage<BlobBucket>(iter.getKey())->generateStats(freeBuckets);
+    for(NativeNaturalType i = 0; i < bitVectorBucketTypeCount; ++i)
+        superPage->freeBitVectorBuckets[i].generateStats(metaStructs, [&](BpTreeSet<PageRefType>::Iterator<false>& iter) {
+            dereferencePage<BitVectorBucket>(iter.getKey())->generateStats(freeBuckets);
         });
     superPage->blobs.generateStats(blobIndex, [&](BpTreeMap<Symbol, NativeNaturalType>::Iterator<false> iter) {
         Blob blob(iter.getKey());
-        ++blobInBucketTypes[BlobBucket::getType(blob.getSize())];
+        ++blobInBucketTypes[BitVectorBucket::getType(blob.getSize())];
         if(blob.state == Blob::Fragmented)
             blob.bpTree.generateStats(fragmented);
         ++blobCount;
@@ -102,9 +102,9 @@ void printStats() {
     printf("    Recyclable      %10" PrintFormatNatural "\n", recyclableSymbolCount);
     printf("    Empty           %10" PrintFormatNatural "\n", superPage->symbolsEnd-recyclableSymbolCount-blobCount);
     printf("    Blobs           %10" PrintFormatNatural "\n", blobCount);
-    for(NativeNaturalType i = 0; i < blobBucketTypeCount; ++i)
-        printf("      %10" PrintFormatNatural "    %10" PrintFormatNatural "\n", blobBucketType[i], blobInBucketTypes[i]);
-    printf("      Fragmented    %10" PrintFormatNatural "\n", blobInBucketTypes[blobBucketTypeCount]);
+    for(NativeNaturalType i = 0; i < bitVectorBucketTypeCount; ++i)
+        printf("      %10" PrintFormatNatural "    %10" PrintFormatNatural "\n", bitVectorBucketType[i], blobInBucketTypes[i]);
+    printf("      Fragmented    %10" PrintFormatNatural "\n", blobInBucketTypes[bitVectorBucketTypeCount]);
     printf("  Triples:          %10" PrintFormatNatural "\n", query(VVV));
     printf("\n");
 

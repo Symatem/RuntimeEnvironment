@@ -1,4 +1,4 @@
-#include <Storage/BlobBucket.hpp>
+#include <Storage/BitVectorBucket.hpp>
 
 Symbol createSymbol() {
     /* TODO: Fix scrutinizeExistence
@@ -9,8 +9,7 @@ Symbol createSymbol() {
 }
 
 void modifiedBlob(Symbol symbol) {
-    // TODO: Improve performance
-    // blobIndex.eraseElement(symbol);
+    // TODO
 }
 
 struct Blob {
@@ -18,8 +17,8 @@ struct Blob {
     PageRefType pageRef;
     NativeNaturalType address, offsetInBucket, indexInBucket;
     Natural16 type;
-    BpTreeBlob bpTree;
-    BlobBucket* bucket;
+    BpTreeBitVector bpTree;
+    BitVectorBucket* bucket;
     enum State {
         Empty,
         InBucket,
@@ -40,7 +39,7 @@ struct Blob {
         offsetInBucket = address-pageRef*bitsPerPage;
         if(offsetInBucket > 0) {
             state = InBucket;
-            bucket = dereferencePage<BlobBucket>(pageRef);
+            bucket = dereferencePage<BitVectorBucket>(pageRef);
             indexInBucket = bucket->indexOfOffset(offsetInBucket);
         } else {
             state = Fragmented;
@@ -50,14 +49,14 @@ struct Blob {
 
     void allocateInBucket(NativeNaturalType size) {
         assert(size > 0);
-        if(superPage->freeBlobBuckets[type].empty()) {
+        if(superPage->freeBitVectorBuckets[type].empty()) {
             pageRef = acquirePage();
-            bucket = dereferencePage<BlobBucket>(pageRef);
+            bucket = dereferencePage<BitVectorBucket>(pageRef);
             bucket->init(type);
-            assert(superPage->freeBlobBuckets[type].insert(pageRef));
+            assert(superPage->freeBitVectorBuckets[type].insert(pageRef));
         } else {
-            pageRef = superPage->freeBlobBuckets[type].getOne<First, false>();
-            bucket = dereferencePage<BlobBucket>(pageRef);
+            pageRef = superPage->freeBitVectorBuckets[type].getOne<First, false>();
+            bucket = dereferencePage<BitVectorBucket>(pageRef);
         }
         indexInBucket = bucket->allocateIndex(size, symbol, pageRef);
         offsetInBucket = bucket->offsetOfIndex(indexInBucket);
@@ -106,7 +105,7 @@ struct Blob {
 
     template<typename IteratorType>
     NativeNaturalType addressOfInteroperation(IteratorType& iter, NativeNaturalType offset) {
-        return (state == Fragmented) ? iter[0]->pageRef*bitsPerPage+BpTreeBlob::Page::valueOffset+iter[0]->index : address+offset;
+        return (state == Fragmented) ? iter[0]->pageRef*bitsPerPage+BpTreeBitVector::Page::valueOffset+iter[0]->index : address+offset;
     }
 
     template<NativeIntegerType dir, typename IteratorType>
@@ -131,7 +130,7 @@ struct Blob {
            srcOffset >= srcEndOffset || srcEndOffset > src.getSize())
             return 0;
         NativeNaturalType segment[2], intersection, result;
-        BpTreeBlob::Iterator<dir != 0> iter[2];
+        BpTreeBitVector::Iterator<dir != 0> iter[2];
         if(dir == 1) {
             dstOffset = dstEndOffset;
             srcOffset = srcEndOffset;
@@ -216,9 +215,9 @@ struct Blob {
         if(size == 0) {
             state = Empty;
             superPage->blobs.erase<Key>(symbol);
-        } else if(BlobBucket::isBucketAllocatable(size)) {
-            type = BlobBucket::getType(size);
-            srcBlob.type = BlobBucket::getType(size+length);
+        } else if(BitVectorBucket::isBucketAllocatable(size)) {
+            type = BitVectorBucket::getType(size);
+            srcBlob.type = BitVectorBucket::getType(size+length);
             if(srcBlob.state == Fragmented || type != srcBlob.type) {
                 state = InBucket;
                 allocateInBucket(size);
@@ -230,7 +229,7 @@ struct Blob {
                 bucket->setSize(indexInBucket, size);
             }
         } else {
-            BpTreeBlob::Iterator<true> from, to;
+            BpTreeBitVector::Iterator<true> from, to;
             bpTree.find<Rank>(from, offset);
             bpTree.find<Rank>(to, offset+length-1);
             bpTree.erase(from, to);
@@ -252,10 +251,10 @@ struct Blob {
             return false;
         Blob srcBlob = *this;
         size += length;
-        if(BlobBucket::isBucketAllocatable(size)) {
+        if(BitVectorBucket::isBucketAllocatable(size)) {
             state = InBucket;
-            type = BlobBucket::getType(size);
-            srcBlob.type = BlobBucket::getType(size-length);
+            type = BitVectorBucket::getType(size);
+            srcBlob.type = BitVectorBucket::getType(size-length);
             if(srcBlob.state == Empty || type != srcBlob.type)
                 allocateInBucket(size);
             else {
@@ -263,7 +262,7 @@ struct Blob {
                 interoperation<1>(*this, offset+length, offset, size-length-offset);
             }
         } else {
-            BpTreeBlob::Iterator<true> iter;
+            BpTreeBitVector::Iterator<true> iter;
             state = Fragmented;
             if(srcBlob.state == Fragmented) {
                 bpTree.find<Rank>(iter, offset);
@@ -314,7 +313,7 @@ struct Blob {
                                   0, address+offset,
                                   length);
         } else {
-            BpTreeBlob::Iterator<false> iter;
+            BpTreeBitVector::Iterator<false> iter;
             bpTree.find<Rank>(iter, offset);
             offset = 0;
             while(true) {

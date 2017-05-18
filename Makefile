@@ -17,18 +17,6 @@ $(BUILD_PATH)SymatemBp: Targets/Bp.cpp Targets/POSIX.hpp $(SOURCES) $(BUILD_PATH
 $(BUILD_PATH)SymatemTests: Targets/Tests.cpp Targets/POSIX.hpp $(SOURCES) $(BUILD_PATH)
 	$(CC) $(COMPILER_FLAGS) $(LINKER_FLAGS) -o $@ $<
 
-ifeq ($(PLATFORM), Linux)
- FUSE_PATH := /usr/include/fuse
- FUSE_NAME := fuse
-endif
-ifeq ($(PLATFORM), Darwin)
- FUSE_PATH := /usr/local/include/osxfuse
- FUSE_NAME := osxfuse
-endif
-$(BUILD_PATH)SymatemFS: Targets/FS.cpp $(SOURCES) $(BUILD_PATH)
-	$(CC) $(COMPILER_FLAGS) -D_FILE_OFFSET_BITS=64 -I$(FUSE_PATH) $(LINKER_FLAGS) -l$(FUSE_NAME) -o $@ $<
-
-
 
 # Run POSIX Executables
 IMAGE_PATH = /dev/zero
@@ -42,15 +30,9 @@ runBp: $(BUILD_PATH)SymatemBp
 runTests: $(BUILD_PATH)SymatemTests
 	$< $(IMAGE_PATH)
 
-MOUNT_PATH = $(BUILD_PATH)mountpoint
-runFS: $(BUILD_PATH)SymatemFS
-	mkdir -p $(MOUNT_PATH)
-	$< $(IMAGE_PATH) $(MOUNT_PATH)
-
-
 
 # WebAssembly
-WASM_TARGET = wasm32
+WASM_TARGET = wasm32 # wasm64
 
 $(BUILD_PATH)Symatem.s: Targets/WASM.cpp $(SOURCES) $(BUILD_PATH)
 	$(LLVM_BIN)clang $(COMPILER_FLAGS) -target $(WASM_TARGET) -S -emit-llvm -o $(BUILD_PATH)Symatem.bc $<
@@ -68,7 +50,7 @@ $(BUILD_PATH)Symatem.wasm: $(BUILD_PATH)Symatem.wast
 
 # Combined
 
-buildAll: $(BUILD_PATH)SymatemMP $(BUILD_PATH)SymatemBp $(BUILD_PATH)SymatemTests $(BUILD_PATH)SymatemFS $(BUILD_PATH)Symatem.wasm
+buildAll: $(BUILD_PATH)SymatemMP $(BUILD_PATH)SymatemBp $(BUILD_PATH)SymatemTests $(BUILD_PATH)Symatem.wasm
 
 clear:
 	rm -Rf build/

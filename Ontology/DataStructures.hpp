@@ -27,8 +27,6 @@ struct ContentIndex : public Set<Symbol, VoidType, _ParentType> {
     }
 };
 
-DataStructure<ContentIndex<>> blobIndex;
-
 
 
 struct OntologyStruct {
