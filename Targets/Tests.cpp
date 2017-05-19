@@ -21,11 +21,11 @@ void assertFailed(const char* message) {
     // signal(SIGTRAP);
 }
 
-void printBlob(Blob& blob) {
-    NativeNaturalType length = blob.getSize(), offset = 0;
+void printBitVector(BitVector& bitVector) {
+    NativeNaturalType length = bitVector.getSize(), offset = 0;
     while(offset < length) {
         NativeNaturalType buffer, sliceLength = min(static_cast<NativeNaturalType>(architectureSize), length-offset);
-        blob.externalOperate<false>(&buffer, offset, sliceLength);
+        bitVector.externalOperate<false>(&buffer, offset, sliceLength);
         offset += sliceLength;
         for(NativeNaturalType i = 0; i < sliceLength; ++i)
             printf("%" PrintFormatNatural, (buffer>>i)&1);
@@ -43,123 +43,126 @@ Integer32 main(Integer32 argc, Integer8** argv) {
         tryToFillPreDefined();
     }
 
-    test("GuardedDataStructure") {
+    test("BitVectorGuard<DataStructure>") {
         Symbol symbol;
         {
-            GuardedDataStructure<Vector<VoidType>> container;
+            BitVectorGuard<DataStructure<Vector<VoidType>>> container;
             symbol = container.getBitVector().symbol;
             container.getBitVector().setSize(32);
             assert(container.getBitVector().getSize() == 32);
         }
-        assert(Blob(symbol).getSize() == 0);
+        assert(BitVector(symbol).getSize() == 0);
     }
 
     test("Vector") {
-        GuardedDataStructure<Vector<NativeNaturalType>> vector;
-        insertAsLastElement(vector, 2);
-        insertAsFirstElement(vector, 1);
+        BitVectorGuard<DataStructure<Vector<NativeNaturalType>>> vector;
+        vector.insertAsLastElement(2);
+        vector.insertAsFirstElement(1);
         vector.insertElementAt(1, 0);
-        swapElementsAt(vector, 0, 1);
+        vector.swapElementsAt(0, 1);
         assert(vector.getElementCount() == 3);
         NativeNaturalType index = 0;
-        iterateElements(vector, [&](NativeNaturalType element) {
+        vector.iterateElements([&](NativeNaturalType element) {
             assert(element == index++);
         });
         vector.moveElementAt(2, 0);
         vector.moveElementAt(0, 1);
         vector.eraseElementAt(1);
-        assert(eraseLastElement(vector) == 0
-            && eraseFirstElement(vector) == 2
+        assert(vector.eraseLastElement() == 0
+            && vector.eraseFirstElement() == 2
             && vector.getElementCount() == 0);
-        setElementCount(vector, 3);
+        vector.setElementCount(3);
         assert(vector.getElementCount() == 3);
-        setElementCount(vector, 0);
+        vector.setElementCount(0);
         assert(vector.getElementCount() == 0);
     }
 
     test("PairVector") {
-        GuardedDataStructure<PairVector<NativeNaturalType, NativeNaturalType>> pairVector;
-        insertAsLastElement(pairVector, {2, 0});
-        insertAsFirstElement(pairVector, {3, 1});
+        typedef Pair<NativeNaturalType, NativeNaturalType> ElementType;
+        BitVectorGuard<DataStructure<PairVector<ElementType::FirstType, ElementType::SecondType>>> pairVector;
+        pairVector.insertAsLastElement(ElementType{2, 0});
+        pairVector.insertAsFirstElement(ElementType{3, 1});
         pairVector.setKeyAt(0, 0);
         pairVector.setValueAt(1, 3);
         assert(pairVector.getElementCount() == 2);
         NativeNaturalType index = 0;
-        iterateElements(pairVector, [&](Pair<NativeNaturalType, NativeNaturalType> element) {
+        pairVector.iterateElements([&](Pair<NativeNaturalType, NativeNaturalType> element) {
             assert(element.first == index && element.second == index+1);
             index += 2;
         });
         index = 0;
-        iterateKeys(pairVector, [&](NativeNaturalType key) {
-            assert(key == index);
+        pairVector.iterate([&](NativeNaturalType at) {
+            assert(pairVector.getKeyAt(at) == index);
             index += 2;
         });
         index = 1;
-        iterateValues(pairVector, [&](NativeNaturalType value) {
-            assert(value == index);
+        pairVector.iterate([&](NativeNaturalType at) {
+            assert(pairVector.getValueAt(at) == index);
             index += 2;
         });
     }
 
     test("Heap") {
-        GuardedDataStructure<Heap<Ascending, NativeNaturalType, NativeNaturalType>> heap;
-        heap.insertElement({2, 4});
-        heap.insertElement({0, 0});
-        heap.insertElement({4, 8});
-        heap.insertElement({1, 2});
-        heap.insertElement({3, 6});
+        typedef Pair<NativeNaturalType, NativeNaturalType> ElementType;
+        BitVectorGuard<DataStructure<Heap<Ascending, ElementType::FirstType, ElementType::SecondType>>> heap;
+        heap.insertElement(ElementType{2, 4});
+        heap.insertElement(ElementType{0, 0});
+        heap.insertElement(ElementType{4, 8});
+        heap.insertElement(ElementType{1, 2});
+        heap.insertElement(ElementType{3, 6});
         heap.build();
         assert(heap.getElementCount() == 5);
         NativeNaturalType index = 0;
         for(; index < 5; ++index) {
-            Pair<NativeNaturalType, NativeNaturalType> element = eraseFirstElement(heap);
+            Pair<NativeNaturalType, NativeNaturalType> element = heap.eraseFirstElement();
             assert(element.first == index && element.second == index*2);
         }
-        heap.insertElement({2, 4});
-        heap.insertElement({0, 0});
-        heap.insertElement({4, 8});
-        heap.insertElement({1, 2});
-        heap.insertElement({3, 6});
+        heap.insertElement(ElementType{2, 4});
+        heap.insertElement(ElementType{0, 0});
+        heap.insertElement(ElementType{4, 8});
+        heap.insertElement(ElementType{1, 2});
+        heap.insertElement(ElementType{3, 6});
         heap.reverseSort();
         assert(heap.getElementCount() == 5);
-        iterateElements(heap, [&](Pair<NativeNaturalType, NativeNaturalType> element) {
+        heap.iterateElements([&](Pair<NativeNaturalType, NativeNaturalType> element) {
             --index;
             assert(element.first == index && element.second == index*2);
         });
     }
 
     test("Set") {
-        GuardedDataStructure<Set<NativeNaturalType, NativeNaturalType>> set;
-        assert(insertElement(set, {1, 2}) == true
-            && insertElement(set, {5, 0}) == true
-            && insertElement(set, {3, 6}) == true
-            && insertElement(set, {0, 8}) == true
-            && insertElement(set, {2, 4}) == true
+        typedef Pair<NativeNaturalType, NativeNaturalType> ElementType;
+        BitVectorGuard<DataStructure<Set<ElementType::FirstType, ElementType::SecondType>>> set;
+        assert(set.insertElement(ElementType{1, 2}) == true
+            && set.insertElement(ElementType{5, 0}) == true
+            && set.insertElement(ElementType{3, 6}) == true
+            && set.insertElement(ElementType{0, 8}) == true
+            && set.insertElement(ElementType{2, 4}) == true
             && set.getElementCount() == 5
             && set.setKeyAt(4, 1) == false
             && set.setKeyAt(0, 4) == true
             && set.setKeyAt(4, 0) == true);
         NativeNaturalType index = 0;
-        iterateElements(set, [&](Pair<NativeNaturalType, NativeNaturalType> element) {
+        set.iterateElements([&](Pair<NativeNaturalType, NativeNaturalType> element) {
             assert(element.first == index && element.second == index*2);
             ++index;
         });
         assert(set.findKey(7, index) == false
             && set.findKey(2, index) == true && index == 2
-            && eraseElement(set, 7) == false
-            && eraseElement(set, 2) == true
-            && eraseElement(set, 4) == true
-            && eraseElement(set, 3) == true
+            && set.eraseElementByKey(7) == false
+            && set.eraseElementByKey(2) == true
+            && set.eraseElementByKey(4) == true
+            && set.eraseElementByKey(3) == true
             && set.getElementCount() == 2);
         index = 0;
-        iterateElements(set, [&](Pair<NativeNaturalType, NativeNaturalType> element) {
+        set.iterateElements([&](Pair<NativeNaturalType, NativeNaturalType> element) {
             assert(element.first == index && element.second == index*2);
             ++index;
         });
     }
 
     test("MetaVector") {
-        GuardedDataStructure<MetaVector<NativeNaturalType, VoidType>> containerVector;
+        BitVectorGuard<DataStructure<MetaVector<NativeNaturalType, VoidType>>> containerVector;
         containerVector.insertElementAt(0, 7);
         containerVector.increaseChildLength(0, containerVector.getChildOffset(0), 64);
         containerVector.insertElementAt(0, 5);
@@ -179,12 +182,12 @@ Integer32 main(Integer32 argc, Integer8** argv) {
     }
 
     test("MetaSet") {
-        GuardedDataStructure<MetaSet<NativeNaturalType, VoidType>> containerSet;
-        assert(insertElement(containerSet, 7) == true);
+        BitVectorGuard<DataStructure<MetaSet<NativeNaturalType, VoidType>>> containerSet;
+        assert(containerSet.insertElement(7) == true);
         containerSet.increaseChildLength(0, containerSet.getChildOffset(0), 64);
-        assert(insertElement(containerSet, 5) == true);
+        assert(containerSet.insertElement(5) == true);
         containerSet.increaseChildLength(0, containerSet.getChildOffset(0), 32);
-        assert(insertElement(containerSet, 8) == true);
+        assert(containerSet.insertElement(8) == true);
         containerSet.increaseChildLength(2, containerSet.getChildOffset(2), 96);
         assert(containerSet.getElementCount() == 3
             && containerSet.getChildLength(0) == 32
@@ -192,19 +195,20 @@ Integer32 main(Integer32 argc, Integer8** argv) {
             && containerSet.getChildLength(2) == 96
             && containerSet.setKeyAt(1, 4)
             && containerSet.setKeyAt(1, 9)
-            && eraseElement(containerSet, 8) == true
+            && containerSet.eraseElementByKey(8) == true
             && containerSet.getElementCount() == 2
             && containerSet.getChildLength(0) == 64
             && containerSet.getChildLength(1) == 32);
     }
 
     test("PairSet") {
-        GuardedDataStructure<PairSet<NativeNaturalType, NativeNaturalType>> pairSet;
-        assert(pairSet.insertElement({3, 1})
-            && pairSet.insertElement({3, 3})
-            && pairSet.insertElement({5, 5})
-            && pairSet.insertElement({5, 7})
-            && pairSet.insertElement({5, 9})
+        typedef Pair<NativeNaturalType, NativeNaturalType> ElementType;
+        BitVectorGuard<DataStructure<PairSet<ElementType::FirstType, ElementType::SecondType>>> pairSet;
+        assert(pairSet.insertElement(ElementType{3, 1})
+            && pairSet.insertElement(ElementType{3, 3})
+            && pairSet.insertElement(ElementType{5, 5})
+            && pairSet.insertElement(ElementType{5, 7})
+            && pairSet.insertElement(ElementType{5, 9})
             && pairSet.getFirstKeyCount() == 2
             && pairSet.getSecondKeyCount(0) == 2
             && pairSet.getSecondKeyCount(1) == 3);
@@ -233,8 +237,8 @@ Integer32 main(Integer32 argc, Integer8** argv) {
         });
     }
 
-    test("BitMap") {
-        GuardedDataStructure<BitMap<>> bitMap;
+    test("BitMap fillSlice and clearSlice") {
+        BitVectorGuard<DataStructure<BitMap<>>> bitMap;
         NativeNaturalType sliceIndex;
         assert(bitMap.getElementCount() == 0);
         bitMap.fillSlice(64, 16);
@@ -276,7 +280,10 @@ Integer32 main(Integer32 argc, Integer8** argv) {
         bitMap.clearSlice(64, 16);
         bitMap.clearSlice(0, 16);
         assert(bitMap.getElementCount() == 0);
+    }
 
+    test("BitMap moveSlice") {
+        BitVectorGuard<DataStructure<BitMap<>>> bitMap;
         bitMap.fillSlice(16, 16);
         assert(bitMap.moveSlice(32, 16, 8) == false
             && bitMap.moveSlice(32, 24, 8) == true);
@@ -304,25 +311,25 @@ Integer32 main(Integer32 argc, Integer8** argv) {
     }
 
     test("ArithmeticCodec Symbol") {
-        Blob blob(createSymbol());
+        BitVector bitVector(createSymbol());
         NativeNaturalType offset = 0;
-        ArithmeticEncoder encoder(blob, offset, 3);
+        ArithmeticEncoder encoder(bitVector, offset, 3);
         for(NativeNaturalType i = 0; i < 8; ++i)
             encoder.encodeSymbol(i%3);
         encoder.encodeTermination();
         offset = 0;
-        ArithmeticDecoder decoder(blob, offset, encoder.model.symbolCount);
+        ArithmeticDecoder decoder(bitVector, offset, encoder.model.symbolCount);
         for(NativeNaturalType i = 0; i < 8; ++i)
             assert(decoder.decodeSymbol() == (i%3));
     }
 
     test("ArithmeticCodec BitVector") {
-        Blob plain(createFromString("Hello, World!")), compressed(createSymbol()), decompressed(createSymbol());
+        BitVector plain(createFromString("Hello, World!")), compressed(createSymbol()), decompressed(createSymbol());
         decompressed.setSize(plain.getSize());
         NativeNaturalType offset = 0;
-        arithmeticEncodeBlob(compressed, offset, plain, plain.getSize());
+        arithmeticEncodeBitVector(compressed, offset, plain, 0, plain.getSize());
         offset = 0;
-        arithmeticDecodeBlob(decompressed, decompressed.getSize(), compressed, offset);
+        arithmeticDecodeBitVector(decompressed, 0, decompressed.getSize(), compressed, offset);
         assert(compressed.compare(plain) != 0 && decompressed.compare(plain) == 0);
     }
 

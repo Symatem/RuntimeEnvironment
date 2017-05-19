@@ -1,7 +1,7 @@
 #include <External/Arithmetic.hpp>
 
 struct BinaryOntologyCodec {
-    Blob blob;
+    BitVector bitVector;
     NativeNaturalType offset = 0, naturalLength = architectureSize, symbolsInChunk;
     const static NativeNaturalType headerLength = 64+8*45;
 
@@ -25,7 +25,7 @@ struct BinaryOntologyCodec {
     } bitMapOption = BitMapOptionRaw;
 
     BinaryOntologyCodec() {
-        blob = Blob(BinaryOntologyCodecSymbol);
+        bitVector = BitVector(BinaryOntologyCodecSymbol);
     }
 };
 
@@ -34,19 +34,19 @@ struct BinaryOntologyEncoder : public BinaryOntologyCodec {
     Symbol symbolIndexOffset;
     NativeNaturalType emptySymbolsInChunk;
 
-    BinaryOntologyEncoder() :BinaryOntologyCodec(), symbolHuffmanEncoder(blob, offset) {
-        blob.setSize(0);
+    BinaryOntologyEncoder() :BinaryOntologyCodec(), symbolHuffmanEncoder(bitVector, offset) {
+        bitVector.setSize(0);
     }
 
     void encodeNatural(NativeNaturalType value) {
         switch(numberOption) {
             case NumberOptionRaw:
-                blob.increaseSize(offset, naturalLength);
-                blob.externalOperate<true>(&value, offset, naturalLength);
+                bitVector.increaseSize(offset, naturalLength);
+                bitVector.externalOperate<true>(&value, offset, naturalLength);
                 offset += naturalLength;
                 break;
             case NumberOptionBinaryVariableLength:
-                encodeBvlNatural(blob, offset, value);
+                encodeBvlNatural(bitVector, offset, value);
                 break;
         }
     }
@@ -78,37 +78,33 @@ struct BinaryOntologyEncoder : public BinaryOntologyCodec {
         });
     }
 
-    void encodeEntity(bool doWrite, Symbol entity, Symbol betaSymbol) {
-        Blob srcBlob(entity);
-        NativeNaturalType srcBlobLength = srcBlob.getSize();
-        DataStructure<PairSet<Symbol, Symbol>> beta(betaSymbol);
-        if(srcBlobLength == 0 && beta.isEmpty()) {
+    void encodeEntity(bool doWrite, Symbol entity, OntologyStruct& alpha) {
+        auto beta = alpha.getSubIndex(EAV);
+        auto bitMap = alpha.getBitMap();
+        if(beta.isEmpty() && bitMap.isEmpty()) {
             ++emptySymbolsInChunk;
             return;
         }
-
         encodeSymbol(doWrite, entity);
         if(doWrite) {
-            if(srcBlobLength == 0)
-                encodeNatural(0);
-            else {
-                // TODO: Sparse BitMap Support
-                encodeNatural(1); // Slice count: 1
-                encodeNatural(0); // 1. Slice offset: 0
-                encodeNatural(srcBlobLength); // 1. Slice length
+            encodeNatural(bitMap.getElementCount());
+            for(NativeNaturalType sliceIndex = 0; sliceIndex < bitMap.getElementCount(); ++sliceIndex) {
+                NativeNaturalType sliceLength = bitMap.getChildLength(sliceIndex),
+                                  sliceOffset = bitMap.getChildOffset(sliceIndex);
+                encodeNatural(bitMap.getKeyAt(sliceIndex));
+                encodeNatural(sliceLength);
                 switch(bitMapOption) {
                     case BitMapOptionRaw:
-                        blob.increaseSize(offset, srcBlobLength);
-                        blob.interoperation(srcBlob, offset, 0, srcBlobLength);
-                        offset += srcBlobLength;
+                        bitVector.increaseSize(offset, sliceLength);
+                        bitVector.interoperation(bitMap.getBitVector(), offset, sliceOffset, sliceLength);
+                        offset += sliceLength;
                         break;
                     case BitMapOptionArithmetic:
-                        arithmeticEncodeBlob(blob, offset, srcBlob, srcBlobLength);
+                        arithmeticEncodeBitVector(bitVector, offset, bitMap.getBitVector(), sliceOffset, sliceLength);
                         break;
                 }
             }
         }
-
         if(doWrite)
             encodeNatural(beta.getFirstKeyCount());
         beta.iterateFirstKeys([&](Symbol attribute) {
@@ -118,8 +114,8 @@ struct BinaryOntologyEncoder : public BinaryOntologyCodec {
 
     void encodeEntities(bool doWrite) {
         for(NativeNaturalType at = symbolIndexOffset, end = symbolIndexOffset+symbolsInChunk; at < end; ++at) {
-            auto alphaResult = tripleIndex.getElementAt(at);
-            encodeEntity(doWrite, alphaResult.first, alphaResult.second.subIndices[EAV]);
+            auto element = tripleIndex.getElementAt(at);
+            encodeEntity(doWrite, element.first, element.second);
         }
     }
 
@@ -142,13 +138,13 @@ struct BinaryOntologyEncoder : public BinaryOntologyCodec {
         encodeChunk();
 
         Natural8 padding = 8-offset%8;
-        blob.increaseSize(blob.getSize(), padding);
-        blob.increaseSize(0, 8);
-        blob.externalOperate<true>(&padding, 0, 8);
+        bitVector.increaseSize(bitVector.getSize(), padding);
+        bitVector.increaseSize(0, 8);
+        bitVector.externalOperate<true>(&padding, 0, 8);
         offset += 8+padding;
 
-        blob.increaseSize(0, headerLength);
-        blob.externalOperate<true>(&superPage->version, 0, headerLength);
+        bitVector.increaseSize(0, headerLength);
+        bitVector.externalOperate<true>(&superPage->version, 0, headerLength);
         offset += headerLength;
     }
 };
@@ -156,17 +152,17 @@ struct BinaryOntologyEncoder : public BinaryOntologyCodec {
 struct BinaryOntologyDecoder : public BinaryOntologyCodec {
     StaticHuffmanDecoder symbolHuffmanDecoder;
 
-    BinaryOntologyDecoder() :BinaryOntologyCodec(), symbolHuffmanDecoder(blob, offset) {}
+    BinaryOntologyDecoder() :BinaryOntologyCodec(), symbolHuffmanDecoder(bitVector, offset) {}
 
     NativeNaturalType decodeNatural() {
         NativeNaturalType value;
         switch(numberOption) {
             case NumberOptionRaw:
-                blob.externalOperate<false>(&value, offset, naturalLength);
+                bitVector.externalOperate<false>(&value, offset, naturalLength);
                 offset += naturalLength;
                 break;
             case NumberOptionBinaryVariableLength:
-                value = decodeBvlNatural(blob, offset);
+                value = decodeBvlNatural(bitVector, offset);
                 break;
             default:
                 assert(false);
@@ -200,26 +196,25 @@ struct BinaryOntologyDecoder : public BinaryOntologyCodec {
 
     void decodeEntity() {
         Symbol entity = decodeSymbol();
-        Blob dstBlob(entity);
-        NativeNaturalType sliceCount = decodeNatural(), sliceOffset, sliceLength;
-        if(sliceCount == 0) {
-            sliceOffset = 0;
-            sliceLength = 0;
-        } else { // TODO: Sparse BitMap Support
-            sliceOffset = decodeNatural();
-            sliceLength = decodeNatural();
-        }
-        dstBlob.setSize(sliceLength);
-        switch(bitMapOption) {
-            case BitMapOptionRaw:
-                dstBlob.interoperation(blob, 0, offset, sliceLength);
-                offset += sliceLength;
-                break;
-            case BitMapOptionArithmetic:
-                arithmeticDecodeBlob(dstBlob, sliceLength, blob, offset);
-                break;
-            default:
-                assert(false);
+        NativeNaturalType sliceCount = decodeNatural();
+        auto bitMap = getOntologyStructOfSymbol(entity).getBitMap();
+        bitMap.setElementCount(sliceCount);
+        for(NativeNaturalType sliceIndex = 0; sliceIndex < sliceCount; ++sliceIndex) {
+            bitMap.setKeyAt(sliceIndex, decodeNatural());
+            NativeNaturalType sliceOffset = bitMap.getChildOffset(sliceIndex),
+                              sliceLength = decodeNatural();
+            bitMap.increaseChildLength(sliceIndex, sliceOffset, sliceLength);
+            switch(bitMapOption) {
+                case BitMapOptionRaw:
+                    bitMap.getBitVector().interoperation(bitVector, sliceOffset, offset, sliceLength);
+                    offset += sliceLength;
+                    break;
+                case BitMapOptionArithmetic:
+                    arithmeticDecodeBitVector(bitMap.getBitVector(), sliceOffset, sliceLength, bitVector, offset);
+                    break;
+                default:
+                    assert(false);
+            }
         }
         NativeNaturalType attributeCount = decodeNatural();
         for(NativeNaturalType i = 0; i < attributeCount; ++i)
@@ -245,15 +240,15 @@ struct BinaryOntologyDecoder : public BinaryOntologyCodec {
     }
 
     void decode() {
-        blob.externalOperate<false>(&naturalLength, headerLength-8, 8);
+        bitVector.externalOperate<false>(&naturalLength, headerLength-8, 8);
         naturalLength = 1<<naturalLength;
         assert(naturalLength <= architectureSize);
         offset = headerLength;
         Natural8 padding;
-        blob.externalOperate<false>(&padding, offset, 8);
-        NativeNaturalType blobLength = blob.getSize()-padding;
+        bitVector.externalOperate<false>(&padding, offset, 8);
+        NativeNaturalType bitVectorLength = bitVector.getSize()-padding;
         offset += 8;
-        while(offset < blobLength)
+        while(offset < bitVectorLength)
             decodeChunk();
     }
 };

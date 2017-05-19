@@ -1,4 +1,18 @@
-#include <Ontology/DataStructures.hpp>
+#include <DataStructures/ContentIndex.hpp>
+
+struct OntologyStruct {
+    Symbol subIndices[6], bitMap;
+
+    auto getSubIndex(NativeNaturalType subIndex) {
+        return DataStructure<PairSet<Symbol, Symbol>>(subIndices[subIndex]);
+    }
+
+    auto getBitMap() {
+        return DataStructure<BitMap<>>(bitMap);
+    }
+};
+
+DataStructure<Set<Symbol, OntologyStruct>> tripleIndex;
 
 #define Wrapper(token) token##Symbol
 enum PreDefinedSymbols {
@@ -14,7 +28,7 @@ const char* PreDefinedSymbols[] = {
 
 const Symbol preDefinedSymbolsCount = sizeof(PreDefinedSymbols)/sizeof(void*);
 
-#define forEachSubIndex \
+#define forEachSubIndex() \
     NativeNaturalType indexCount = (indexMode == MonoIndex) ? 1 : 3; \
     for(NativeNaturalType subIndex = 0; subIndex < indexCount; ++subIndex)
 
@@ -25,12 +39,12 @@ struct Triple {
     Triple(Symbol _entity, Symbol _attribute, Symbol _value)
         :pos{_entity, _attribute, _value} {}
 
-    Triple forwardIndex(OntologyStruct& subIndices, NativeNaturalType subIndex) {
-        return {subIndices.subIndices[subIndex], pos[(subIndex+1)%3], pos[(subIndex+2)%3]};
+    Triple forwardIndex(OntologyStruct& alpha, NativeNaturalType subIndex) {
+        return {alpha.subIndices[subIndex], pos[(subIndex+1)%3], pos[(subIndex+2)%3]};
     }
 
-    Triple invertedIndex(OntologyStruct& subIndices, NativeNaturalType subIndex) {
-        return {subIndices.subIndices[subIndex+3], pos[(subIndex+2)%3], pos[(subIndex+1)%3]};
+    Triple invertedIndex(OntologyStruct& alpha, NativeNaturalType subIndex) {
+        return {alpha.subIndices[subIndex+3], pos[(subIndex+2)%3], pos[(subIndex+1)%3]};
     }
 
     Triple reordered(NativeNaturalType subIndex) {
@@ -106,29 +120,34 @@ bool linkInSubIndex(Triple triple) {
     return beta.insertElement({triple.pos[1], triple.pos[2]});
 }
 
-bool linkTriplePartial(Triple triple, NativeNaturalType subIndex) {
+OntologyStruct getOntologyStructOfSymbol(Symbol symbol) {
     NativeNaturalType alphaIndex;
     Pair<Symbol, OntologyStruct> element;
-    if(!tripleIndex.findKey(triple.pos[subIndex], alphaIndex)) {
-        element.first = triple.pos[subIndex];
+    if(!tripleIndex.findKey(symbol, alphaIndex)) {
+        element.first = symbol;
         for(NativeNaturalType i = 0; i < 6; ++i)
             element.second.subIndices[i] = createSymbol();
         tripleIndex.insertElementAt(alphaIndex, element);
+        return element.second;
     } else
-        element = tripleIndex.getElementAt(alphaIndex);
-    if(!linkInSubIndex(triple.forwardIndex(element.second, subIndex)))
+        return tripleIndex.getValueAt(alphaIndex);
+}
+
+bool linkInSubIndex(Triple triple, NativeNaturalType subIndex) {
+    auto alpha = getOntologyStructOfSymbol(triple.pos[subIndex]);
+    if(!linkInSubIndex(triple.forwardIndex(alpha, subIndex)))
         return false;
     if(indexMode == HexaIndex)
-        assert(linkInSubIndex(triple.invertedIndex(element.second, subIndex)));
+        assert(linkInSubIndex(triple.invertedIndex(alpha, subIndex)));
     return true;
 }
 
 bool link(Triple triple) {
-    forEachSubIndex
-        if(!linkTriplePartial(triple, subIndex))
+    forEachSubIndex()
+        if(!linkInSubIndex(triple, subIndex))
             return false;
     if(triple.pos[1] == BitMapTypeSymbol)
-        modifiedBlob(triple.pos[0]);
+        modifiedBitVector(triple.pos[0]);
     return true;
 }
 
@@ -204,13 +223,13 @@ NativeNaturalType searchMIV(NativeNaturalType subIndex, Triple triple, Closure<v
     NativeNaturalType alphaIndex;
     if(!tripleIndex.findKey(triple.pos[0], alphaIndex))
         return 0;
-    GuardedDataStructure<Set<Symbol>> result;
+    BitVectorGuard<DataStructure<Set<Symbol>>> result;
     auto beta = tripleIndex.getValueAt(alphaIndex).getSubIndex(subIndex);
     beta.iterateElements([&](Pair<Symbol, Symbol> betaResult) {
-        insertElement(result, betaResult.second);
+        result.insertElement(betaResult.second);
     });
     if(callback)
-        iterateElements(result, [&](Symbol gamma) {
+        result.iterateElements([&](Symbol gamma) {
             triple.pos[2] = gamma;
             callback(triple.normalized(subIndex));
         });
@@ -232,7 +251,7 @@ NativeNaturalType searchMVI(NativeNaturalType subIndex, Triple triple, Closure<v
 
 NativeNaturalType searchVII(NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
     if(callback)
-        iterateElements(tripleIndex, [&](Pair<Symbol, OntologyStruct> alphaResult) {
+        tripleIndex.iterateElements([&](Pair<Symbol, OntologyStruct> alphaResult) {
             triple.pos[0] = alphaResult.first;
             callback(triple.normalized(subIndex));
         });
@@ -241,7 +260,7 @@ NativeNaturalType searchVII(NativeNaturalType subIndex, Triple triple, Closure<v
 
 NativeNaturalType searchVVI(NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
     NativeNaturalType count = 0;
-    iterateElements(tripleIndex, [&](Pair<Symbol, OntologyStruct> alphaResult) {
+    tripleIndex.iterateElements([&](Pair<Symbol, OntologyStruct> alphaResult) {
         auto beta = alphaResult.second.getSubIndex(subIndex);
         if(callback) {
             triple.pos[0] = alphaResult.first;
@@ -257,7 +276,7 @@ NativeNaturalType searchVVI(NativeNaturalType subIndex, Triple triple, Closure<v
 
 NativeNaturalType searchVVV(NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
     NativeNaturalType count = 0;
-    iterateElements(tripleIndex, [&](Pair<Symbol, OntologyStruct> alphaResult) {
+    tripleIndex.iterateElements([&](Pair<Symbol, OntologyStruct> alphaResult) {
         triple.pos[0] = alphaResult.first;
         auto beta = alphaResult.second.getSubIndex(subIndex);
         beta.iterateElements([&](Pair<Symbol, Symbol> betaResult) {
@@ -309,7 +328,7 @@ NativeNaturalType query(QueryMask mask, Triple triple = {VoidSymbol, VoidSymbol,
     assert(mask < sizeof(lookup)/sizeof(QueryMethod));
     QueryMethod method = lookup[mask];
     Triple match = triple;
-    GuardedDataStructure<Set<Triple>> resultSet;
+    BitVectorGuard<DataStructure<Set<Triple>>> resultSet;
     auto monoIndexLambda = [&](Triple result) {
         static const NativeNaturalType maskDivisor[] = {1, 3, 9};
         for(NativeNaturalType i = 0; i < 3; ++i) {
@@ -319,7 +338,7 @@ NativeNaturalType query(QueryMask mask, Triple triple = {VoidSymbol, VoidSymbol,
             else if(mode == Match && match.pos[i] != result.pos[i])
                 return;
         }
-        if(insertElement(resultSet, result) && callback)
+        if(resultSet.insertElement(result) && callback)
             callback(result);
     };
     switch(indexMode) {
@@ -354,10 +373,10 @@ void setIndexMode(IndexMode _indexMode) {
         NativeNaturalType indexCount = (_indexMode == MonoIndex) ? 1 : 3;
         searchVVV(EAV, {VoidSymbol, VoidSymbol, VoidSymbol}, [&](Triple result) {
             for(NativeNaturalType subIndex = indexMode; subIndex < indexCount; ++subIndex)
-                linkTriplePartial(result, subIndex);
+                linkInSubIndex(result, subIndex);
         });
     } else
-        iterateElements(tripleIndex, [&](Pair<Symbol, OntologyStruct> alphaResult) {
+        tripleIndex.iterateElements([&](Pair<Symbol, OntologyStruct> alphaResult) {
             for(NativeNaturalType subIndex = _indexMode; subIndex < indexMode; ++subIndex)
                 releaseSymbol(alphaResult.second.subIndices[subIndex]);
         });
@@ -371,7 +390,7 @@ bool unlinkInSubIndex(Triple triple) {
 
 bool unlinkWithoutReleasing(Triple triple, bool skipEnabled = false, Symbol skip = VoidSymbol) {
     NativeNaturalType alphaIndex;
-    forEachSubIndex {
+    forEachSubIndex() {
         if(skipEnabled && triple.pos[subIndex] == skip)
             continue;
         if(!tripleIndex.findKey(triple.pos[subIndex], alphaIndex))
@@ -383,7 +402,7 @@ bool unlinkWithoutReleasing(Triple triple, bool skipEnabled = false, Symbol skip
             assert(unlinkInSubIndex(triple.invertedIndex(alpha, subIndex)));
     }
     if(triple.pos[1] == BitMapTypeSymbol)
-        modifiedBlob(triple.pos[0]);
+        modifiedBitVector(triple.pos[0]);
     return true;
 }
 
@@ -399,7 +418,7 @@ void tryToReleaseSymbol(Symbol symbol) {
     if(!tripleIndex.findKey(symbol, alphaIndex))
         return;
     auto alpha = tripleIndex.getValueAt(alphaIndex);
-    forEachSubIndex {
+    forEachSubIndex() {
         auto beta = alpha.getSubIndex(subIndex);
         if(!beta.isEmpty())
             return;
@@ -422,42 +441,42 @@ bool unlink(Symbol symbol) {
         return false;
     }
     auto alpha = tripleIndex.getValueAt(alphaIndex);
-    GuardedDataStructure<Set<Symbol>> dirty;
-    forEachSubIndex {
+    BitVectorGuard<DataStructure<Set<Symbol>>> dirty;
+    forEachSubIndex() {
         auto beta = alpha.getSubIndex(subIndex);
         beta.iterateFirstKeys([&](Symbol betaResult) {
-            insertElement(dirty, betaResult);
+            dirty.insertElement(betaResult);
         });
         beta.iterateElements([&](Pair<Symbol, Symbol> betaResult) {
-            insertElement(dirty, betaResult.second);
+            dirty.insertElement(betaResult.second);
             unlinkWithoutReleasing(Triple(symbol, betaResult.first, betaResult.second).normalized(subIndex), true, symbol);
         });
     }
     eraseSymbol(alpha, alphaIndex, symbol);
-    iterateElements(dirty, [&](Symbol symbol) {
+    dirty.iterateElements([&](Symbol symbol) {
         tryToReleaseSymbol(symbol);
     });
     return true;
 }
 
 void setSolitary(Triple triple, bool linkVoidSymbol = false) {
-    GuardedDataStructure<Set<Symbol>> dirty;
+    BitVectorGuard<DataStructure<Set<Symbol>>> dirty;
     bool toLink = (linkVoidSymbol || triple.pos[2] != VoidSymbol);
     query(MMV, triple, [&](Triple result) {
         if(triple.pos[2] == result.pos[2])
             toLink = false;
         else
-            insertElement(dirty, result.pos[2]);
+            dirty.insertElement(result.pos[2]);
     });
     if(toLink)
         link(triple);
-    iterateElements(dirty, [&](Symbol symbol) {
+    dirty.iterateElements([&](Symbol symbol) {
         unlinkWithoutReleasing({triple.pos[0], triple.pos[1], symbol});
     });
     if(!linkVoidSymbol)
-        insertElement(dirty, triple.pos[0]);
-    insertElement(dirty, triple.pos[1]);
-    iterateElements(dirty, [&](Symbol symbol) {
+        dirty.insertElement(triple.pos[0]);
+    dirty.insertElement(triple.pos[1]);
+    dirty.iterateElements([&](Symbol symbol) {
         tryToReleaseSymbol(symbol);
     });
 }
@@ -469,14 +488,14 @@ bool getUncertain(Symbol entity, Symbol attribute, Symbol& value) {
 }
 
 void scrutinizeExistence(Symbol symbol) {
-    GuardedDataStructure<Set<Symbol>> symbols;
-    insertElement(symbols, symbol);
+    BitVectorGuard<DataStructure<Set<Symbol>>> symbols;
+    symbols.insertElement(symbol);
     while(!symbols.isEmpty()) {
-        symbol = eraseLastElement(symbols);
+        symbol = symbols.eraseLastElement();
         if(query(VMM, {VoidSymbol, HoldsSymbol, symbol}) > 0)
             continue;
         query(MMV, {symbol, HoldsSymbol, VoidSymbol}, [&](Triple result) {
-            insertElement(symbols, result.pos[2]);
+            symbols.insertElement(result.pos[2]);
         });
         unlink(symbol); // TODO
     }
@@ -496,29 +515,29 @@ Symbol createFromData(DataType src) {
         assert(false);
     Symbol symbol = createSymbol();
     link({symbol, BitMapTypeSymbol, bitMapType});
-    Blob(symbol).write(src);
+    BitVector(symbol).write(src);
     return symbol;
 }
 
 Symbol createFromSlice(Symbol src, NativeNaturalType srcOffset, NativeNaturalType length) {
     Symbol dstSymbol = createSymbol();
-    Blob dstBlob(dstSymbol);
-    dstBlob.increaseSize(0, length);
-    dstBlob.slice(Blob(src), 0, srcOffset, length);
+    BitVector dstBitVector(dstSymbol);
+    dstBitVector.increaseSize(0, length);
+    dstBitVector.slice(BitVector(src), 0, srcOffset, length);
     return dstSymbol;
 }
 
-void stringToBlob(const char* src, NativeNaturalType length, Symbol dstSymbol) {
+void stringToBitVector(const char* src, NativeNaturalType length, Symbol dstSymbol) {
     link({dstSymbol, BitMapTypeSymbol, UTF8Symbol});
-    Blob dstBlob(dstSymbol);
-    dstBlob.increaseSize(0, length*8);
-    dstBlob.externalOperate<true>(const_cast<Integer8*>(src), 0, length*8);
-    modifiedBlob(dstSymbol);
+    BitVector dstBitVector(dstSymbol);
+    dstBitVector.increaseSize(0, length*8);
+    dstBitVector.externalOperate<true>(const_cast<Integer8*>(src), 0, length*8);
+    modifiedBitVector(dstSymbol);
 }
 
 Symbol createFromString(const char* src) {
     Symbol dst = createSymbol();
-    stringToBlob(src, strlen(src), dst);
+    stringToBitVector(src, strlen(src), dst);
     return dst;
 }
 
@@ -532,7 +551,7 @@ bool tryToFillPreDefined(NativeNaturalType additionalSymbols = 0) {
     superPage->symbolsEnd = preDefinedSymbolsCount+additionalSymbols;
     for(Symbol symbol = 0; symbol < preDefinedSymbolsCount-5; ++symbol) {
         const char* str = PreDefinedSymbols[symbol];
-        stringToBlob(str, strlen(str), symbol);
+        stringToBitVector(str, strlen(str), symbol);
         link({RunTimeEnvironmentSymbol, HoldsSymbol, symbol});
     }
     Symbol ArchitectureSize = createFromData<NativeNaturalType>(architectureSize);

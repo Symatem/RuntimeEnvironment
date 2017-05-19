@@ -54,9 +54,9 @@ void printStatsPartial(struct Stats& stats) {
 void printStats() {
     printf("Stats:\n");
 
-    struct Stats metaStructs, blobIndex, fullBuckets, freeBuckets, fragmented;
+    struct Stats metaStructs, bitVectorIndex, fullBuckets, freeBuckets, fragmented;
     resetStats(metaStructs);
-    resetStats(blobIndex);
+    resetStats(bitVectorIndex);
     resetStats(fullBuckets);
     resetStats(freeBuckets);
     resetStats(fragmented);
@@ -64,9 +64,9 @@ void printStats() {
     metaStructs.inhabitedMetaData += sizeOfInBits<SuperPage>::value;
     NativeNaturalType totalBits = superPage->pagesEnd*bitsPerPage,
                       recyclableBits = countFreePages()*bitsPerPage;
-    NativeNaturalType recyclableSymbolCount = 0, blobCount = 0, blobInBucketTypes[bitVectorBucketTypeCount+1];
+    NativeNaturalType recyclableSymbolCount = 0, bitVectorCount = 0, bitVectorInBucketTypes[bitVectorBucketTypeCount+1];
     for(NativeNaturalType i = 0; i < bitVectorBucketTypeCount+1; ++i)
-        blobInBucketTypes[i] = 0;
+        bitVectorInBucketTypes[i] = 0;
 
     superPage->freeSymbols.generateStats(metaStructs, [&](BpTreeSet<Symbol>::Iterator<false>& iter) {
         ++recyclableSymbolCount;
@@ -78,20 +78,20 @@ void printStats() {
         superPage->freeBitVectorBuckets[i].generateStats(metaStructs, [&](BpTreeSet<PageRefType>::Iterator<false>& iter) {
             dereferencePage<BitVectorBucket>(iter.getKey())->generateStats(freeBuckets);
         });
-    superPage->blobs.generateStats(blobIndex, [&](BpTreeMap<Symbol, NativeNaturalType>::Iterator<false> iter) {
-        Blob blob(iter.getKey());
-        ++blobInBucketTypes[BitVectorBucket::getType(blob.getSize())];
-        if(blob.state == Blob::Fragmented)
-            blob.bpTree.generateStats(fragmented);
-        ++blobCount;
+    superPage->bitVectors.generateStats(bitVectorIndex, [&](BpTreeMap<Symbol, NativeNaturalType>::Iterator<false> iter) {
+        BitVector bitVector(iter.getKey());
+        ++bitVectorInBucketTypes[BitVectorBucket::getType(bitVector.getSize())];
+        if(bitVector.state == BitVector::Fragmented)
+            bitVector.bpTree.generateStats(fragmented);
+        ++bitVectorCount;
     });
 
     printf("  Global            %10" PrintFormatNatural " bits %" PrintFormatNatural " pages\n", totalBits, superPage->pagesEnd);
     printStatsLine("    Recyclable      ", recyclableBits, totalBits);
     printf("    Meta Structures ");
     printStatsPartial(metaStructs);
-    printf("    Blob Index      ");
-    printStatsPartial(blobIndex);
+    printf("    BitVector Index ");
+    printStatsPartial(bitVectorIndex);
     printf("    Full Buckets    ");
     printStatsPartial(fullBuckets);
     printf("    Free Buckets    ");
@@ -100,15 +100,15 @@ void printStats() {
     printStatsPartial(fragmented);
     printf("  Symbols           %10" PrintFormatNatural "\n", superPage->symbolsEnd);
     printf("    Recyclable      %10" PrintFormatNatural "\n", recyclableSymbolCount);
-    printf("    Empty           %10" PrintFormatNatural "\n", superPage->symbolsEnd-recyclableSymbolCount-blobCount);
-    printf("    Blobs           %10" PrintFormatNatural "\n", blobCount);
+    printf("    Empty           %10" PrintFormatNatural "\n", superPage->symbolsEnd-recyclableSymbolCount-bitVectorCount);
+    printf("    BitVectors      %10" PrintFormatNatural "\n", bitVectorCount);
     for(NativeNaturalType i = 0; i < bitVectorBucketTypeCount; ++i)
-        printf("      %10" PrintFormatNatural "    %10" PrintFormatNatural "\n", bitVectorBucketType[i], blobInBucketTypes[i]);
-    printf("      Fragmented    %10" PrintFormatNatural "\n", blobInBucketTypes[bitVectorBucketTypeCount]);
+        printf("      %10" PrintFormatNatural "    %10" PrintFormatNatural "\n", bitVectorBucketType[i], bitVectorInBucketTypes[i]);
+    printf("      Fragmented    %10" PrintFormatNatural "\n", bitVectorInBucketTypes[bitVectorBucketTypeCount]);
     printf("  Triples:          %10" PrintFormatNatural "\n", query(VVV));
     printf("\n");
 
-    assert(recyclableBits+metaStructs.total+blobIndex.total+fullBuckets.total+freeBuckets.total+fragmented.total == totalBits);
+    assert(recyclableBits+metaStructs.total+bitVectorIndex.total+fullBuckets.total+freeBuckets.total+fragmented.total == totalBits);
 }
 
 
@@ -121,9 +121,9 @@ void exportOntology(const char* path) {
     encoder.encode();
     int fd = open(path, O_WRONLY|O_CREAT, 0666);
     Natural8 buffer[512];
-    for(NativeNaturalType offset = 0, size = encoder.blob.getSize(); offset < size; ) {
+    for(NativeNaturalType offset = 0, size = encoder.bitVector.getSize(); offset < size; ) {
         NativeNaturalType sliceLength = min(size-offset, static_cast<NativeNaturalType>(sizeof(buffer)*8));
-        encoder.blob.externalOperate<false>(buffer, offset, sliceLength);
+        encoder.bitVector.externalOperate<false>(buffer, offset, sliceLength);
         assert(write(fd, buffer, sliceLength/8) > 0);
         offset += sliceLength;
     }
@@ -137,11 +137,11 @@ void importOntology(const char* path) {
     struct stat fdStat;
     assert(fstat(fd, &fdStat) == 0);
     NativeNaturalType size = fdStat.st_size*8;
-    decoder.blob.setSize(size);
+    decoder.bitVector.setSize(size);
     for(NativeNaturalType offset = 0; offset < size; ) {
         NativeNaturalType sliceLength = min(size-offset, static_cast<NativeNaturalType>(sizeof(buffer)*8));
         assert(read(fd, buffer, sliceLength/8) > 0);
-        decoder.blob.externalOperate<true>(buffer, offset, sliceLength);
+        decoder.bitVector.externalOperate<true>(buffer, offset, sliceLength);
         offset += sliceLength;
     }
     close(fd);

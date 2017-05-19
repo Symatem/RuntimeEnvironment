@@ -2,12 +2,12 @@
 
 struct ArithmeticCodecStaticModel {
     Natural32 symbolCount, totalFrequency;
-    GuardedDataStructure<Vector<Natural32>> symbolFrequencies, cumulativeFrequencies;
+    BitVectorGuard<DataStructure<Vector<Natural32>>> symbolFrequencies, cumulativeFrequencies;
 
     ArithmeticCodecStaticModel(NativeNaturalType _symbolCount)
         :symbolCount(_symbolCount), totalFrequency(_symbolCount) {
-        setElementCount(symbolFrequencies, symbolCount);
-        setElementCount(cumulativeFrequencies, symbolCount);
+        symbolFrequencies.setElementCount(symbolCount);
+        cumulativeFrequencies.setElementCount(symbolCount);
         for(NativeNaturalType symbolIndex = 0; symbolIndex < symbolCount; ++symbolIndex) {
             symbolFrequencies.setElementAt(symbolIndex, 1);
             cumulativeFrequencies.setElementAt(symbolIndex, symbolIndex+1);
@@ -43,13 +43,13 @@ struct ArithmeticCodecAdaptiveModel : public ArithmeticCodecStaticModel {
 };
 
 struct ArithmeticCodecSlidingWindowModel : public ArithmeticCodecStaticModel {
-    GuardedDataStructure<Vector<Natural32>> symbolRingBuffer;
+    BitVectorGuard<DataStructure<Vector<Natural32>>> symbolRingBuffer;
     NativeNaturalType ringBufferIndex = 0;
     bool notFirstRound = false;
 
     ArithmeticCodecSlidingWindowModel(NativeNaturalType _symbolCount)
         :ArithmeticCodecStaticModel(_symbolCount) {
-        setElementCount(symbolRingBuffer, 4);
+        symbolRingBuffer.setElementCount(4);
     }
 
     void update(NativeNaturalType incrementSymbolIndex) {
@@ -72,14 +72,14 @@ struct ArithmeticCodecSlidingWindowModel : public ArithmeticCodecStaticModel {
 struct ArithmeticCodec {
     ArithmeticCodecSlidingWindowModel model;
 
-    Blob& blob;
+    BitVector& bitVector;
     NativeNaturalType& offset;
     const Natural32 full = BitMask<Natural32>::full,
                     half = full/2+1, quarter = full/4+1;
     Natural64 low = 0, high = full, distance;
 
-    ArithmeticCodec(Blob& _blob, NativeNaturalType& _offset, NativeNaturalType _symbolCount)
-        :model(_symbolCount), blob(_blob), offset(_offset) {}
+    ArithmeticCodec(BitVector& _bitVector, NativeNaturalType& _offset, NativeNaturalType _symbolCount)
+        :model(_symbolCount), bitVector(_bitVector), offset(_offset) {}
 
     void updateRange(NativeNaturalType symbolIndex) {
         Natural32 lowerFrequency = model.lowerFrequency(symbolIndex),
@@ -115,12 +115,12 @@ struct ArithmeticCodec {
 struct ArithmeticEncoder : public ArithmeticCodec {
     NativeNaturalType underflowCounter = 0;
 
-    ArithmeticEncoder(Blob& _blob, NativeNaturalType& _offset, NativeNaturalType _symbolCount)
-        :ArithmeticCodec(_blob, _offset, _symbolCount) {}
+    ArithmeticEncoder(BitVector& _bitVector, NativeNaturalType& _offset, NativeNaturalType _symbolCount)
+        :ArithmeticCodec(_bitVector, _offset, _symbolCount) {}
 
     void encodeBit(bool bit) {
-        blob.increaseSize(offset, 1);
-        blob.externalOperate<true>(&bit, offset++, 1);
+        bitVector.increaseSize(offset, 1);
+        bitVector.externalOperate<true>(&bit, offset++, 1);
     }
 
     void encoderNormalizeRange() {
@@ -164,8 +164,8 @@ struct ArithmeticDecoder : public ArithmeticCodec {
     Natural32 buffer;
     NativeNaturalType offsetCorrection;
 
-    ArithmeticDecoder(Blob& _blob, NativeNaturalType& _offset, NativeNaturalType _symbolCount)
-        :ArithmeticCodec(_blob, _offset, _symbolCount), buffer(0) {
+    ArithmeticDecoder(BitVector& _bitVector, NativeNaturalType& _offset, NativeNaturalType _symbolCount)
+        :ArithmeticCodec(_bitVector, _offset, _symbolCount), buffer(0) {
         const NativeNaturalType maxLength = BitMask<NativeNaturalType>::ceilLog2(full)-1;
         for(offsetCorrection = 0; decodeBit() && offsetCorrection < maxLength; ++offsetCorrection);
         buffer <<= maxLength-offsetCorrection;
@@ -173,11 +173,11 @@ struct ArithmeticDecoder : public ArithmeticCodec {
 
     bool decodeBit() {
         buffer <<= 1;
-        if(offset >= blob.getSize()) {
+        if(offset >= bitVector.getSize()) {
             ++offset;
             return false;
         } else {
-            blob.externalOperate<false>(&buffer, offset++, 1);
+            bitVector.externalOperate<false>(&buffer, offset++, 1);
             return true;
         }
     }
@@ -216,23 +216,27 @@ struct ArithmeticDecoder : public ArithmeticCodec {
     }
 };
 
-void arithmeticEncodeBlob(Blob& dst, NativeNaturalType& dstOffset, Blob& src, NativeNaturalType srcLength,
-                          NativeNaturalType bitsToSymbol = 4) {
+void arithmeticEncodeBitVector(BitVector& dst, NativeNaturalType& dstOffset,
+        BitVector& src, NativeNaturalType srcOffset, NativeNaturalType srcLength,
+        NativeNaturalType bitsToSymbol = 4) {
+    assert(srcLength%bitsToSymbol == 0);
     ArithmeticEncoder encoder(dst, dstOffset, 1<<bitsToSymbol);
-    for(NativeNaturalType srcOffset = 0; srcOffset < srcLength; srcOffset += bitsToSymbol) {
+    for(NativeNaturalType offset = srcOffset; offset < srcOffset+srcLength; offset += bitsToSymbol) {
         NativeNaturalType symbolIndex = 0;
-        src.externalOperate<false>(&symbolIndex, srcOffset, bitsToSymbol);
+        src.externalOperate<false>(&symbolIndex, offset, bitsToSymbol);
         encoder.encodeSymbol(symbolIndex);
     }
     encoder.encodeTermination();
 }
 
-void arithmeticDecodeBlob(Blob& dst, NativeNaturalType dstLength, Blob& src, NativeNaturalType& srcOffset,
-                          NativeNaturalType bitsToSymbol = 4) {
+void arithmeticDecodeBitVector(BitVector& dst, NativeNaturalType dstOffset, NativeNaturalType dstLength,
+        BitVector& src, NativeNaturalType& srcOffset,
+        NativeNaturalType bitsToSymbol = 4) {
+    assert(dstLength%bitsToSymbol == 0);
     ArithmeticDecoder decoder(src, srcOffset, 1<<bitsToSymbol);
-    for(NativeNaturalType dstOffset = 0; dstOffset < dstLength; dstOffset += bitsToSymbol) {
+    for(NativeNaturalType offset = dstOffset; offset < dstOffset+dstLength; offset += bitsToSymbol) {
         NativeNaturalType symbolIndex = decoder.decodeSymbol();
-        dst.externalOperate<true>(&symbolIndex, dstOffset, bitsToSymbol);
+        dst.externalOperate<true>(&symbolIndex, offset, bitsToSymbol);
     }
     decoder.decodeTermination();
 }

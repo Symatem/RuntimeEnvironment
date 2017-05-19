@@ -15,7 +15,7 @@ struct SuperPage : public BasePage {
     PageRefType pagesEnd, freePage;
     BpTreeSet<Symbol> freeSymbols;
     BpTreeSet<PageRefType> fullBitVectorBuckets, freeBitVectorBuckets[bitVectorBucketTypeCount];
-    BpTreeMap<Symbol, NativeNaturalType> blobs;
+    BpTreeMap<Symbol, NativeNaturalType> bitVectors;
 } *superPage;
 
 template<typename PageType>

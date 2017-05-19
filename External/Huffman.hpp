@@ -1,23 +1,23 @@
 #include <External/BinaryVariableLength.hpp>
 
 struct StaticHuffmanCodec {
-    Blob& blob;
+    BitVector& bitVector;
     NativeNaturalType& offset;
     NativeNaturalType symbolCount;
 
-    StaticHuffmanCodec(Blob& _blob, NativeNaturalType& _offset) :blob(_blob), offset(_offset) {}
+    StaticHuffmanCodec(BitVector& _bitVector, NativeNaturalType& _offset) :bitVector(_bitVector), offset(_offset) {}
 };
 
 struct StaticHuffmanEncoder : public StaticHuffmanCodec {
-    GuardedDataStructure<Set<Symbol, NativeNaturalType>> symbolMap;
-    Blob huffmanCodes;
+    BitVectorGuard<DataStructure<Set<Symbol, NativeNaturalType>>> symbolMap;
+    BitVector huffmanCodes;
 
     void countSymbol(Symbol symbol) {
         NativeNaturalType index;
         if(symbolMap.findKey(symbol, index))
             symbolMap.setValueAt(index, symbolMap.getValueAt(index)+1);
         else
-            insertElement(symbolMap, {symbol, 1});
+            symbolMap.insertElement(Pair<Symbol, NativeNaturalType>{symbol, 1});
     }
 
     void encodeSymbol(Symbol symbol) {
@@ -27,26 +27,26 @@ struct StaticHuffmanEncoder : public StaticHuffmanCodec {
             return;
         NativeNaturalType begin = symbolMap.getValueAt(index),
                           length = (index+1 < symbolCount) ? symbolMap.getValueAt(index+1)-begin : huffmanCodes.getSize()-begin;
-        blob.increaseSize(offset, length);
-        blob.interoperation(huffmanCodes, offset, begin, length);
+        bitVector.increaseSize(offset, length);
+        bitVector.interoperation(huffmanCodes, offset, begin, length);
         offset += length;
     }
 
     void encodeTree() {
         symbolCount = symbolMap.getElementCount();
-        encodeBvlNatural(blob, offset, symbolCount);
+        encodeBvlNatural(bitVector, offset, symbolCount);
         if(symbolCount < 2) {
             if(symbolCount == 1)
-                encodeBvlNatural(blob, offset, symbolMap.getKeyAt(0));
+                encodeBvlNatural(bitVector, offset, symbolMap.getKeyAt(0));
             return;
         }
 
         NativeNaturalType index = 0,
                           huffmanChildrenCount = symbolCount-1,
                           huffmanParentsCount = huffmanChildrenCount*2;
-        GuardedDataStructure<Heap<Ascending, NativeNaturalType, Symbol>> symbolHeap;
-        setElementCount(symbolHeap, symbolCount);
-        iterateElements(symbolMap, [&](Pair<Symbol, NativeNaturalType> pair) {
+        BitVectorGuard<DataStructure<Heap<Ascending, NativeNaturalType, Symbol>>> symbolHeap;
+        symbolHeap.setElementCount(symbolCount);
+        symbolMap.iterateElements([&](Pair<Symbol, NativeNaturalType> pair) {
             symbolHeap.setElementAt(index, {pair.second, index});
             ++index;
         });
@@ -56,13 +56,13 @@ struct StaticHuffmanEncoder : public StaticHuffmanCodec {
             NativeNaturalType parent;
             bool bit;
         };
-        GuardedDataStructure<Vector<HuffmanParentNode>> huffmanParents;
-        GuardedDataStructure<Vector<NativeNaturalType>> huffmanChildren;
-        setElementCount(huffmanParents, huffmanParentsCount);
-        setElementCount(huffmanChildren, huffmanParentsCount);
+        BitVectorGuard<DataStructure<Vector<HuffmanParentNode>>> huffmanParents;
+        BitVectorGuard<DataStructure<Vector<NativeNaturalType>>> huffmanChildren;
+        huffmanParents.setElementCount(huffmanParentsCount);
+        huffmanChildren.setElementCount(huffmanParentsCount);
         for(NativeNaturalType index = 0; symbolHeap.getElementCount() > 1; ++index) {
-            auto a = eraseFirstElement(symbolHeap),
-                 b = eraseFirstElement(symbolHeap);
+            auto a = symbolHeap.eraseFirstElement(),
+                 b = symbolHeap.eraseFirstElement();
             NativeNaturalType parent = symbolCount+index;
             huffmanParents.setElementAt(a.second, {parent, 0});
             huffmanParents.setElementAt(b.second, {parent, 1});
@@ -70,7 +70,7 @@ struct StaticHuffmanEncoder : public StaticHuffmanCodec {
             huffmanChildren.setElementAt(index*2+1, b.second);
             symbolHeap.insertElement({a.first+b.first, parent});
         }
-        setElementCount(symbolHeap, 0);
+        symbolHeap.setElementCount(0);
 
         huffmanCodes.setSize(0);
         NativeNaturalType huffmanCodesOffset = 0;
@@ -91,40 +91,40 @@ struct StaticHuffmanEncoder : public StaticHuffmanCodec {
                 ++reserveOffset;
             }
         }
-        setElementCount(huffmanParents, 0);
+        huffmanParents.setElementCount(0);
 
         struct HuffmanStackElement {
             NativeNaturalType index;
             Natural8 state;
         };
-        GuardedDataStructure<Vector<HuffmanStackElement>> stack;
-        insertAsLastElement(stack, {huffmanParentsCount, 0});
+        BitVectorGuard<DataStructure<Vector<HuffmanStackElement>>> stack;
+        stack.insertAsLastElement(HuffmanStackElement{huffmanParentsCount, 0});
         while(!stack.isEmpty()) {
-            auto element = getLastElement(stack);
+            auto element = stack.getLastElement();
             switch(element.state) {
                 case 0:
                 case 1: {
                     NativeNaturalType index = huffmanChildren.getElementAt((element.index-symbolCount)*2+element.state);
                     ++element.state;
                     stack.setElementAt(stack.getElementCount()-1, element);
-                    insertAsLastElement(stack, {index, static_cast<Natural8>((index < symbolCount) ? 3 : 0)});
+                    stack.insertAsLastElement(HuffmanStackElement{index, static_cast<Natural8>((index < symbolCount) ? 3 : 0)});
                 } break;
                 case 2:
-                    eraseLastElement(stack);
-                    encodeBvlNatural(blob, offset, 0);
+                    stack.eraseLastElement();
+                    encodeBvlNatural(bitVector, offset, 0);
                     break;
                 case 3: {
                     Symbol symbol = symbolMap.getKeyAt(element.index);
-                    encodeBvlNatural(blob, offset, symbol+1);
-                    eraseLastElement(stack);
+                    encodeBvlNatural(bitVector, offset, symbol+1);
+                    stack.eraseLastElement();
                 } break;
             }
         }
-        setElementCount(huffmanChildren, 0);
+        huffmanChildren.setElementCount(0);
     }
 
-    StaticHuffmanEncoder(Blob& _blob, NativeNaturalType& _offset) :StaticHuffmanCodec(_blob, _offset) {
-        huffmanCodes = Blob(createSymbol());
+    StaticHuffmanEncoder(BitVector& _bitVector, NativeNaturalType& _offset) :StaticHuffmanCodec(_bitVector, _offset) {
+        huffmanCodes = BitVector(createSymbol());
     }
 
     ~StaticHuffmanEncoder() {
@@ -133,8 +133,8 @@ struct StaticHuffmanEncoder : public StaticHuffmanCodec {
 };
 
 struct StaticHuffmanDecoder : public StaticHuffmanCodec {
-    GuardedDataStructure<Vector<Symbol>> symbolVector;
-    GuardedDataStructure<Vector<NativeNaturalType>> huffmanChildren;
+    BitVectorGuard<DataStructure<Vector<Symbol>>> symbolVector;
+    BitVectorGuard<DataStructure<Vector<NativeNaturalType>>> huffmanChildren;
 
     Symbol decodeSymbol() {
         NativeNaturalType index;
@@ -145,9 +145,9 @@ struct StaticHuffmanDecoder : public StaticHuffmanCodec {
             index = symbolCount-2;
             while(true) {
                 if(bitsLeft == 0) {
-                    bitsLeft = min(static_cast<NativeNaturalType>(architectureSize), blob.getSize()-offset);
+                    bitsLeft = min(static_cast<NativeNaturalType>(architectureSize), bitVector.getSize()-offset);
                     assert(bitsLeft);
-                    blob.externalOperate<false>(&mask, offset, bitsLeft);
+                    bitVector.externalOperate<false>(&mask, offset, bitsLeft);
                     offset += bitsLeft;
                 }
                 index = huffmanChildren.getElementAt(index*2+(mask&1));
@@ -163,37 +163,37 @@ struct StaticHuffmanDecoder : public StaticHuffmanCodec {
     }
 
     void decodeTree() {
-        symbolCount = decodeBvlNatural(blob, offset);
-        setElementCount(symbolVector, symbolCount);
+        symbolCount = decodeBvlNatural(bitVector, offset);
+        symbolVector.setElementCount(symbolCount);
         if(symbolCount < 2) {
             if(symbolCount == 1)
-                symbolVector.setElementAt(0, decodeBvlNatural(blob, offset));
+                symbolVector.setElementAt(0, decodeBvlNatural(bitVector, offset));
             return;
         }
-        setElementCount(huffmanChildren, (symbolCount-1)*2);
-        GuardedDataStructure<Vector<NativeNaturalType>> stack;
+        huffmanChildren.setElementCount((symbolCount-1)*2);
+        BitVectorGuard<DataStructure<Vector<NativeNaturalType>>> stack;
         NativeNaturalType symbolIndex = 0, huffmanChildrenIndex = 0;
         while(huffmanChildrenIndex < symbolCount-1) {
-            Symbol symbol = decodeBvlNatural(blob, offset);
+            Symbol symbol = decodeBvlNatural(bitVector, offset);
             if(symbol > 0) {
                 --symbol;
                 symbolVector.setElementAt(symbolIndex, symbol);
-                insertAsLastElement(stack, symbolIndex++);
+                stack.insertAsLastElement(symbolIndex++);
             } else {
-                NativeNaturalType one = eraseLastElement(stack),
-                                 zero = eraseLastElement(stack);
+                NativeNaturalType one = stack.eraseLastElement(),
+                                 zero = stack.eraseLastElement();
                 huffmanChildren.setElementAt(huffmanChildrenIndex*2, zero);
                 huffmanChildren.setElementAt(huffmanChildrenIndex*2+1, one);
-                insertAsLastElement(stack, symbolCount+huffmanChildrenIndex);
+                stack.insertAsLastElement(symbolCount+huffmanChildrenIndex);
                 ++huffmanChildrenIndex;
             }
         }
     }
 
-    StaticHuffmanDecoder(Blob& _blob, NativeNaturalType& _offset) :StaticHuffmanCodec(_blob, _offset) {}
+    StaticHuffmanDecoder(BitVector& _bitVector, NativeNaturalType& _offset) :StaticHuffmanCodec(_bitVector, _offset) {}
 
     ~StaticHuffmanDecoder() {
-        setElementCount(symbolVector, 0);
-        setElementCount(huffmanChildren, 0);
+        symbolVector.setElementCount(0);
+        huffmanChildren.setElementCount(0);
     }
 };

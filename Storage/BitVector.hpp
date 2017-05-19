@@ -8,11 +8,11 @@ Symbol createSymbol() {
         return superPage->symbolsEnd++;
 }
 
-void modifiedBlob(Symbol symbol) {
+void modifiedBitVector(Symbol symbol) {
     // TODO
 }
 
-struct Blob {
+struct BitVector {
     Symbol symbol;
     PageRefType pageRef;
     NativeNaturalType address, offsetInBucket, indexInBucket;
@@ -25,12 +25,12 @@ struct Blob {
         Fragmented
     } state;
 
-    Blob() {}
+    BitVector() {}
 
-    Blob(Symbol _symbol) {
+    BitVector(Symbol _symbol) {
         symbol = _symbol;
         BpTreeMap<Symbol, NativeNaturalType>::Iterator<true> iter;
-        if(!superPage->blobs.find<Key>(iter, symbol)) {
+        if(!superPage->bitVectors.find<Key>(iter, symbol)) {
             state = Empty;
             return;
         }
@@ -70,7 +70,7 @@ struct Blob {
 
     void updateAddress(NativeNaturalType address) {
         BpTreeMap<Symbol, NativeNaturalType>::Iterator<true> iter;
-        superPage->blobs.find<Key>(iter, symbol);
+        superPage->bitVectors.find<Key>(iter, symbol);
         iter.setValue(address);
     }
 
@@ -124,7 +124,7 @@ struct Blob {
     }
 
     template<NativeIntegerType dir = -1>
-    NativeIntegerType interoperation(Blob src, NativeNaturalType dstOffset, NativeNaturalType srcOffset, NativeNaturalType length) {
+    NativeIntegerType interoperation(BitVector src, NativeNaturalType dstOffset, NativeNaturalType srcOffset, NativeNaturalType length) {
         NativeNaturalType dstEndOffset = dstOffset+length, srcEndOffset = srcOffset+length;
         if(dstOffset >= dstEndOffset || dstEndOffset > getSize() ||
            srcOffset >= srcEndOffset || srcEndOffset > src.getSize())
@@ -161,7 +161,7 @@ struct Blob {
         return (dir == 0) ? result : 1;
     }
 
-    NativeIntegerType compare(Blob other) {
+    NativeIntegerType compare(BitVector other) {
         if(symbol == other.symbol)
             return 0;
         NativeNaturalType size = getSize(), otherSize = other.getSize();
@@ -172,7 +172,7 @@ struct Blob {
         return interoperation<0>(other, 0, 0, size);
     }
 
-    bool slice(Blob src, NativeNaturalType dstOffset, NativeNaturalType srcOffset, NativeNaturalType length) {
+    bool slice(BitVector src, NativeNaturalType dstOffset, NativeNaturalType srcOffset, NativeNaturalType length) {
         if(symbol == src.symbol && dstOffset == srcOffset)
             return false;
         if(dstOffset <= srcOffset) {
@@ -182,7 +182,7 @@ struct Blob {
             if(!interoperation<+1>(src, dstOffset, srcOffset, length))
                 return false;
         }
-        modifiedBlob(symbol);
+        modifiedBitVector(symbol);
         return true;
     }
 
@@ -211,18 +211,18 @@ struct Blob {
         if(offset >= end || end > size)
             return false;
         size -= length;
-        Blob srcBlob = *this;
+        BitVector srcBitVector = *this;
         if(size == 0) {
             state = Empty;
-            superPage->blobs.erase<Key>(symbol);
+            superPage->bitVectors.erase<Key>(symbol);
         } else if(BitVectorBucket::isBucketAllocatable(size)) {
             type = BitVectorBucket::getType(size);
-            srcBlob.type = BitVectorBucket::getType(size+length);
-            if(srcBlob.state == Fragmented || type != srcBlob.type) {
+            srcBitVector.type = BitVectorBucket::getType(size+length);
+            if(srcBitVector.state == Fragmented || type != srcBitVector.type) {
                 state = InBucket;
                 allocateInBucket(size);
-                interoperation(srcBlob, 0, 0, offset);
-                interoperation(srcBlob, offset, end, size-offset);
+                interoperation(srcBitVector, 0, 0, offset);
+                interoperation(srcBitVector, offset, end, size-offset);
                 updateAddress(address);
             } else {
                 interoperation<-1>(*this, offset, end, size-offset);
@@ -236,11 +236,11 @@ struct Blob {
             address = bpTree.rootPageRef*bitsPerPage;
             updateAddress(address);
         }
-        if(srcBlob.state == InBucket && !(state == InBucket && type == srcBlob.type))
-            srcBlob.freeFromBucket();
-        if(srcBlob.state == Fragmented && state != Fragmented)
+        if(srcBitVector.state == InBucket && !(state == InBucket && type == srcBitVector.type))
+            srcBitVector.freeFromBucket();
+        if(srcBitVector.state == Fragmented && state != Fragmented)
             bpTree.erase();
-        modifiedBlob(symbol);
+        modifiedBitVector(symbol);
         assert(size == getSize());
         return true;
     }
@@ -249,13 +249,13 @@ struct Blob {
         NativeNaturalType size = getSize();
         if(size >= size+length || offset > size)
             return false;
-        Blob srcBlob = *this;
+        BitVector srcBitVector = *this;
         size += length;
         if(BitVectorBucket::isBucketAllocatable(size)) {
             state = InBucket;
             type = BitVectorBucket::getType(size);
-            srcBlob.type = BitVectorBucket::getType(size-length);
-            if(srcBlob.state == Empty || type != srcBlob.type)
+            srcBitVector.type = BitVectorBucket::getType(size-length);
+            if(srcBitVector.state == Empty || type != srcBitVector.type)
                 allocateInBucket(size);
             else {
                 bucket->setSize(indexInBucket, size);
@@ -264,7 +264,7 @@ struct Blob {
         } else {
             BpTreeBitVector::Iterator<true> iter;
             state = Fragmented;
-            if(srcBlob.state == Fragmented) {
+            if(srcBitVector.state == Fragmented) {
                 bpTree.find<Rank>(iter, offset);
                 bpTree.insert(iter, length, nullptr);
             } else {
@@ -274,33 +274,33 @@ struct Blob {
             }
             address = bpTree.rootPageRef*bitsPerPage;
         }
-        switch(srcBlob.state) {
+        switch(srcBitVector.state) {
             case Empty:
-                superPage->blobs.insert(symbol, address);
+                superPage->bitVectors.insert(symbol, address);
                 break;
             case InBucket:
-                if(state != InBucket || type != srcBlob.type) {
-                    interoperation(srcBlob, 0, 0, offset);
-                    interoperation(srcBlob, offset+length, offset, size-length-offset);
-                    srcBlob.freeFromBucket();
+                if(state != InBucket || type != srcBitVector.type) {
+                    interoperation(srcBitVector, 0, 0, offset);
+                    interoperation(srcBitVector, offset+length, offset, size-length-offset);
+                    srcBitVector.freeFromBucket();
                 } else
                     break;
             case Fragmented:
                 updateAddress(address);
                 break;
         }
-        modifiedBlob(symbol);
+        modifiedBitVector(symbol);
         assert(size == getSize());
         return true;
     }
 
-    void deepCopy(Blob src) {
+    void deepCopy(BitVector src) {
         if(symbol == src.symbol)
             return;
         NativeNaturalType srcSize = src.getSize();
         setSize(srcSize);
         interoperation(src, 0, 0, srcSize);
-        modifiedBlob(symbol);
+        modifiedBitVector(symbol);
     }
 
     template<bool swap>
@@ -347,26 +347,26 @@ struct Blob {
     void write(DataType src) {
         setSize(sizeOfInBits<DataType>::value);
         externalOperate<true>(&src, 0, sizeOfInBits<DataType>::value);
-        modifiedBlob(symbol);
+        modifiedBitVector(symbol);
     }
 
     void chaCha20(ChaCha20& context) {
         ChaCha20 buffer, mask;
-        NativeNaturalType endOffset = getSize(), blobOffset = 0;
-        while(blobOffset < endOffset) {
-            NativeNaturalType sliceLength = min(endOffset-blobOffset, sizeOfInBits<ChaCha20>::value);
+        NativeNaturalType endOffset = getSize(), offset = 0;
+        while(offset < endOffset) {
+            NativeNaturalType sliceLength = min(endOffset-offset, sizeOfInBits<ChaCha20>::value);
             mask.generate(context);
-            externalOperate<false>(&buffer, blobOffset, sliceLength);
+            externalOperate<false>(&buffer, offset, sliceLength);
             for(Natural8 i = 0; i < 8; ++i)
                 buffer.block64[i] ^= mask.block64[i];
-            externalOperate<true>(&buffer, blobOffset, sliceLength);
-            blobOffset += sliceLength;
+            externalOperate<true>(&buffer, offset, sliceLength);
+            offset += sliceLength;
         }
     }
 };
 
 void releaseSymbol(Symbol symbol) {
-    Blob(symbol).setSize(0);
+    BitVector(symbol).setSize(0);
     /* TODO: Fix scrutinizeExistence
     if(symbol == superPage->symbolsEnd-1)
         --superPage->symbolsEnd;
