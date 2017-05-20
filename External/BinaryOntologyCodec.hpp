@@ -66,9 +66,8 @@ struct BinaryOntologyEncoder : public BinaryOntologyCodec {
         }
     }
 
-    void encodeAttribute(bool doWrite, Symbol betaSymbol, Symbol attribute) {
+    void encodeAttribute(bool doWrite, DataStructure<PairSet<Symbol, Symbol>>& beta, Symbol attribute) {
         NativeNaturalType secondAt;
-        DataStructure<PairSet<Symbol, Symbol>> beta(betaSymbol);
         beta.findFirstKey(attribute, secondAt);
         encodeSymbol(doWrite, attribute);
         if(doWrite)
@@ -108,7 +107,7 @@ struct BinaryOntologyEncoder : public BinaryOntologyCodec {
         if(doWrite)
             encodeNatural(beta.getFirstKeyCount());
         beta.iterateFirstKeys([&](Symbol attribute) {
-            encodeAttribute(doWrite, beta.getBitVector().symbol, attribute);
+            encodeAttribute(doWrite, beta, attribute);
         });
     }
 

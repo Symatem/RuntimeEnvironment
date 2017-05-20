@@ -39,12 +39,15 @@ struct Triple {
     Triple(Symbol _entity, Symbol _attribute, Symbol _value)
         :pos{_entity, _attribute, _value} {}
 
-    Triple forwardIndex(OntologyStruct& alpha, NativeNaturalType subIndex) {
-        return {alpha.subIndices[subIndex], pos[(subIndex+1)%3], pos[(subIndex+2)%3]};
-    }
-
-    Triple invertedIndex(OntologyStruct& alpha, NativeNaturalType subIndex) {
-        return {alpha.subIndices[subIndex+3], pos[(subIndex+2)%3], pos[(subIndex+1)%3]};
+    template<bool forward, bool link>
+    bool subIndexOperate(OntologyStruct& alpha, NativeNaturalType subIndex) {
+        auto pair = forward
+            ? Pair<Symbol, Symbol>{pos[(subIndex+1)%3], pos[(subIndex+2)%3]}
+            : Pair<Symbol, Symbol>{pos[(subIndex+2)%3], pos[(subIndex+1)%3]};
+        auto beta = alpha.getSubIndex(subIndex+(forward ? 0 : 3));
+        return link
+            ? beta.insertElement(pair)
+            : beta.eraseElement(pair);
     }
 
     Triple reordered(NativeNaturalType subIndex) {
@@ -115,11 +118,6 @@ enum QueryMask {
     MMI, VMI, IMI, MVI, VVI, IVI, MII, VII, III
 };
 
-bool linkInSubIndex(Triple triple) {
-    DataStructure<PairSet<Symbol, Symbol>> beta(triple.pos[0]);
-    return beta.insertElement({triple.pos[1], triple.pos[2]});
-}
-
 OntologyStruct getOntologyStructOfSymbol(Symbol symbol) {
     NativeNaturalType alphaIndex;
     Pair<Symbol, OntologyStruct> element;
@@ -135,10 +133,10 @@ OntologyStruct getOntologyStructOfSymbol(Symbol symbol) {
 
 bool linkInSubIndex(Triple triple, NativeNaturalType subIndex) {
     auto alpha = getOntologyStructOfSymbol(triple.pos[subIndex]);
-    if(!linkInSubIndex(triple.forwardIndex(alpha, subIndex)))
+    if(!triple.subIndexOperate<true, true>(alpha, subIndex))
         return false;
     if(indexMode == HexaIndex)
-        assert(linkInSubIndex(triple.invertedIndex(alpha, subIndex)));
+        assert((triple.subIndexOperate<false, true>(alpha, subIndex)));
     return true;
 }
 
@@ -383,11 +381,6 @@ void setIndexMode(IndexMode _indexMode) {
     indexMode = _indexMode;
 }
 
-bool unlinkInSubIndex(Triple triple) {
-    DataStructure<PairSet<Symbol, Symbol>> beta(triple.pos[0]);
-    return beta.eraseElement({triple.pos[1], triple.pos[2]});
-}
-
 bool unlinkWithoutReleasing(Triple triple, bool skipEnabled = false, Symbol skip = VoidSymbol) {
     NativeNaturalType alphaIndex;
     forEachSubIndex() {
@@ -396,10 +389,10 @@ bool unlinkWithoutReleasing(Triple triple, bool skipEnabled = false, Symbol skip
         if(!tripleIndex.findKey(triple.pos[subIndex], alphaIndex))
             return false;
         auto alpha = tripleIndex.getValueAt(alphaIndex);
-        if(!unlinkInSubIndex(triple.forwardIndex(alpha, subIndex)))
+        if(!triple.subIndexOperate<true, false>(alpha, subIndex))
             return false;
         if(indexMode == HexaIndex)
-            assert(unlinkInSubIndex(triple.invertedIndex(alpha, subIndex)));
+            assert((triple.subIndexOperate<false, false>(alpha, subIndex)));
     }
     if(triple.pos[1] == BitMapTypeSymbol)
         modifiedBitVector(triple.pos[0]);
