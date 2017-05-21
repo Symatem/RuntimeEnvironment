@@ -1,9 +1,9 @@
 #include <DataStructures/PairSet.hpp>
 
 template<typename _ParentType = BitVectorContainer>
-struct BitMap : public MetaSet<NativeNaturalType, VoidType, _ParentType> {
+struct BitMap : public MetaSet<NativeNaturalType, _ParentType> {
     typedef _ParentType ParentType;
-    typedef MetaSet<NativeNaturalType, VoidType, ParentType> Super;
+    typedef MetaSet<NativeNaturalType, ParentType> Super;
     typedef typename Super::ElementType ElementType;
 
     BitMap(ParentType& _parent, NativeNaturalType _childIndex = 0) :Super(_parent, _childIndex) { }

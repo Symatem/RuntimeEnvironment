@@ -162,7 +162,7 @@ Integer32 main(Integer32 argc, Integer8** argv) {
     }
 
     test("MetaVector") {
-        BitVectorGuard<DataStructure<MetaVector<NativeNaturalType, VoidType>>> containerVector;
+        BitVectorGuard<DataStructure<MetaVector<NativeNaturalType>>> containerVector;
         containerVector.insertElementAt(0, 7);
         containerVector.increaseChildLength(0, containerVector.getChildOffset(0), 64);
         containerVector.insertElementAt(0, 5);
@@ -182,7 +182,7 @@ Integer32 main(Integer32 argc, Integer8** argv) {
     }
 
     test("MetaSet") {
-        BitVectorGuard<DataStructure<MetaSet<NativeNaturalType, VoidType>>> containerSet;
+        BitVectorGuard<DataStructure<MetaSet<NativeNaturalType>>> containerSet;
         assert(containerSet.insertElement(7) == true);
         containerSet.increaseChildLength(0, containerSet.getChildOffset(0), 64);
         assert(containerSet.insertElement(5) == true);

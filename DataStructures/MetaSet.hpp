@@ -1,9 +1,9 @@
 #include <DataStructures/MetaVector.hpp>
 
-template<typename KeyType, typename ValueType, typename _ParentType = BitVectorContainer>
-struct MetaSet : public MetaVector<KeyType, ValueType, _ParentType> {
+template<typename KeyType, typename _ParentType = BitVectorContainer>
+struct MetaSet : public MetaVector<KeyType, _ParentType> {
     typedef _ParentType ParentType;
-    typedef MetaVector<KeyType, ValueType, ParentType> Super;
+    typedef MetaVector<KeyType, ParentType> Super;
     typedef typename Super::ElementType ElementType;
 
     MetaSet(ParentType& _parent, NativeNaturalType _childIndex = 0) :Super(_parent, _childIndex) { }

@@ -1,11 +1,10 @@
 #include <DataStructures/Set.hpp>
 
-template<typename KeyType, typename ValueType, typename _ParentType = BitVectorContainer>
+template<typename KeyType, typename _ParentType = BitVectorContainer>
 struct MetaVector : public PairVector<KeyType, NativeNaturalType, _ParentType> {
     typedef _ParentType ParentType;
     typedef PairVector<KeyType, NativeNaturalType, ParentType> Super;
-    typedef typename Super::ElementType InnerElementType;
-    typedef Pair<KeyType, ValueType> ElementType;
+    typedef typename Super::ElementType ElementType;
 
     MetaVector(ParentType& _parent, NativeNaturalType _childIndex = 0) :Super(_parent, _childIndex) { }
     usingRemappedMethod(iterateElements)
@@ -15,15 +14,17 @@ struct MetaVector : public PairVector<KeyType, NativeNaturalType, _ParentType> {
     usingRemappedMethod(eraseLastElement)
 
     NativeNaturalType getElementCount() {
-        return (Super::isEmpty()) ? 0 : Super::getValueAt(0)/sizeOfInBits<InnerElementType>::value;
+        return (Super::isEmpty()) ? 0 : Super::getValueAt(0)/sizeOfInBits<ElementType>::value;
     }
 
+    template<typename ValueType>
     ValueType getValueAt(NativeNaturalType at) {
         return ValueType(reinterpret_cast<typename ValueType::ParentType&>(*this), at);
     }
 
-    ElementType getElementAt(NativeNaturalType at) {
-        return {Super::getKeyAt(at), getValueAt(at)};
+    template<typename ValueType>
+    Pair<KeyType, ValueType> getElementAt(NativeNaturalType at) {
+        return {Super::getKeyAt(at), getValueAt<ValueType>(at)};
     }
 
     void insertRange(NativeNaturalType at, NativeNaturalType elementCount) {
@@ -33,7 +34,7 @@ struct MetaVector : public PairVector<KeyType, NativeNaturalType, _ParentType> {
         for(NativeNaturalType atEnd = at+elementCount; at < atEnd; ++at)
             Super::setValueAt(at, value);
         for(NativeNaturalType at = 0; at < newElementCount; ++at)
-            Super::setValueAt(at, Super::getValueAt(at)+elementCount*sizeOfInBits<InnerElementType>::value);
+            Super::setValueAt(at, Super::getValueAt(at)+elementCount*sizeOfInBits<ElementType>::value);
     }
 
     template<bool childrenAsWell = true>
@@ -44,7 +45,7 @@ struct MetaVector : public PairVector<KeyType, NativeNaturalType, _ParentType> {
             Super::parent.decreaseChildLength(Super::childIndex, getChildOffset(at), sliceLength);
         Super::eraseRange(at, elementCount);
         for(NativeNaturalType at = 0; at < newElementCount; ++at)
-            Super::setValueAt(at, Super::getValueAt(at)-elementCount*sizeOfInBits<InnerElementType>::value);
+            Super::setValueAt(at, Super::getValueAt(at)-elementCount*sizeOfInBits<ElementType>::value);
         if(childrenAsWell)
             for(; at < newElementCount; ++at)
                 Super::setValueAt(at, Super::getValueAt(at)-sliceLength);

@@ -1,20 +1,24 @@
 #include <DataStructures/MetaSet.hpp>
 
 template<typename FirstKeyType, typename SecondKeyType, typename _ParentType = BitVectorContainer>
-struct PairSet : public MetaSet<FirstKeyType, Set<SecondKeyType, VoidType, PairSet<FirstKeyType, SecondKeyType, _ParentType>>, _ParentType> {
+struct PairSet : public MetaSet<FirstKeyType, _ParentType> {
     typedef _ParentType ParentType;
     typedef Set<SecondKeyType, VoidType, PairSet<FirstKeyType, SecondKeyType, ParentType>> ValueType;
-    typedef MetaSet<FirstKeyType, ValueType, ParentType> Super;
+    typedef MetaSet<FirstKeyType, ParentType> Super;
     typedef Pair<FirstKeyType, SecondKeyType> ElementType;
 
     PairSet(ParentType& _parent, NativeNaturalType _childIndex = 0) :Super(_parent, _childIndex) { }
+
+    auto getValueAt(NativeNaturalType firstAt) {
+        return Super::template getValueAt<ValueType>(firstAt);
+    }
 
     FirstKeyType getFirstKeyCount() {
         return Super::getElementCount();
     }
 
     SecondKeyType getSecondKeyCount(NativeNaturalType firstAt) {
-        return Super::getValueAt(firstAt).getElementCount();
+        return getValueAt(firstAt).getElementCount();
     }
 
     void iterateFirstKeys(Closure<void(FirstKeyType)> callback) {
@@ -23,7 +27,7 @@ struct PairSet : public MetaSet<FirstKeyType, Set<SecondKeyType, VoidType, PairS
     }
 
     void iterateSecondKeys(NativeNaturalType firstAt, Closure<void(SecondKeyType)> callback) {
-        auto innerSet = Super::getValueAt(firstAt);
+        auto innerSet = getValueAt(firstAt);
         for(NativeNaturalType at = 0; at < innerSet.getElementCount(); ++at)
             callback(innerSet.getKeyAt(at));
     }
@@ -31,7 +35,7 @@ struct PairSet : public MetaSet<FirstKeyType, Set<SecondKeyType, VoidType, PairS
     void iterateElements(Closure<void(ElementType)> callback) {
         for(NativeNaturalType firstAt = 0; firstAt < getFirstKeyCount(); ++firstAt) {
             FirstKeyType firstKey = Super::getKeyAt(firstAt);
-            auto innerSet = Super::getValueAt(firstAt);
+            auto innerSet = getValueAt(firstAt);
             for(NativeNaturalType at = 0; at < innerSet.getElementCount(); ++at)
                 callback({firstKey, innerSet.getKeyAt(at)});
         }
@@ -42,7 +46,7 @@ struct PairSet : public MetaSet<FirstKeyType, Set<SecondKeyType, VoidType, PairS
     }
 
     bool findSecondKey(SecondKeyType secondKey, NativeNaturalType firstAt, NativeNaturalType& secondAt) {
-        return Super::getValueAt(firstAt).findKey(secondKey, secondAt);
+        return getValueAt(firstAt).findKey(secondKey, secondAt);
     }
 
     bool findElement(ElementType element, NativeNaturalType& firstAt, NativeNaturalType& secondAt) {
@@ -53,7 +57,7 @@ struct PairSet : public MetaSet<FirstKeyType, Set<SecondKeyType, VoidType, PairS
         NativeNaturalType firstAt;
         if(!findFirstKey(element.first, firstAt))
             Super::insertElementAt(firstAt, element.first);
-        ValueType innerSet = Super::getValueAt(firstAt);
+        ValueType innerSet = getValueAt(firstAt);
         return innerSet.insertElement(element.second);
     }
 
@@ -61,7 +65,7 @@ struct PairSet : public MetaSet<FirstKeyType, Set<SecondKeyType, VoidType, PairS
         NativeNaturalType firstAt;
         if(!findFirstKey(element.first, firstAt))
             return false;
-        ValueType innerSet = Super::getValueAt(firstAt);
+        ValueType innerSet = getValueAt(firstAt);
         if(!innerSet.eraseElementByKey(element.second))
             return false;
         if(innerSet.getElementCount() == 0)
