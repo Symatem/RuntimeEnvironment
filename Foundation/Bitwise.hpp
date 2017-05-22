@@ -13,7 +13,8 @@ struct BitMask {
     constexpr static NativeNaturalType clz(DataType value);
     constexpr static NativeNaturalType ctz(DataType value);
     constexpr static NativeNaturalType ceilLog2(DataType value) {
-        return bits-clz(value);
+        assert(value > 0);
+        return bits-clz(value-1);
     }
     constexpr static NativeNaturalType barrelShiftDivide(NativeNaturalType dst, NativeNaturalType count) {
         return (dst>>count) | (dst<<(bits-count));

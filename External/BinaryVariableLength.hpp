@@ -2,8 +2,8 @@
 
 void encodeBvlNatural(BitVector& bitVector, NativeNaturalType& dstOffset, NativeNaturalType src) {
     assert(dstOffset <= bitVector.getSize());
-    NativeNaturalType srcLength = BitMask<NativeNaturalType>::ceilLog2((src < 2) ? src : src-1),
-                      dstLength = BitMask<NativeNaturalType>::ceilLog2(srcLength),
+    NativeNaturalType srcLength = (src < 2) ? src : BitMask<NativeNaturalType>::ceilLog2(src),
+                      dstLength = BitMask<NativeNaturalType>::ceilLog2(srcLength+1),
                       sliceLength = 1;
     Natural8 flagBit = 1;
     dstLength += 1<<dstLength;

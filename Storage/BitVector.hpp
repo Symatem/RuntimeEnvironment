@@ -40,7 +40,7 @@ struct BitVector {
         if(offsetInBucket > 0) {
             state = InBucket;
             bucket = dereferencePage<BitVectorBucket>(pageRef);
-            indexInBucket = bucket->indexOfOffset(offsetInBucket);
+            indexInBucket = bucket->getIndexOfOffset(offsetInBucket);
         } else {
             state = Fragmented;
             bpTree.rootPageRef = pageRef;
@@ -59,7 +59,7 @@ struct BitVector {
             bucket = dereferencePage<BitVectorBucket>(pageRef);
         }
         indexInBucket = bucket->allocateIndex(size, symbol, pageRef);
-        offsetInBucket = bucket->offsetOfIndex(indexInBucket);
+        offsetInBucket = bucket->getOffsetOfIndex(indexInBucket);
         address = pageRef*bitsPerPage+offsetInBucket;
     }
 

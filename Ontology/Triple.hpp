@@ -537,7 +537,7 @@ Symbol createFromString(const char* src) {
 bool tryToFillPreDefined(NativeNaturalType additionalSymbols = 0) {
     superPage->version = 0;
     memcpy(superPage->gitRef, gitRef, sizeof(superPage->gitRef));
-    superPage->architectureSize = BitMask<NativeNaturalType>::ceilLog2(architectureSize)-1;
+    superPage->architectureSize = BitMask<NativeNaturalType>::ceilLog2(architectureSize);
     tripleIndex.parent.bitVector = TripleIndexSymbol;
     if(!tripleIndex.isEmpty())
         return false;
