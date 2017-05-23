@@ -59,7 +59,7 @@ struct BitVector {
             bucket = dereferencePage<BitVectorBucket>(pageRef);
         }
         indexInBucket = bucket->allocateIndex(size, symbol, pageRef);
-        offsetInBucket = bucket->getOffsetOfIndex(indexInBucket);
+        offsetInBucket = bucket->getDataOffset(indexInBucket);
         address = pageRef*bitsPerPage+offsetInBucket;
     }
 

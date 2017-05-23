@@ -19,32 +19,36 @@ struct BitVectorBucket {
         return BitMask<NativeNaturalType>::ceilLog2(getMaxDataBits()-getMinDataBits());
     }
 
-    NativeNaturalType getSizeOffset() const {
+    NativeNaturalType getHeaderEnd() const {
         return sizeOfInBits<BitVectorBucketHeader>::value;
     }
 
-    NativeNaturalType getDataOffset() const {
-        return getSymbolOffset()-getMaxDataBits()*getMaxCount();
+    NativeNaturalType getElementLength() const {
+        return getMaxDataBits()+getSizeBits()+architectureSize;
     }
 
-    NativeNaturalType getSymbolOffset() const {
-        return bitsPerPage-architectureSize*getMaxCount();
+    NativeNaturalType getIndexOfOffset(NativeNaturalType offset) const {
+        return (offset-getHeaderEnd())/getElementLength();
     }
 
-    NativeNaturalType getIndexOfOffset(NativeNaturalType bitOffset) const {
-        return (bitOffset-getDataOffset())/getMaxDataBits();
+    NativeNaturalType getDataOffset(NativeNaturalType index) const {
+        return getHeaderEnd()+index*getElementLength();
     }
 
-    NativeNaturalType getOffsetOfIndex(NativeNaturalType index) const {
-        return getDataOffset()+index*getMaxDataBits();
+    NativeNaturalType getSizeOffset(NativeNaturalType index) const {
+        return getDataOffset(index)+getMaxDataBits();
     }
 
-    NativeNaturalType getMaxCount() const {
-        return (bitsPerPage-getSizeOffset())/(getSizeBits()+architectureSize+getMaxDataBits());
+    NativeNaturalType getSymbolOffset(NativeNaturalType index) const {
+        return getSizeOffset(index)+getSizeBits();
+    }
+
+    NativeNaturalType getMaxElementCount() const {
+        return (bitsPerPage-getHeaderEnd())/getElementLength();
     }
 
     NativeNaturalType getPadding() const {
-        return getDataOffset()-(getSizeOffset()+getSizeBits()*getMaxCount());
+        return bitsPerPage-getHeaderEnd()-getMaxElementCount()*getElementLength();
     }
 
     void setSize(NativeNaturalType index, NativeNaturalType size) {
@@ -52,36 +56,36 @@ struct BitVectorBucket {
         size -= getMinDataBits()+1;
         bitwiseCopy<-1>(reinterpret_cast<NativeNaturalType*>(this),
                         reinterpret_cast<const NativeNaturalType*>(&size),
-                        getSizeOffset()+index*getSizeBits(), 0, getSizeBits());
+                        getSizeOffset(index), 0, getSizeBits());
     }
 
     NativeNaturalType getSize(NativeNaturalType index) const {
         NativeNaturalType size = 0;
         bitwiseCopy<-1>(reinterpret_cast<NativeNaturalType*>(&size),
                         reinterpret_cast<const NativeNaturalType*>(this),
-                        0, getSizeOffset()+index*getSizeBits(), getSizeBits());
+                        0, getSizeOffset(index), getSizeBits());
         return size+getMinDataBits()+1;
     }
 
     void setSymbol(NativeNaturalType index, NativeNaturalType symbol) {
         bitwiseCopy<-1>(reinterpret_cast<NativeNaturalType*>(this),
                         reinterpret_cast<const NativeNaturalType*>(&symbol),
-                        getSymbolOffset()+index*architectureSize, 0, architectureSize);
+                        getSymbolOffset(index), 0, architectureSize);
     }
 
     NativeNaturalType getSymbol(NativeNaturalType index) const {
         Symbol symbol;
         bitwiseCopy<-1>(reinterpret_cast<NativeNaturalType*>(&symbol),
                         reinterpret_cast<const NativeNaturalType*>(this),
-                        0, getSymbolOffset()+index*architectureSize, architectureSize);
+                        0, getSymbolOffset(index), architectureSize);
         return symbol;
     }
 
     void generateStats(struct Stats& stats) {
         stats.uninhabitable += getPadding();
-        stats.totalMetaData += bitsPerPage-getPadding()-getMaxDataBits()*getMaxCount();
+        stats.totalMetaData += bitsPerPage-getPadding()-getMaxDataBits()*getMaxElementCount();
         stats.inhabitedMetaData += (getSizeBits()+architectureSize)*header.count;
-        stats.totalPayload += getMaxDataBits()*getMaxCount();
+        stats.totalPayload += getMaxDataBits()*getMaxElementCount();
         stats.inhabitedPayload += getMaxDataBits()*header.count;
     }
 
@@ -89,7 +93,7 @@ struct BitVectorBucket {
         header.type = type;
         header.count = 0;
         header.freeIndex = 0;
-        for(NativeNaturalType index = 0; index < getMaxCount(); ++index)
+        for(NativeNaturalType index = 0; index < getMaxElementCount(); ++index)
             setSymbol(index, index+1);
     }
 
@@ -110,7 +114,7 @@ struct BitVectorBucket {
     }
 
     NativeNaturalType allocateIndex(NativeNaturalType size, Symbol symbol, PageRefType pageRef) {
-        assert(size > 0 && header.count < getMaxCount());
+        assert(size > 0 && header.count < getMaxElementCount());
         ++header.count;
         NativeNaturalType index = header.freeIndex;
         header.freeIndex = getSymbol(header.freeIndex);
@@ -128,7 +132,7 @@ struct BitVectorBucket {
     }
 
     bool isFull() const {
-        return header.count == getMaxCount();
+        return header.count == getMaxElementCount();
     }
 
     static Natural16 getType(NativeNaturalType size) {
