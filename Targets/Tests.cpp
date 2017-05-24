@@ -239,53 +239,54 @@ Integer32 main(Integer32 argc, Integer8** argv) {
 
     test("BitMap fillSlice and clearSlice") {
         BitVectorGuard<DataStructure<BitMap<>>> bitMap;
-        NativeNaturalType sliceIndex;
+        NativeNaturalType sliceIndex, dstOffset;
         assert(bitMap.getElementCount() == 0);
-        bitMap.fillSlice(64, 16);
-        assert(bitMap.getSliceContaining(0, sliceIndex) == false && sliceIndex == 0
-            && bitMap.getSliceContaining(64, sliceIndex) == false && sliceIndex == 0
-            && bitMap.getSliceContaining(65, sliceIndex) == true && sliceIndex == 0
-            && bitMap.getSliceContaining(80, sliceIndex) == false && sliceIndex == 1);
-        bitMap.fillSlice(0, 16);
-        assert(bitMap.getElementCount() == 2
+        assert(bitMap.fillSlice(64, 16, dstOffset) == 1
+            && (bitMap.getSliceContaining<false, false>(0, sliceIndex)) == false && sliceIndex == 0
+            && (bitMap.getSliceContaining<false, false>(64, sliceIndex)) == false && sliceIndex == 0
+            && (bitMap.getSliceContaining<false, false>(65, sliceIndex)) == true && sliceIndex == 0
+            && (bitMap.getSliceContaining<false, false>(80, sliceIndex)) == false && sliceIndex == 1);
+        assert(bitMap.fillSlice(0, 16, dstOffset) == 1
+            && bitMap.getElementCount() == 2
             && bitMap.getSliceBeginAddress(0) == 0 && bitMap.getChildLength(0) == 16
             && bitMap.getSliceBeginAddress(1) == 64 && bitMap.getChildLength(1) == 16);
-        bitMap.fillSlice(8, 16);
-        bitMap.fillSlice(56, 16);
-        assert(bitMap.getElementCount() == 2
+        assert(bitMap.fillSlice(8, 16, dstOffset) == 0
+            && bitMap.fillSlice(56, 16, dstOffset) == 0
+            && bitMap.getElementCount() == 2
             && bitMap.getSliceBeginAddress(0) == 0 && bitMap.getChildLength(0) == 24
             && bitMap.getSliceBeginAddress(1) == 56 && bitMap.getChildLength(1) == 24);
-        bitMap.fillSlice(24, 8);
-        bitMap.fillSlice(48, 8);
-        assert(bitMap.getElementCount() == 2
+        assert(bitMap.fillSlice(24, 8, dstOffset) == 0
+            && bitMap.fillSlice(48, 8, dstOffset) == 0
+            && bitMap.getElementCount() == 2
             && bitMap.getSliceBeginAddress(0) == 0 && bitMap.getChildLength(0) == 32
             && bitMap.getSliceBeginAddress(1) == 48 && bitMap.getChildLength(1) == 32);
-        bitMap.fillSlice(24, 32);
-        assert(bitMap.getElementCount() == 1
+        assert(bitMap.fillSlice(24, 32, dstOffset) == -1
+            && bitMap.getElementCount() == 1
             && bitMap.getSliceBeginAddress(0) == 0 && bitMap.getChildLength(0) == 80);
-        bitMap.clearSlice(32, 16);
-        assert(bitMap.getElementCount() == 2
+        assert(bitMap.clearSlice(32, 16) == 1
+            && bitMap.getElementCount() == 2
             && bitMap.getSliceBeginAddress(0) == 0 && bitMap.getChildLength(0) == 32
             && bitMap.getSliceBeginAddress(1) == 48 && bitMap.getChildLength(1) == 32);
-        bitMap.clearSlice(24, 8);
-        bitMap.clearSlice(48, 8);
-        assert(bitMap.getElementCount() == 2
+        assert(bitMap.clearSlice(24, 8) == 0
+            && bitMap.clearSlice(48, 8) == 0
+            && bitMap.getElementCount() == 2
             && bitMap.getSliceBeginAddress(0) == 0 && bitMap.getChildLength(0) == 24
             && bitMap.getSliceBeginAddress(1) == 56 && bitMap.getChildLength(1) == 24);
-        bitMap.clearSlice(16, 16);
-        bitMap.clearSlice(48, 16);
-        assert(bitMap.getElementCount() == 2
+        assert(bitMap.clearSlice(16, 16) == 0
+            && bitMap.clearSlice(48, 16) == 0
+            && bitMap.getElementCount() == 2
             && bitMap.getSliceBeginAddress(0) == 0 && bitMap.getChildLength(0) == 16
             && bitMap.getSliceBeginAddress(1) == 64 && bitMap.getChildLength(1) == 16);
-        bitMap.clearSlice(64, 16);
-        bitMap.clearSlice(0, 16);
-        assert(bitMap.getElementCount() == 0);
+        assert(bitMap.clearSlice(64, 16) == -1
+            && bitMap.clearSlice(0, 16) == -1
+            && bitMap.getElementCount() == 0);
     }
 
     test("BitMap moveSlice") {
         BitVectorGuard<DataStructure<BitMap<>>> bitMap;
-        bitMap.fillSlice(16, 16);
-        assert(bitMap.moveSlice(32, 16, 8) == false
+        NativeNaturalType dstOffset;
+        assert(bitMap.fillSlice(16, 16, dstOffset) == 1
+            && bitMap.moveSlice(32, 16, 8) == false
             && bitMap.moveSlice(32, 24, 8) == true);
         assert(bitMap.getElementCount() == 2
             && bitMap.getSliceBeginAddress(0) == 16 && bitMap.getChildLength(0) == 8
@@ -296,8 +297,8 @@ Integer32 main(Integer32 argc, Integer8** argv) {
         bitMap.moveSlice(32, 24, 8);
         assert(bitMap.getElementCount() == 1
             && bitMap.getSliceBeginAddress(0) == 32 && bitMap.getChildLength(0) == 8);
-        bitMap.fillSlice(24, 8);
-        assert(bitMap.moveSlice(16, 32, 8) == false
+        assert(bitMap.fillSlice(24, 8, dstOffset) == 0
+            && bitMap.moveSlice(16, 32, 8) == false
             && bitMap.moveSlice(16, 24, 8) == true);
         assert(bitMap.getElementCount() == 2
             && bitMap.getSliceBeginAddress(0) == 16 && bitMap.getChildLength(0) == 8
