@@ -119,6 +119,59 @@ struct BitMap : public MetaSet<NativeNaturalType, _ParentType> {
         return slicesAdded;
     }
 
+    void copySlice(BitMap& src, NativeNaturalType dstAddress, NativeNaturalType srcAddress, NativeNaturalType length) {
+        if(dstAddress < srcAddress) {
+            NativeNaturalType sliceIndex, lastEndAddress = srcAddress;
+            getSliceContaining<true, false>(lastEndAddress, sliceIndex);
+            while(sliceIndex < Super::getElementCount()) {
+                NativeNaturalType beginAddress = getSliceBeginAddress(sliceIndex);
+                if(beginAddress > srcAddress+length)
+                    break;
+                NativeNaturalType fillLength = Super::getChildLength(sliceIndex),
+                                  endAddress = beginAddress+fillLength;
+                NativeIntegerType slicesAdded = 0;
+                if(beginAddress > lastEndAddress)
+                    slicesAdded += clearSlice(dstAddress-srcAddress+lastEndAddress, beginAddress-lastEndAddress);
+                lastEndAddress = endAddress;
+                if(srcAddress+length < endAddress)
+                    fillLength -= endAddress-srcAddress-length;
+                NativeNaturalType fillOffset = (beginAddress < srcAddress) ? srcAddress-beginAddress : 0;
+                fillLength -= fillOffset;
+                NativeNaturalType dstOffset;
+                slicesAdded += fillSlice(dstAddress-srcAddress+beginAddress+fillOffset, fillLength, dstOffset);
+                if(src == *this)
+                    sliceIndex += slicesAdded;
+                Super::getBitVector().interoperation(Super::getBitVector(), dstOffset, Super::getChildOffset(sliceIndex)+fillOffset, fillLength);
+                ++sliceIndex;
+            }
+            if(srcAddress+length > lastEndAddress)
+                clearSlice(dstAddress-srcAddress+lastEndAddress, srcAddress+length-lastEndAddress);
+        } else {
+            NativeNaturalType sliceIndex, lastBeginAddress = srcAddress+length;
+            Super::findKey(lastBeginAddress-1, sliceIndex);
+            while(sliceIndex > 0) {
+                --sliceIndex;
+                NativeNaturalType fillLength = Super::getChildLength(sliceIndex),
+                                  beginAddress = getSliceBeginAddress(sliceIndex),
+                                  endAddress = beginAddress+fillLength;
+                if(endAddress < srcAddress)
+                    break;
+                if(lastBeginAddress > endAddress)
+                    clearSlice(dstAddress-srcAddress+endAddress, lastBeginAddress-endAddress);
+                lastBeginAddress = beginAddress;
+                if(srcAddress+length < endAddress)
+                    fillLength -= endAddress-srcAddress-length;
+                NativeNaturalType fillOffset = (beginAddress < srcAddress) ? srcAddress-beginAddress : 0;
+                fillLength -= fillOffset;
+                NativeNaturalType dstOffset;
+                fillSlice(dstAddress-srcAddress+beginAddress+fillOffset, fillLength, dstOffset);
+                Super::getBitVector().interoperation(Super::getBitVector(), dstOffset, Super::getChildOffset(sliceIndex)+fillOffset, fillLength);
+            }
+            if(lastBeginAddress > srcAddress)
+                clearSlice(dstAddress, lastBeginAddress-srcAddress);
+        }
+    }
+
     bool mergeSlices(NativeNaturalType sliceIndex) {
         if(getSliceBeginAddress(sliceIndex+1)-getSliceBeginAddress(sliceIndex) != Super::getChildLength(sliceIndex))
             return false;

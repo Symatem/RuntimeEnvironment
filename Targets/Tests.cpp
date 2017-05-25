@@ -282,6 +282,37 @@ Integer32 main(Integer32 argc, Integer8** argv) {
             && bitMap.getElementCount() == 0);
     }
 
+    test("BitMap copySlice") {
+        BitVectorGuard<DataStructure<BitMap<>>> bitMap;
+        NativeNaturalType dstOffset;
+        assert(bitMap.fillSlice(16, 16, dstOffset) == 1);
+        bitMap.copySlice(bitMap, 16, 64, 16);
+        assert(bitMap.getElementCount() == 0);
+        assert(bitMap.fillSlice(16, 16, dstOffset) == 1
+            && bitMap.fillSlice(64, 8, dstOffset) == 1);
+        bitMap.copySlice(bitMap, 64, 8, 16);
+        assert(bitMap.getElementCount() == 2
+            && bitMap.getSliceBeginAddress(0) == 16 && bitMap.getChildLength(0) == 16
+            && bitMap.getSliceBeginAddress(1) == 72 && bitMap.getChildLength(1) == 8);
+        bitMap.copySlice(bitMap, 64, 24, 16);
+        assert(bitMap.getElementCount() == 2
+            && bitMap.getSliceBeginAddress(0) == 16 && bitMap.getChildLength(0) == 16
+            && bitMap.getSliceBeginAddress(1) == 64 && bitMap.getChildLength(1) == 8);
+        bitMap.copySlice(bitMap, 24, 32, 8);
+        assert(bitMap.fillSlice(72, 8, dstOffset) == 0
+            && bitMap.getElementCount() == 2
+            && bitMap.getSliceBeginAddress(0) == 16 && bitMap.getChildLength(0) == 8
+            && bitMap.getSliceBeginAddress(1) == 64 && bitMap.getChildLength(1) == 16);
+        bitMap.copySlice(bitMap, 16, 56, 16);
+        assert(bitMap.getElementCount() == 2
+            && bitMap.getSliceBeginAddress(0) == 24 && bitMap.getChildLength(0) == 8
+            && bitMap.getSliceBeginAddress(1) == 64 && bitMap.getChildLength(1) == 16);
+        bitMap.copySlice(bitMap, 16, 72, 16);
+        assert(bitMap.getElementCount() == 2
+            && bitMap.getSliceBeginAddress(0) == 16 && bitMap.getChildLength(0) == 8
+            && bitMap.getSliceBeginAddress(1) == 64 && bitMap.getChildLength(1) == 16);
+    }
+
     test("BitMap moveSlice") {
         BitVectorGuard<DataStructure<BitMap<>>> bitMap;
         NativeNaturalType dstOffset;
