@@ -1,11 +1,5 @@
 #include <DataStructures/MetaVector.hpp>
 
-template<typename KeyType, typename ValueType = VoidType, typename _ParentType = BitVectorContainer>
-struct MetaSet : public SetTemplate<MetaVector<KeyType, _ParentType>, KeyType, ValueType, _ParentType> {
-    typedef SetTemplate<MetaVector<KeyType, _ParentType>, KeyType, ValueType, _ParentType> Super;
-    using Super::Super;
-};
-
 template<typename FirstKeyType, typename SecondKeyType, typename _ParentType = BitVectorContainer>
 struct PairSet : public MetaSet<FirstKeyType, _ParentType> {
     typedef _ParentType ParentType;

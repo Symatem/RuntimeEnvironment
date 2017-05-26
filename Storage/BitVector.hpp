@@ -1,11 +1,9 @@
 #include <Storage/BitVectorBucket.hpp>
 
 Symbol createSymbol() {
-    /* TODO: Fix scrutinizeExistence
-    if(freeSymbols.elementCount)
-        return superPage->freeSymbols.getOne<First, true>();
-    else */
-        return superPage->symbolsEnd++;
+    return superPage->freeSymbols.isEmpty()
+        ? superPage->symbolsEnd++
+        : superPage->freeSymbols.getOne<First, true>();
 }
 
 void modifiedBitVector(Symbol symbol) {
@@ -47,9 +45,13 @@ struct BitVector {
         }
     }
 
+    BitVector& getBitVector() {
+        return *this;
+    }
+
     void allocateInBucket(NativeNaturalType size) {
         assert(size > 0);
-        if(superPage->freeBitVectorBuckets[type].empty()) {
+        if(superPage->freeBitVectorBuckets[type].isEmpty()) {
             pageRef = acquirePage();
             bucket = dereferencePage<BitVectorBucket>(pageRef);
             bucket->init(type);
@@ -215,6 +217,7 @@ struct BitVector {
         if(size == 0) {
             state = Empty;
             superPage->bitVectors.erase<Key>(symbol);
+            --superPage->bitVectorCount;
         } else if(BitVectorBucket::isBucketAllocatable(size)) {
             type = BitVectorBucket::getType(size);
             srcBitVector.type = BitVectorBucket::getType(size+length);
@@ -277,6 +280,7 @@ struct BitVector {
         switch(srcBitVector.state) {
             case Empty:
                 superPage->bitVectors.insert(symbol, address);
+                ++superPage->bitVectorCount;
                 break;
             case InBucket:
                 if(state != InBucket || type != srcBitVector.type) {
@@ -303,24 +307,23 @@ struct BitVector {
         modifiedBitVector(symbol);
     }
 
-    template<bool swap>
-    bool externalOperate(void* data, NativeNaturalType offset, NativeNaturalType length) {
+    template<bool overwrite>
+    bool externalOperate(typename conditional<overwrite, const void*, void*>::type data, NativeNaturalType offset, NativeNaturalType length) {
+        typedef typename conditional<overwrite, const NativeNaturalType*, NativeNaturalType*>::type CopyType0;
+        typedef typename conditional<overwrite, NativeNaturalType*, const NativeNaturalType*>::type CopyType1;
         if(length == 0 || offset+length > getSize())
             return false;
         if(state == InBucket) {
-            bitwiseCopySwap<swap>(reinterpret_cast<NativeNaturalType*>(data),
-                                  reinterpret_cast<NativeNaturalType*>(superPage),
-                                  0, address+offset,
-                                  length);
+            bitwiseCopySwap<overwrite>(reinterpret_cast<CopyType0>(data), reinterpret_cast<CopyType1>(superPage),
+                                       0, address+offset, length);
         } else {
             BpTreeBitVector::Iterator<false> iter;
             bpTree.find<Rank>(iter, offset);
             offset = 0;
             while(true) {
                 NativeNaturalType segment = min(length, static_cast<NativeNaturalType>(iter[0]->endIndex-iter[0]->index));
-                bitwiseCopySwap<swap>(reinterpret_cast<NativeNaturalType*>(data),
-                                      reinterpret_cast<NativeNaturalType*>(superPage),
-                                      offset, addressOfInteroperation(iter, 0), segment);
+                bitwiseCopySwap<overwrite>(reinterpret_cast<CopyType0>(data), reinterpret_cast<CopyType1>(superPage),
+                                           offset, addressOfInteroperation(iter, 0), segment);
                 length -= segment;
                 if(length == 0)
                     break;
@@ -329,25 +332,6 @@ struct BitVector {
             }
         }
         return true;
-    }
-
-    template<typename DataType>
-    DataType readAt(NativeNaturalType srcIndex = 0) {
-        DataType dst;
-        externalOperate<false>(&dst, srcIndex*sizeOfInBits<DataType>::value, sizeOfInBits<DataType>::value);
-        return dst;
-    }
-
-    template<typename DataType>
-    void writeAt(NativeNaturalType dstIndex, DataType src) {
-        externalOperate<true>(&src, dstIndex*sizeOfInBits<DataType>::value, sizeOfInBits<DataType>::value);
-    }
-
-    template<typename DataType>
-    void write(DataType src) {
-        setSize(sizeOfInBits<DataType>::value);
-        externalOperate<true>(&src, 0, sizeOfInBits<DataType>::value);
-        modifiedBitVector(symbol);
     }
 
     void chaCha20(ChaCha20& context) {
@@ -367,9 +351,8 @@ struct BitVector {
 
 void releaseSymbol(Symbol symbol) {
     BitVector(symbol).setSize(0);
-    /* TODO: Fix scrutinizeExistence
     if(symbol == superPage->symbolsEnd-1)
         --superPage->symbolsEnd;
     else
-        superPage->freeSymbols.insert(symbol); */
+        superPage->freeSymbols.insert(symbol);
 }

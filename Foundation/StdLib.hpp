@@ -30,7 +30,6 @@ extern "C" {
     void __cxa_atexit(void(*)(void*), void*, void*) {}
     void __cxa_pure_virtual() {}
     void __cxa_deleted_virtual() {}
-    const char* gitRef = "git:" macroToString(GIT_REF);
 }
 
 inline void* operator new(__SIZE_TYPE__, void* ptr) noexcept {

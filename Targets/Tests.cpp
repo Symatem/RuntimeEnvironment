@@ -34,13 +34,9 @@ void printBitVector(BitVector& bitVector) {
 }
 
 Integer32 main(Integer32 argc, Integer8** argv) {
-    test("loadStorage()") {
+    test("loadStorage") {
         assert(argc == 2);
         loadStorage(argv[1]);
-    }
-
-    test("tryToFillPreDefined()") {
-        tryToFillPreDefined();
     }
 
     test("BitVectorGuard<DataStructure>") {
@@ -343,7 +339,7 @@ Integer32 main(Integer32 argc, Integer8** argv) {
     }
 
     test("ArithmeticCodec Symbol") {
-        BitVector bitVector(createSymbol());
+        BitVectorGuard<BitVector> bitVector;
         NativeNaturalType offset = 0;
         ArithmeticEncoder encoder(bitVector, offset, 3);
         for(NativeNaturalType i = 0; i < 8; ++i)
@@ -356,7 +352,9 @@ Integer32 main(Integer32 argc, Integer8** argv) {
     }
 
     test("ArithmeticCodec BitVector") {
-        BitVector plain(createFromString("Hello, World!")), compressed(createSymbol()), decompressed(createSymbol());
+        BitVectorGuard<BitVector> plain, compressed, decompressed;
+        plain.setSize(strlen(gitRef)*8);
+        plain.template externalOperate<true>(gitRef, 0, plain.getSize());
         decompressed.setSize(plain.getSize());
         NativeNaturalType offset = 0;
         arithmeticEncodeBitVector(compressed, offset, plain, 0, plain.getSize());
@@ -366,7 +364,7 @@ Integer32 main(Integer32 argc, Integer8** argv) {
     }
 
     test("Triple") {
-        Triple triple = {1, 2, 3};
+        Triple triple = {createSymbol(), createSymbol(), createSymbol()};
         assert(query(QueryMask::MMM, triple) == 0);
         assert(link(triple) == true);
         assert(query(QueryMask::MMM, triple) == 1);
@@ -374,7 +372,8 @@ Integer32 main(Integer32 argc, Integer8** argv) {
         assert(query(QueryMask::MMM, triple) == 0);
     }
 
-    test("unloadStorage()") {
+    test("unloadStorage") {
+        assert(superPage->bitVectorCount == 0);
         unloadStorage();
     }
 

@@ -7,15 +7,25 @@ struct FreePage : public BasePage {
 // TODO: Redistribution if there are many almost empty buckets of the same type
 const NativeNaturalType bitVectorBucketType[] = {8, 16, 32, 64, 128, 320, 576, 1344, 2432, 4544, 8064, 16192},
                         bitVectorBucketTypeCount = sizeof(bitVectorBucketType)/sizeof(NativeNaturalType);
+const char* gitRef = "git:" macroToString(GIT_REF);
 
 struct SuperPage : public BasePage {
     Natural64 version;
-    Natural8 gitRef[44], architectureSize;
+    Natural8 gitRef[44], architectureSizeLog2;
     Symbol symbolsEnd;
+    NativeNaturalType bitVectorCount;
     PageRefType pagesEnd, freePage;
     BpTreeSet<Symbol> freeSymbols;
     BpTreeSet<PageRefType> fullBitVectorBuckets, freeBitVectorBuckets[bitVectorBucketTypeCount];
     BpTreeMap<Symbol, NativeNaturalType> bitVectors;
+
+    void init() {
+        version = 0;
+        memcpy(gitRef, ::gitRef, sizeof(gitRef));
+        architectureSizeLog2 = BitMask<NativeNaturalType>::ceilLog2(architectureSize);
+        bitVectorCount = 0;
+        symbolsEnd = 0;
+    }
 } *superPage;
 
 template<typename PageType>

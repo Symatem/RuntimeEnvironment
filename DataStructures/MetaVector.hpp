@@ -111,3 +111,9 @@ struct MetaVector : public PairVector<KeyType, NativeNaturalType, _ParentType> {
         return getChildEnd(at)-getChildBegin(at);
     }
 };
+
+template<typename KeyType, typename _ParentType = BitVectorContainer>
+struct MetaSet : public SetTemplate<MetaVector<KeyType, _ParentType>, KeyType, VoidType, _ParentType> {
+    typedef SetTemplate<MetaVector<KeyType, _ParentType>, KeyType, VoidType, _ParentType> Super;
+    using Super::Super;
+};

@@ -135,7 +135,7 @@ bool find(Iterator<enableModification>& iter,
           Closure<void(Page*)> pageTouchCallback = nullptr) {
     static_assert(mode != Key || keyBits);
     static_assert(mode != Rank || rankBits);
-    if(empty()) {
+    if(isEmpty()) {
         iter.end = 0;
         return false;
     }
@@ -199,10 +199,10 @@ bool find(Iterator<enableModification>& iter,
 }
 
 void iterate(Closure<void(Iterator<false>&)> callback) {
-    if(empty())
+    if(isEmpty())
         return;
     Iterator<false> iter;
-    find<false, true, false>(iter);
+    find<First>(iter, 0);
     do {
         callback(iter);
     } while(iter.advance() == 0);

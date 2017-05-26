@@ -112,7 +112,7 @@ Integer32 main(Integer32 argc, Integer8** argv) {
     sectionCount = sizeof(erasePermutation)/sizeof(NativeNaturalType);
     testUsingPermutation<false>();
 
-    assert(tree.empty() && superPage->pagesEnd == countFreePages()+1);
+    assert(tree.isEmpty() && superPage->pagesEnd == countFreePages()+1);
     unloadStorage();
     return 0;
 }

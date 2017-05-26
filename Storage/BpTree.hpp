@@ -12,7 +12,7 @@ struct BpTree {
     typedef Natural32 OffsetType;
     typedef Natural8 LayerType;
 
-    static const NativeNaturalType
+    static constexpr NativeNaturalType
         keyBits = sizeOfInBits<KeyType>::value,
         rankBits = sizeOfInBits<RankType>::value,
         pageRefBits = sizeOfInBits<PageRefType>::value;
@@ -26,19 +26,19 @@ struct BpTree {
         rootPageRef = 0;
     }
 
-    bool empty() const {
+    bool isEmpty() const {
         return (rootPageRef == 0);
     }
 
     LayerType getLayerCount() {
-        if(empty())
+        if(isEmpty())
             return 0;
         return getPage(rootPageRef)->header.layer+1;
     }
 
     RankType getElementCount() {
         static_assert(rankBits);
-        if(empty())
+        if(isEmpty())
             return 0;
         return getPage(rootPageRef)->getIntegratedRank();
     }
@@ -56,7 +56,7 @@ struct BpTree {
     };
 
 #include <Storage/BpPage.hpp>
-    static const LayerType maxLayerCount = Page::layersNeeded();
+    static constexpr LayerType maxLayerCount = Page::layersNeeded();
 #include <Storage/BpIterator.hpp>
 
     template<bool enableModification = false>
@@ -65,7 +65,7 @@ struct BpTree {
     }
 
     void generateStats(struct Stats& stats, Closure<void(Iterator<false>&)> callback = nullptr) {
-        if(empty())
+        if(isEmpty())
             return;
         Iterator<false> iter;
         NativeNaturalType branchPageCount = 0, leafPageCount = 0;
@@ -484,7 +484,7 @@ struct BpTree {
     }
 
     void erase(Iterator<true>& from, Iterator<true>& to) {
-        assert(!empty() && from.isValid() && to.isValid() && from.compare(to) < 1);
+        assert(!isEmpty() && from.isValid() && to.isValid() && from.compare(to) < 1);
         EraseData data = {false, true, static_cast<LayerType>(0), from, to};
         if(eraseLayer<true>(data))
             while(eraseLayer<false>(data));
@@ -496,7 +496,7 @@ struct BpTree {
     }
 
     void erase() {
-        if(empty())
+        if(isEmpty())
             return;
         Iterator<true> from, to;
         find<First>(from);

@@ -6,7 +6,7 @@ struct PageHeader : public BasePage {
 struct Page {
     PageHeader header;
 
-    static const NativeNaturalType
+    static constexpr NativeNaturalType
         headerBits = sizeOfInBits<PageHeader>::value,
         keyOffset = architecturePadding(headerBits),
         bodyBits = bitsPerPage-keyOffset,

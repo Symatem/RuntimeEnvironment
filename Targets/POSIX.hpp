@@ -64,7 +64,7 @@ void printStats() {
     metaStructs.inhabitedMetaData += sizeOfInBits<SuperPage>::value;
     NativeNaturalType totalBits = superPage->pagesEnd*bitsPerPage,
                       recyclableBits = countFreePages()*bitsPerPage;
-    NativeNaturalType recyclableSymbolCount = 0, bitVectorCount = 0, bitVectorInBucketTypes[bitVectorBucketTypeCount+1];
+    NativeNaturalType recyclableSymbolCount = 0, bitVectorInBucketTypes[bitVectorBucketTypeCount+1];
     for(NativeNaturalType i = 0; i < bitVectorBucketTypeCount+1; ++i)
         bitVectorInBucketTypes[i] = 0;
 
@@ -83,7 +83,6 @@ void printStats() {
         ++bitVectorInBucketTypes[BitVectorBucket::getType(bitVector.getSize())];
         if(bitVector.state == BitVector::Fragmented)
             bitVector.bpTree.generateStats(fragmented);
-        ++bitVectorCount;
     });
 
     printf("  Global            %10" PrintFormatNatural " bits %" PrintFormatNatural " pages\n", totalBits, superPage->pagesEnd);
@@ -100,8 +99,8 @@ void printStats() {
     printStatsPartial(fragmented);
     printf("  Symbols           %10" PrintFormatNatural "\n", superPage->symbolsEnd);
     printf("    Recyclable      %10" PrintFormatNatural "\n", recyclableSymbolCount);
-    printf("    Empty           %10" PrintFormatNatural "\n", superPage->symbolsEnd-recyclableSymbolCount-bitVectorCount);
-    printf("    BitVectors      %10" PrintFormatNatural "\n", bitVectorCount);
+    printf("    Empty           %10" PrintFormatNatural "\n", superPage->symbolsEnd-recyclableSymbolCount-superPage->bitVectorCount);
+    printf("    BitVectors      %10" PrintFormatNatural "\n", superPage->bitVectorCount);
     for(NativeNaturalType i = 0; i < bitVectorBucketTypeCount; ++i)
         printf("      %10" PrintFormatNatural "    %10" PrintFormatNatural "\n", bitVectorBucketType[i], bitVectorInBucketTypes[i]);
     printf("      Fragmented    %10" PrintFormatNatural "\n", bitVectorInBucketTypes[bitVectorBucketTypeCount]);
@@ -210,6 +209,7 @@ void loadStorage(const char* path) {
     }
     assert(superPage != MAP_FAILED);
 
+    superPage->init();
     if(file < 0 || fileStat.st_size == 0)
         superPage->pagesEnd = minPageCount;
     else if(S_ISREG(fileStat.st_mode))

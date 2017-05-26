@@ -1,6 +1,6 @@
 template<bool _value>
 struct BoolConstant {
-    static const bool value = _value;
+    static constexpr bool value = _value;
 };
 template<typename type, typename otherType>
 struct isSame : public BoolConstant<false> {};
