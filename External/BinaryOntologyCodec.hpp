@@ -66,7 +66,7 @@ struct BinaryOntologyEncoder : public BinaryOntologyCodec {
         }
     }
 
-    void encodeAttribute(bool doWrite, PairSet<Symbol, Symbol, OntologyStruct>& beta, Symbol attribute) {
+    void encodeAttribute(bool doWrite, PairSet<Symbol, Symbol, SymbolStruct>& beta, Symbol attribute) {
         NativeNaturalType secondAt;
         beta.findFirstKey(attribute, secondAt);
         encodeSymbol(doWrite, attribute);
@@ -78,7 +78,7 @@ struct BinaryOntologyEncoder : public BinaryOntologyCodec {
     }
 
     void encodeEntity(bool doWrite, Symbol entity) {
-        OntologyStruct alpha(entity);
+        SymbolStruct alpha(entity);
         auto beta = alpha.getSubIndex(EAV);
         auto bitMap = alpha.getBitMap();
         if(beta.isEmpty() && bitMap.isEmpty()) {
@@ -195,7 +195,7 @@ struct BinaryOntologyDecoder : public BinaryOntologyCodec {
     void decodeEntity() {
         Symbol entity = decodeSymbol();
         NativeNaturalType sliceCount = decodeNatural();
-        OntologyStruct alpha(entity);
+        SymbolStruct alpha(entity);
         alpha.init();
         auto bitMap = alpha.getBitMap();
         bitMap.setElementCount(sliceCount);

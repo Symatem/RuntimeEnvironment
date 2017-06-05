@@ -1,9 +1,9 @@
 #include <Storage/BitVectorBucket.hpp>
 
 Symbol createSymbol() {
-    return superPage->freeSymbols.isEmpty()
-        ? superPage->symbolsEnd++
-        : superPage->freeSymbols.getOne<First, true>();
+    return superPage->ontology.freeSymbols.isEmpty()
+        ? superPage->ontology.symbolsEnd++
+        : superPage->ontology.freeSymbols.getOne<First, true>();
 }
 
 void modifiedBitVector(Symbol symbol) {
@@ -28,7 +28,7 @@ struct BitVector {
     BitVector(Symbol _symbol) {
         symbol = _symbol;
         BpTreeMap<Symbol, NativeNaturalType>::Iterator<true> iter;
-        if(!superPage->bitVectors.find<Key>(iter, symbol)) {
+        if(!superPage->ontology.bitVectors.find<Key>(iter, symbol)) {
             state = Empty;
             return;
         }
@@ -72,7 +72,7 @@ struct BitVector {
 
     void updateAddress(NativeNaturalType address) {
         BpTreeMap<Symbol, NativeNaturalType>::Iterator<true> iter;
-        superPage->bitVectors.find<Key>(iter, symbol);
+        superPage->ontology.bitVectors.find<Key>(iter, symbol);
         iter.setValue(address);
     }
 
@@ -216,7 +216,7 @@ struct BitVector {
         BitVector srcBitVector = *this;
         if(size == 0) {
             state = Empty;
-            superPage->bitVectors.erase<Key>(symbol);
+            superPage->ontology.bitVectors.erase<Key>(symbol);
             --superPage->bitVectorCount;
         } else if(BitVectorBucket::isBucketAllocatable(size)) {
             type = BitVectorBucket::getType(size);
@@ -279,7 +279,7 @@ struct BitVector {
         }
         switch(srcBitVector.state) {
             case Empty:
-                superPage->bitVectors.insert(symbol, address);
+                superPage->ontology.bitVectors.insert(symbol, address);
                 ++superPage->bitVectorCount;
                 break;
             case InBucket:
@@ -351,8 +351,8 @@ struct BitVector {
 
 void releaseSymbol(Symbol symbol) {
     BitVector(symbol).setSize(0);
-    if(symbol == superPage->symbolsEnd-1)
-        --superPage->symbolsEnd;
+    if(symbol == superPage->ontology.symbolsEnd-1)
+        --superPage->ontology.symbolsEnd;
     else
-        superPage->freeSymbols.insert(symbol);
+        superPage->ontology.freeSymbols.insert(symbol);
 }

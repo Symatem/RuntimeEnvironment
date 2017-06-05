@@ -68,7 +68,7 @@ void printStats() {
     for(NativeNaturalType i = 0; i < bitVectorBucketTypeCount+1; ++i)
         bitVectorInBucketTypes[i] = 0;
 
-    superPage->freeSymbols.generateStats(metaStructs, [&](BpTreeSet<Symbol>::Iterator<false>& iter) {
+    superPage->ontology.freeSymbols.generateStats(metaStructs, [&](BpTreeSet<Symbol>::Iterator<false>& iter) {
         ++recyclableSymbolCount;
     });
     superPage->fullBitVectorBuckets.generateStats(metaStructs, [&](BpTreeSet<PageRefType>::Iterator<false>& iter) {
@@ -78,7 +78,7 @@ void printStats() {
         superPage->freeBitVectorBuckets[i].generateStats(metaStructs, [&](BpTreeSet<PageRefType>::Iterator<false>& iter) {
             dereferencePage<BitVectorBucket>(iter.getKey())->generateStats(freeBuckets);
         });
-    superPage->bitVectors.generateStats(bitVectorIndex, [&](BpTreeMap<Symbol, NativeNaturalType>::Iterator<false> iter) {
+    superPage->ontology.bitVectors.generateStats(bitVectorIndex, [&](BpTreeMap<Symbol, NativeNaturalType>::Iterator<false> iter) {
         BitVector bitVector(iter.getKey());
         ++bitVectorInBucketTypes[BitVectorBucket::getType(bitVector.getSize())];
         if(bitVector.state == BitVector::Fragmented)
@@ -97,9 +97,9 @@ void printStats() {
     printStatsPartial(freeBuckets);
     printf("    Fragmented      ");
     printStatsPartial(fragmented);
-    printf("  Symbols           %10" PrintFormatNatural "\n", superPage->symbolsEnd);
+    printf("  Symbols           %10" PrintFormatNatural "\n", superPage->ontology.symbolsEnd);
     printf("    Recyclable      %10" PrintFormatNatural "\n", recyclableSymbolCount);
-    printf("    Empty           %10" PrintFormatNatural "\n", superPage->symbolsEnd-recyclableSymbolCount-superPage->bitVectorCount);
+    printf("    Empty           %10" PrintFormatNatural "\n", superPage->ontology.symbolsEnd-recyclableSymbolCount-superPage->bitVectorCount);
     printf("    BitVectors      %10" PrintFormatNatural "\n", superPage->bitVectorCount);
     for(NativeNaturalType i = 0; i < bitVectorBucketTypeCount; ++i)
         printf("      %10" PrintFormatNatural "    %10" PrintFormatNatural "\n", bitVectorBucketType[i], bitVectorInBucketTypes[i]);

@@ -1,24 +1,5 @@
 #include <DataStructures/ContentIndex.hpp>
 
-struct OntologyStruct : public DataStructure<MetaVector<VoidType, BitVectorContainer>> {
-    typedef DataStructure<MetaVector<VoidType, BitVectorContainer>> Super;
-
-    OntologyStruct(Symbol symbol) :Super(symbol) {}
-
-    void init() {
-        if(Super::isEmpty())
-            Super::insertRange(0, 7);
-    }
-
-    auto getSubIndex(NativeNaturalType subIndex) {
-        return Super::template getValueAt<PairSet<Symbol, Symbol, OntologyStruct>>(subIndex);
-    }
-
-    auto getBitMap() {
-        return Super::template getValueAt<BitMap<OntologyStruct>>(6);
-    }
-};
-
 #define Wrapper(token) token##Symbol
 enum PreDefinedSymbols {
 #include <Ontology/Symbols.hpp>
@@ -33,6 +14,27 @@ const char* PreDefinedSymbols[] = {
 
 const Symbol preDefinedSymbolsCount = sizeof(PreDefinedSymbols)/sizeof(void*);
 
+
+
+struct SymbolStruct : public DataStructure<MetaVector<VoidType, BitVectorContainer>> {
+    typedef DataStructure<MetaVector<VoidType, BitVectorContainer>> Super;
+
+    SymbolStruct(Symbol symbol) :Super(symbol) {}
+
+    void init() {
+        if(Super::isEmpty())
+            Super::insertRange(0, 7);
+    }
+
+    auto getSubIndex(NativeNaturalType subIndex) {
+        return Super::template getValueAt<PairSet<Symbol, Symbol, SymbolStruct>>(subIndex);
+    }
+
+    auto getBitMap() {
+        return Super::template getValueAt<BitMap<SymbolStruct>>(6);
+    }
+};
+
 #define forEachSubIndex() \
     NativeNaturalType indexCount = (indexMode == MonoIndex) ? 1 : 3; \
     for(NativeNaturalType subIndex = 0; subIndex < indexCount; ++subIndex)
@@ -45,7 +47,7 @@ struct Triple {
         :pos{_entity, _attribute, _value} {}
 
     template<bool forward, bool link>
-    bool subIndexOperate(OntologyStruct& alpha, NativeNaturalType subIndex) {
+    bool subIndexOperate(SymbolStruct& alpha, NativeNaturalType subIndex) {
         auto pair = forward
             ? Pair<Symbol, Symbol>{pos[(subIndex+1)%3], pos[(subIndex+2)%3]}
             : Pair<Symbol, Symbol>{pos[(subIndex+2)%3], pos[(subIndex+1)%3]};
@@ -124,7 +126,7 @@ enum QueryMask {
 };
 
 bool linkInSubIndex(Triple triple, NativeNaturalType subIndex) {
-    OntologyStruct alpha(triple.pos[subIndex]);
+    SymbolStruct alpha(triple.pos[subIndex]);
     alpha.init();
     if(!triple.subIndexOperate<true, true>(alpha, subIndex))
         return false;
@@ -143,7 +145,7 @@ bool link(Triple triple) {
 }
 
 NativeNaturalType searchMMM(NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
-    OntologyStruct alpha(triple.pos[0]);
+    SymbolStruct alpha(triple.pos[0]);
     NativeNaturalType betaIndex, gammaIndex;
     if(alpha.isEmpty())
         return 0;
@@ -156,7 +158,7 @@ NativeNaturalType searchMMM(NativeNaturalType subIndex, Triple triple, Closure<v
 }
 
 NativeNaturalType searchMMI(NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
-    OntologyStruct alpha(triple.pos[0]);
+    SymbolStruct alpha(triple.pos[0]);
     NativeNaturalType betaIndex;
     if(alpha.isEmpty())
         return 0;
@@ -169,7 +171,7 @@ NativeNaturalType searchMMI(NativeNaturalType subIndex, Triple triple, Closure<v
 }
 
 NativeNaturalType searchMII(NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
-    OntologyStruct alpha(triple.pos[0]);
+    SymbolStruct alpha(triple.pos[0]);
     if(alpha.isEmpty())
         return 0;
     if(callback)
@@ -182,7 +184,7 @@ NativeNaturalType searchIII(NativeNaturalType subIndex, Triple triple, Closure<v
 }
 
 NativeNaturalType searchMMV(NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
-    OntologyStruct alpha(triple.pos[0]);
+    SymbolStruct alpha(triple.pos[0]);
     NativeNaturalType betaIndex;
     if(alpha.isEmpty())
         return 0;
@@ -198,7 +200,7 @@ NativeNaturalType searchMMV(NativeNaturalType subIndex, Triple triple, Closure<v
 }
 
 NativeNaturalType searchMVV(NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
-    OntologyStruct alpha(triple.pos[0]);
+    SymbolStruct alpha(triple.pos[0]);
     NativeNaturalType count = 0;
     if(alpha.isEmpty())
         return 0;
@@ -215,7 +217,7 @@ NativeNaturalType searchMVV(NativeNaturalType subIndex, Triple triple, Closure<v
 }
 
 NativeNaturalType searchMIV(NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
-    OntologyStruct alpha(triple.pos[0]);
+    SymbolStruct alpha(triple.pos[0]);
     if(alpha.isEmpty())
         return 0;
     BitVectorGuard<DataStructure<Set<Symbol>>> result;
@@ -232,7 +234,7 @@ NativeNaturalType searchMIV(NativeNaturalType subIndex, Triple triple, Closure<v
 }
 
 NativeNaturalType searchMVI(NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
-    OntologyStruct alpha(triple.pos[0]);
+    SymbolStruct alpha(triple.pos[0]);
     if(alpha.isEmpty())
         return 0;
     auto beta = alpha.getSubIndex(subIndex);
@@ -246,7 +248,7 @@ NativeNaturalType searchMVI(NativeNaturalType subIndex, Triple triple, Closure<v
 
 NativeNaturalType searchVII(NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
     if(callback)
-        superPage->bitVectors.iterate([&](BpTreeMap<Symbol, NativeNaturalType>::Iterator<false> iter) {
+        superPage->ontology.bitVectors.iterate([&](BpTreeMap<Symbol, NativeNaturalType>::Iterator<false> iter) {
             triple.pos[0] = iter.getKey();
             callback(triple.normalized(subIndex));
         });
@@ -255,9 +257,9 @@ NativeNaturalType searchVII(NativeNaturalType subIndex, Triple triple, Closure<v
 
 NativeNaturalType searchVVI(NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
     NativeNaturalType count = 0;
-    superPage->bitVectors.iterate([&](BpTreeMap<Symbol, NativeNaturalType>::Iterator<false> iter) {
+    superPage->ontology.bitVectors.iterate([&](BpTreeMap<Symbol, NativeNaturalType>::Iterator<false> iter) {
         triple.pos[0] = iter.getKey();
-        OntologyStruct alpha(triple.pos[0]);
+        SymbolStruct alpha(triple.pos[0]);
         auto beta = alpha.getSubIndex(subIndex);
         if(callback)
             beta.iterateFirstKeys([&](Symbol betaResult) {
@@ -271,9 +273,9 @@ NativeNaturalType searchVVI(NativeNaturalType subIndex, Triple triple, Closure<v
 
 NativeNaturalType searchVVV(NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
     NativeNaturalType count = 0;
-    superPage->bitVectors.iterate([&](BpTreeMap<Symbol, NativeNaturalType>::Iterator<false> iter) {
+    superPage->ontology.bitVectors.iterate([&](BpTreeMap<Symbol, NativeNaturalType>::Iterator<false> iter) {
         triple.pos[0] = iter.getKey();
-        OntologyStruct alpha(triple.pos[0]);
+        SymbolStruct alpha(triple.pos[0]);
         auto beta = alpha.getSubIndex(subIndex);
         beta.iterateElements([&](Pair<Symbol, Symbol> betaResult) {
             if(callback) {
@@ -372,8 +374,8 @@ bool tripleExists(Triple triple) {
                 linkInSubIndex(result, subIndex);
         });
     } else
-        superPage->bitVectors.iterate([&](BpTreeMap<Symbol, NativeNaturalType>::Iterator<false> iter) {
-            OntologyStruct alpha(iter.getKey());
+        superPage->ontology.bitVectors.iterate([&](BpTreeMap<Symbol, NativeNaturalType>::Iterator<false> iter) {
+            SymbolStruct alpha(iter.getKey());
             for(NativeNaturalType subIndex = _indexMode; subIndex < indexMode; ++subIndex)
                 releaseSymbol(alpha.getSubIndex(subIndex));
         });
@@ -384,7 +386,7 @@ bool unlinkWithoutReleasing(Triple triple, bool skipEnabled = false, Symbol skip
     forEachSubIndex() {
         if(skipEnabled && triple.pos[subIndex] == skip)
             continue;
-        OntologyStruct alpha(triple.pos[subIndex]);
+        SymbolStruct alpha(triple.pos[subIndex]);
         if(alpha.isEmpty())
             return false;
         if(!triple.subIndexOperate<true, false>(alpha, subIndex))
@@ -398,7 +400,7 @@ bool unlinkWithoutReleasing(Triple triple, bool skipEnabled = false, Symbol skip
 }
 
 void tryToReleaseSymbol(Symbol symbol) {
-    OntologyStruct alpha(symbol);
+    SymbolStruct alpha(symbol);
     if(alpha.isEmpty())
         return;
     forEachSubIndex() {
@@ -418,7 +420,7 @@ bool unlink(Triple triple) {
 }
 
 bool unlink(Symbol symbol) {
-    OntologyStruct alpha(symbol);
+    SymbolStruct alpha(symbol);
     if(alpha.isEmpty())
         return false;
     BitVectorGuard<DataStructure<Set<Symbol>>> dirty;
