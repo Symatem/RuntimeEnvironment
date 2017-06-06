@@ -139,8 +139,6 @@ bool link(Triple triple) {
     forEachSubIndex()
         if(!linkInSubIndex(triple, subIndex))
             return false;
-    if(triple.pos[1] == BitMapTypeSymbol)
-        modifiedBitVector(triple.pos[0]);
     return true;
 }
 
@@ -248,8 +246,8 @@ NativeNaturalType searchMVI(NativeNaturalType subIndex, Triple triple, Closure<v
 
 NativeNaturalType searchVII(NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
     if(callback)
-        superPage->ontology.bitVectors.iterate([&](BpTreeMap<Symbol, NativeNaturalType>::Iterator<false> iter) {
-            triple.pos[0] = iter.getKey();
+        superPage->ontology.iterateSymbols([&](Symbol symbol) {
+            triple.pos[0] = symbol;
             callback(triple.normalized(subIndex));
         });
     return superPage->bitVectorCount;
@@ -257,8 +255,8 @@ NativeNaturalType searchVII(NativeNaturalType subIndex, Triple triple, Closure<v
 
 NativeNaturalType searchVVI(NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
     NativeNaturalType count = 0;
-    superPage->ontology.bitVectors.iterate([&](BpTreeMap<Symbol, NativeNaturalType>::Iterator<false> iter) {
-        triple.pos[0] = iter.getKey();
+    superPage->ontology.iterateSymbols([&](Symbol symbol) {
+        triple.pos[0] = symbol;
         SymbolStruct alpha(triple.pos[0]);
         auto beta = alpha.getSubIndex(subIndex);
         if(callback)
@@ -273,8 +271,8 @@ NativeNaturalType searchVVI(NativeNaturalType subIndex, Triple triple, Closure<v
 
 NativeNaturalType searchVVV(NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
     NativeNaturalType count = 0;
-    superPage->ontology.bitVectors.iterate([&](BpTreeMap<Symbol, NativeNaturalType>::Iterator<false> iter) {
-        triple.pos[0] = iter.getKey();
+    superPage->ontology.iterateSymbols([&](Symbol symbol) {
+        triple.pos[0] = symbol;
         SymbolStruct alpha(triple.pos[0]);
         auto beta = alpha.getSubIndex(subIndex);
         beta.iterateElements([&](Pair<Symbol, Symbol> betaResult) {
@@ -374,8 +372,8 @@ bool tripleExists(Triple triple) {
                 linkInSubIndex(result, subIndex);
         });
     } else
-        superPage->ontology.bitVectors.iterate([&](BpTreeMap<Symbol, NativeNaturalType>::Iterator<false> iter) {
-            SymbolStruct alpha(iter.getKey());
+        superPage->ontology.iterateSymbols([&](Symbol symbol) {
+            SymbolStruct alpha(symbol);
             for(NativeNaturalType subIndex = _indexMode; subIndex < indexMode; ++subIndex)
                 releaseSymbol(alpha.getSubIndex(subIndex));
         });
@@ -394,8 +392,6 @@ bool unlinkWithoutReleasing(Triple triple, bool skipEnabled = false, Symbol skip
         if(indexMode == HexaIndex)
             assert((triple.subIndexOperate<false, false>(alpha, subIndex)));
     }
-    if(triple.pos[1] == BitMapTypeSymbol)
-        modifiedBitVector(triple.pos[0]);
     return true;
 }
 
@@ -408,7 +404,7 @@ void tryToReleaseSymbol(Symbol symbol) {
         if(!beta.isEmpty())
             return;
     }
-    releaseSymbol(symbol);
+    superPage->ontology.releaseSymbol(symbol);
 }
 
 bool unlink(Triple triple) {
@@ -434,7 +430,7 @@ bool unlink(Symbol symbol) {
             unlinkWithoutReleasing(Triple(symbol, betaResult.first, betaResult.second).normalized(subIndex), true, symbol);
         });
     }
-    releaseSymbol(symbol);
+    superPage->ontology.releaseSymbol(symbol);
     dirty.iterateElements([&](Symbol symbol) {
         tryToReleaseSymbol(symbol);
     });

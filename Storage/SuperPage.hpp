@@ -13,6 +13,18 @@ struct OntologyStruct {
     Symbol symbolsEnd;
     BpTreeSet<Symbol> freeSymbols;
     BpTreeMap<Symbol, NativeNaturalType> bitVectors;
+
+    void iterateSymbols(Closure<void(Symbol)> callback) {
+        bitVectors.iterateKeys(callback);
+    }
+
+    Symbol createSymbol() {
+        return freeSymbols.isEmpty()
+            ? symbolsEnd++
+            : freeSymbols.getOne<First, true>();
+    }
+
+    void releaseSymbol(Symbol symbol);
 };
 
 struct SuperPage : public BasePage {
@@ -21,6 +33,7 @@ struct SuperPage : public BasePage {
     NativeNaturalType bitVectorCount;
     PageRefType pagesEnd, freePage;
     BpTreeSet<PageRefType> fullBitVectorBuckets, freeBitVectorBuckets[bitVectorBucketTypeCount];
+    // BpTreeMap<Symbol, OntologyStruct> ontologies;
     OntologyStruct ontology;
 
     void init() {

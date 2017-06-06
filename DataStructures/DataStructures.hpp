@@ -44,10 +44,10 @@ template<typename _Super>
 struct BitVectorGuard : public _Super {
     typedef _Super Super;
 
-    BitVectorGuard() :Super(createSymbol()) {}
+    BitVectorGuard() :Super(superPage->ontology.createSymbol()) {}
 
     ~BitVectorGuard() {
-        releaseSymbol(Super::getBitVector().symbol);
+        superPage->ontology.releaseSymbol(Super::getBitVector().symbol);
     }
 };
 

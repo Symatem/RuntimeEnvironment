@@ -364,7 +364,9 @@ Integer32 main(Integer32 argc, Integer8** argv) {
     }
 
     test("Triple") {
-        Triple triple = {createSymbol(), createSymbol(), createSymbol()};
+        Triple triple = {superPage->ontology.createSymbol(),
+                         superPage->ontology.createSymbol(),
+                         superPage->ontology.createSymbol()};
         assert(query(QueryMask::MMM, triple) == 0);
         assert(link(triple) == true);
         assert(query(QueryMask::MMM, triple) == 1);

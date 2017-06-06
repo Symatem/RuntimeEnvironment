@@ -124,11 +124,11 @@ struct StaticHuffmanEncoder : public StaticHuffmanCodec {
     }
 
     StaticHuffmanEncoder(BitVector& _bitVector, NativeNaturalType& _offset) :StaticHuffmanCodec(_bitVector, _offset) {
-        huffmanCodes = BitVector(createSymbol());
+        huffmanCodes = BitVector(superPage->ontology.createSymbol());
     }
 
     ~StaticHuffmanEncoder() {
-        releaseSymbol(huffmanCodes.symbol);
+        superPage->ontology.releaseSymbol(huffmanCodes.symbol);
     }
 };
 

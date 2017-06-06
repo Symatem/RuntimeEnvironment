@@ -231,7 +231,7 @@ struct BinaryOntologyDecoder : public BinaryOntologyCodec {
             for(NativeNaturalType i = 0; i < symbolHuffmanDecoder.symbolCount; ++i) { // TODO
                 Symbol symbol = symbolHuffmanDecoder.symbolVector.getElementAt(i);
                 if(symbol >= preDefinedSymbolsCount)
-                    symbolHuffmanDecoder.symbolVector.setElementAt(i, createSymbol());
+                    symbolHuffmanDecoder.symbolVector.setElementAt(i, superPage->ontology.createSymbol());
             }
         }
         symbolsInChunk = decodeNatural();

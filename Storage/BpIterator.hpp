@@ -198,12 +198,12 @@ bool find(Iterator<enableModification>& iter,
     }
 }
 
-void iterate(Closure<void(Iterator<false>&)> callback) {
+void iterateKeys(Closure<void(KeyType)> callback) {
     if(isEmpty())
         return;
     Iterator<false> iter;
     find<First>(iter, 0);
     do {
-        callback(iter);
+        callback(iter.getKey());
     } while(iter.advance() == 0);
 }

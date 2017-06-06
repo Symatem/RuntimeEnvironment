@@ -1,15 +1,5 @@
 #include <Storage/BitVectorBucket.hpp>
 
-Symbol createSymbol() {
-    return superPage->ontology.freeSymbols.isEmpty()
-        ? superPage->ontology.symbolsEnd++
-        : superPage->ontology.freeSymbols.getOne<First, true>();
-}
-
-void modifiedBitVector(Symbol symbol) {
-    // TODO
-}
-
 struct BitVector {
     Symbol symbol;
     PageRefType pageRef;
@@ -184,7 +174,6 @@ struct BitVector {
             if(!interoperation<+1>(src, dstOffset, srcOffset, length))
                 return false;
         }
-        modifiedBitVector(symbol);
         return true;
     }
 
@@ -243,7 +232,6 @@ struct BitVector {
             srcBitVector.freeFromBucket();
         if(srcBitVector.state == Fragmented && state != Fragmented)
             bpTree.erase();
-        modifiedBitVector(symbol);
         assert(size == getSize());
         return true;
     }
@@ -293,7 +281,6 @@ struct BitVector {
                 updateAddress(address);
                 break;
         }
-        modifiedBitVector(symbol);
         assert(size == getSize());
         return true;
     }
@@ -304,7 +291,6 @@ struct BitVector {
         NativeNaturalType srcSize = src.getSize();
         setSize(srcSize);
         interoperation(src, 0, 0, srcSize);
-        modifiedBitVector(symbol);
     }
 
     template<bool overwrite>
@@ -349,10 +335,12 @@ struct BitVector {
     }
 };
 
-void releaseSymbol(Symbol symbol) {
+
+
+void OntologyStruct::releaseSymbol(Symbol symbol) {
     BitVector(symbol).setSize(0);
-    if(symbol == superPage->ontology.symbolsEnd-1)
-        --superPage->ontology.symbolsEnd;
+    if(symbol == symbolsEnd-1)
+        --symbolsEnd;
     else
-        superPage->ontology.freeSymbols.insert(symbol);
+        freeSymbols.insert(symbol);
 }
