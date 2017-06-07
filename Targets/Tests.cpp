@@ -160,11 +160,11 @@ Integer32 main(Integer32 argc, Integer8** argv) {
     test("MetaVector") {
         BitVectorGuard<DataStructure<MetaVector<NativeNaturalType>>> containerVector;
         containerVector.insertElementAt(0, 7);
-        containerVector.increaseChildLength(0, containerVector.getChildOffset(0), 64);
+        containerVector.increaseSize(containerVector.getChildOffset(0), 64, 0);
         containerVector.insertElementAt(0, 5);
-        containerVector.increaseChildLength(0, containerVector.getChildOffset(0), 32);
+        containerVector.increaseSize(containerVector.getChildOffset(0), 32, 0);
         containerVector.insertElementAt(1, 9);
-        containerVector.increaseChildLength(1, containerVector.getChildOffset(1), 96);
+        containerVector.increaseSize(containerVector.getChildOffset(1), 96, 1);
         assert(containerVector.moveElementAt(2, 1) == true
             && containerVector.moveElementAt(0, 1) == true
             && containerVector.getElementCount() == 3
@@ -180,11 +180,11 @@ Integer32 main(Integer32 argc, Integer8** argv) {
     test("MetaSet") {
         BitVectorGuard<DataStructure<MetaSet<NativeNaturalType>>> containerSet;
         assert(containerSet.insertElement(7) == true);
-        containerSet.increaseChildLength(0, containerSet.getChildOffset(0), 64);
+        containerSet.increaseSize(containerSet.getChildOffset(0), 64, 0);
         assert(containerSet.insertElement(5) == true);
-        containerSet.increaseChildLength(0, containerSet.getChildOffset(0), 32);
+        containerSet.increaseSize(containerSet.getChildOffset(0), 32, 0);
         assert(containerSet.insertElement(8) == true);
-        containerSet.increaseChildLength(2, containerSet.getChildOffset(2), 96);
+        containerSet.increaseSize(containerSet.getChildOffset(2), 96, 2);
         assert(containerSet.getElementCount() == 3
             && containerSet.getChildLength(0) == 32
             && containerSet.getChildLength(1) == 64
@@ -375,7 +375,7 @@ Integer32 main(Integer32 argc, Integer8** argv) {
     }
 
     test("unloadStorage") {
-        assert(superPage->bitVectorCount == 0);
+        assert(superPage->ontology.bitVectorCount == 0);
         unloadStorage();
     }
 

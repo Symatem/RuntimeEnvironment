@@ -1,19 +1,19 @@
 #include <Storage/BitVector.hpp>
 
-struct BitVectorContainer {
-    BitVector bitVector;
+struct BitVectorContainer : public BitVector {
+    typedef BitVector Super;
 
     BitVectorContainer() {}
-    BitVectorContainer(Symbol symbol) :bitVector(symbol) {}
+    BitVectorContainer(Symbol symbol) :Super(symbol) {}
 
-    void increaseChildLength(NativeNaturalType at, NativeNaturalType offset, NativeNaturalType length) {
+    void increaseSize(NativeNaturalType offset, NativeNaturalType length, NativeNaturalType at) {
         assert(at == 0);
-        bitVector.increaseSize(offset, length);
+        Super::increaseSize(offset, length);
     }
 
-    void decreaseChildLength(NativeNaturalType at, NativeNaturalType offset, NativeNaturalType length) {
+    void decreaseSize(NativeNaturalType offset, NativeNaturalType length, NativeNaturalType at) {
         assert(at == 0);
-        bitVector.decreaseSize(offset, length);
+        Super::decreaseSize(offset, length);
     }
 
     NativeNaturalType getChildOffset(NativeNaturalType at) {
@@ -22,11 +22,7 @@ struct BitVectorContainer {
     }
 
     NativeNaturalType getChildLength(NativeNaturalType at) {
-        return bitVector.getSize();
-    }
-
-    BitVector& getBitVector() {
-        return bitVector;
+        return Super::getSize();
     }
 };
 
@@ -47,7 +43,7 @@ struct BitVectorGuard : public _Super {
     BitVectorGuard() :Super(superPage->ontology.createSymbol()) {}
 
     ~BitVectorGuard() {
-        superPage->ontology.releaseSymbol(Super::getBitVector().symbol);
+        Super::getBitVector().ontology->releaseSymbol(Super::getBitVector().symbol);
     }
 };
 

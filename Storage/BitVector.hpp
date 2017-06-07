@@ -1,9 +1,10 @@
 #include <Storage/BitVectorBucket.hpp>
 
 struct BitVector {
+    OntologyStruct* ontology;
     Symbol symbol;
     PageRefType pageRef;
-    NativeNaturalType address, offsetInBucket, indexInBucket;
+    NativeNaturalType address, offsetInPage, indexInBucket;
     Natural16 type;
     BpTreeBitVector bpTree;
     BitVectorBucket* bucket;
@@ -13,26 +14,34 @@ struct BitVector {
         Fragmented
     } state;
 
-    BitVector() {}
+    BitVector() {
+        ontology = &superPage->ontology;
+    }
 
-    BitVector(Symbol _symbol) {
+    BitVector(Symbol _symbol) :BitVector() {
         symbol = _symbol;
         BpTreeMap<Symbol, NativeNaturalType>::Iterator<true> iter;
-        if(!superPage->ontology.bitVectors.find<Key>(iter, symbol)) {
+        if(!ontology->bitVectors.find<Key>(iter, symbol)) {
             state = Empty;
             return;
         }
         address = iter.getValue();
         pageRef = address/bitsPerPage;
-        offsetInBucket = address-pageRef*bitsPerPage;
-        if(offsetInBucket > 0) {
+        offsetInPage = address-pageRef*bitsPerPage;
+        if(offsetInPage > 0) {
             state = InBucket;
             bucket = dereferencePage<BitVectorBucket>(pageRef);
-            indexInBucket = bucket->getIndexOfOffset(offsetInBucket);
+            indexInBucket = bucket->getIndexOfOffset(offsetInPage);
         } else {
             state = Fragmented;
             bpTree.rootPageRef = pageRef;
         }
+    }
+
+    void updateAddress(NativeNaturalType address) {
+        BpTreeMap<Symbol, NativeNaturalType>::Iterator<true> iter;
+        ontology->bitVectors.find<Key>(iter, symbol);
+        iter.setValue(address);
     }
 
     BitVector& getBitVector() {
@@ -51,19 +60,13 @@ struct BitVector {
             bucket = dereferencePage<BitVectorBucket>(pageRef);
         }
         indexInBucket = bucket->allocateIndex(size, symbol, pageRef);
-        offsetInBucket = bucket->getDataOffset(indexInBucket);
-        address = pageRef*bitsPerPage+offsetInBucket;
+        offsetInPage = bucket->getDataOffset(indexInBucket);
+        address = pageRef*bitsPerPage+offsetInPage;
     }
 
     void freeFromBucket() {
         assert(state == InBucket);
         bucket->freeIndex(indexInBucket, pageRef);
-    }
-
-    void updateAddress(NativeNaturalType address) {
-        BpTreeMap<Symbol, NativeNaturalType>::Iterator<true> iter;
-        superPage->ontology.bitVectors.find<Key>(iter, symbol);
-        iter.setValue(address);
     }
 
     template<NativeIntegerType dir>
@@ -205,8 +208,8 @@ struct BitVector {
         BitVector srcBitVector = *this;
         if(size == 0) {
             state = Empty;
-            superPage->ontology.bitVectors.erase<Key>(symbol);
-            --superPage->bitVectorCount;
+            ontology->bitVectors.erase<Key>(symbol);
+            --ontology->bitVectorCount;
         } else if(BitVectorBucket::isBucketAllocatable(size)) {
             type = BitVectorBucket::getType(size);
             srcBitVector.type = BitVectorBucket::getType(size+length);
@@ -267,8 +270,8 @@ struct BitVector {
         }
         switch(srcBitVector.state) {
             case Empty:
-                superPage->ontology.bitVectors.insert(symbol, address);
-                ++superPage->bitVectorCount;
+                ontology->bitVectors.insert(symbol, address);
+                ++ontology->bitVectorCount;
                 break;
             case InBucket:
                 if(state != InBucket || type != srcBitVector.type) {

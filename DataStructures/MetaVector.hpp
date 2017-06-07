@@ -42,7 +42,7 @@ struct MetaVector : public PairVector<KeyType, NativeNaturalType, _ParentType> {
         NativeNaturalType newElementCount = getElementCount()-elementCount,
                           sliceLength = getChildEnd(at+elementCount-1)-getChildBegin(at);
         if(childrenAsWell)
-            Super::parent.decreaseChildLength(Super::childIndex, getChildOffset(at), sliceLength);
+            Super::parent.decreaseSize(getChildOffset(at), sliceLength, Super::childIndex);
         Super::eraseRange(at, elementCount);
         for(NativeNaturalType at = 0; at < newElementCount; ++at)
             Super::setValueAt(at, Super::getValueAt(at)-elementCount*sizeOfInBits<ElementType>::value);
@@ -69,7 +69,7 @@ struct MetaVector : public PairVector<KeyType, NativeNaturalType, _ParentType> {
         NativeNaturalType srcOffset = getChildOffset(srcAt), length = getChildLength(srcAt);
         insertElementAt(dstAt, Super::getKeyAt(srcAt));
         NativeNaturalType dstOffset = getChildOffset(dstAt);
-        increaseChildLength(dstAt, dstOffset, length);
+        increaseSize(dstOffset, length, dstAt);
         Super::getBitVector().interoperation(Super::getBitVector(), dstOffset, srcOffset, length);
         if(!upward)
             ++srcAt;
@@ -79,14 +79,14 @@ struct MetaVector : public PairVector<KeyType, NativeNaturalType, _ParentType> {
 
 
 
-    void increaseChildLength(NativeNaturalType at, NativeNaturalType offset, NativeNaturalType length) {
-        Super::parent.increaseChildLength(Super::childIndex, offset, length);
+    void increaseSize(NativeNaturalType offset, NativeNaturalType length, NativeNaturalType at) {
+        Super::parent.increaseSize(offset, length, Super::childIndex);
         for(++at; at < getElementCount(); ++at)
             Super::setValueAt(at, Super::getValueAt(at)+length);
     }
 
-    void decreaseChildLength(NativeNaturalType at, NativeNaturalType offset, NativeNaturalType length) {
-        Super::parent.decreaseChildLength(Super::childIndex, offset, length);
+    void decreaseSize(NativeNaturalType offset, NativeNaturalType length, NativeNaturalType at) {
+        Super::parent.decreaseSize(offset, length, Super::childIndex);
         for(++at; at < getElementCount(); ++at)
             Super::setValueAt(at, Super::getValueAt(at)-length);
     }

@@ -11,8 +11,14 @@ const char* gitRef = "git:" macroToString(GIT_REF);
 
 struct OntologyStruct {
     Symbol symbolsEnd;
+    NativeNaturalType bitVectorCount;
     BpTreeSet<Symbol> freeSymbols;
     BpTreeMap<Symbol, NativeNaturalType> bitVectors;
+
+    void init() {
+        symbolsEnd = 0;
+        bitVectorCount = 0;
+    }
 
     void iterateSymbols(Closure<void(Symbol)> callback) {
         bitVectors.iterateKeys(callback);
@@ -30,7 +36,6 @@ struct OntologyStruct {
 struct SuperPage : public BasePage {
     Natural64 version;
     Natural8 gitRef[44], architectureSizeLog2;
-    NativeNaturalType bitVectorCount;
     PageRefType pagesEnd, freePage;
     BpTreeSet<PageRefType> fullBitVectorBuckets, freeBitVectorBuckets[bitVectorBucketTypeCount];
     // BpTreeMap<Symbol, OntologyStruct> ontologies;
@@ -40,8 +45,7 @@ struct SuperPage : public BasePage {
         version = 0;
         memcpy(gitRef, ::gitRef, sizeof(gitRef));
         architectureSizeLog2 = BitMask<NativeNaturalType>::ceilLog2(architectureSize);
-        bitVectorCount = 0;
-        ontology.symbolsEnd = 0;
+        ontology.init();
     }
 } *superPage;
 

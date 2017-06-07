@@ -65,7 +65,7 @@ struct BitMap : public MetaSet<NativeNaturalType, _ParentType> {
             length -= sliceLength;
             if(backSlice)
                 length -= endAddress-sliceAddress;
-            Super::increaseChildLength(frontSliceIndex, sliceOffset+sliceLength, length);
+            Super::increaseSize(sliceOffset+sliceLength, length, frontSliceIndex);
             if(backSlice) {
                 Super::template eraseRange<false>(sliceIndex, 1);
                 --slicesAdded;
@@ -79,7 +79,7 @@ struct BitMap : public MetaSet<NativeNaturalType, _ParentType> {
                 ++slicesAdded;
             }
             sliceOffset = Super::getChildBegin(sliceIndex);
-            Super::increaseChildLength(sliceIndex, sliceOffset, length);
+            Super::increaseSize(sliceOffset, length, sliceIndex);
         }
         return slicesAdded;
     }
@@ -97,7 +97,7 @@ struct BitMap : public MetaSet<NativeNaturalType, _ParentType> {
                 ++slicesAdded;
             }
             sliceOffset += Super::getChildBegin(sliceIndex);
-            Super::decreaseChildLength(sliceIndex, sliceOffset, sliceLength);
+            Super::decreaseSize(sliceOffset, sliceLength, sliceIndex);
             if(splitFrontSlice) {
                 Super::setValueAt(sliceIndex+1, sliceOffset);
                 return slicesAdded;
@@ -108,7 +108,7 @@ struct BitMap : public MetaSet<NativeNaturalType, _ParentType> {
             if(endAddress < getSliceEndAddress(sliceIndex)) {
                 NativeNaturalType sliceAddress = getSliceBeginAddress(sliceIndex);
                 if(endAddress > sliceAddress) {
-                    Super::decreaseChildLength(sliceIndex, Super::getChildBegin(sliceIndex), endAddress-sliceAddress);
+                    Super::decreaseSize(Super::getChildBegin(sliceIndex), endAddress-sliceAddress, sliceIndex);
                     Super::setKeyAt(sliceIndex, endAddress);
                 }
                 break;

@@ -16,8 +16,8 @@ const Symbol preDefinedSymbolsCount = sizeof(PreDefinedSymbols)/sizeof(void*);
 
 
 
-struct SymbolStruct : public DataStructure<MetaVector<VoidType, BitVectorContainer>> {
-    typedef DataStructure<MetaVector<VoidType, BitVectorContainer>> Super;
+struct SymbolStruct : public DataStructure<MetaVector<VoidType>> {
+    typedef DataStructure<MetaVector<VoidType>> Super;
 
     SymbolStruct(Symbol symbol) :Super(symbol) {}
 
@@ -142,7 +142,7 @@ bool link(Triple triple) {
     return true;
 }
 
-NativeNaturalType searchMMM(NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
+NativeNaturalType searchMMM(OntologyStruct* ontology, NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
     SymbolStruct alpha(triple.pos[0]);
     NativeNaturalType betaIndex, gammaIndex;
     if(alpha.isEmpty())
@@ -155,7 +155,7 @@ NativeNaturalType searchMMM(NativeNaturalType subIndex, Triple triple, Closure<v
     return 1;
 }
 
-NativeNaturalType searchMMI(NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
+NativeNaturalType searchMMI(OntologyStruct* ontology, NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
     SymbolStruct alpha(triple.pos[0]);
     NativeNaturalType betaIndex;
     if(alpha.isEmpty())
@@ -168,7 +168,7 @@ NativeNaturalType searchMMI(NativeNaturalType subIndex, Triple triple, Closure<v
     return 1;
 }
 
-NativeNaturalType searchMII(NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
+NativeNaturalType searchMII(OntologyStruct* ontology, NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
     SymbolStruct alpha(triple.pos[0]);
     if(alpha.isEmpty())
         return 0;
@@ -177,11 +177,11 @@ NativeNaturalType searchMII(NativeNaturalType subIndex, Triple triple, Closure<v
     return 1;
 }
 
-NativeNaturalType searchIII(NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
+NativeNaturalType searchIII(OntologyStruct* ontology, NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
     return 0;
 }
 
-NativeNaturalType searchMMV(NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
+NativeNaturalType searchMMV(OntologyStruct* ontology, NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
     SymbolStruct alpha(triple.pos[0]);
     NativeNaturalType betaIndex;
     if(alpha.isEmpty())
@@ -197,7 +197,7 @@ NativeNaturalType searchMMV(NativeNaturalType subIndex, Triple triple, Closure<v
     return beta.getSecondKeyCount(betaIndex);
 }
 
-NativeNaturalType searchMVV(NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
+NativeNaturalType searchMVV(OntologyStruct* ontology, NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
     SymbolStruct alpha(triple.pos[0]);
     NativeNaturalType count = 0;
     if(alpha.isEmpty())
@@ -214,7 +214,7 @@ NativeNaturalType searchMVV(NativeNaturalType subIndex, Triple triple, Closure<v
     return count;
 }
 
-NativeNaturalType searchMIV(NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
+NativeNaturalType searchMIV(OntologyStruct* ontology, NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
     SymbolStruct alpha(triple.pos[0]);
     if(alpha.isEmpty())
         return 0;
@@ -231,7 +231,7 @@ NativeNaturalType searchMIV(NativeNaturalType subIndex, Triple triple, Closure<v
     return result.getElementCount();
 }
 
-NativeNaturalType searchMVI(NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
+NativeNaturalType searchMVI(OntologyStruct* ontology, NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
     SymbolStruct alpha(triple.pos[0]);
     if(alpha.isEmpty())
         return 0;
@@ -244,18 +244,20 @@ NativeNaturalType searchMVI(NativeNaturalType subIndex, Triple triple, Closure<v
     return beta.getFirstKeyCount();
 }
 
-NativeNaturalType searchVII(NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
+NativeNaturalType searchVII(OntologyStruct* ontology, NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
+    NativeNaturalType count = 0;
     if(callback)
-        superPage->ontology.iterateSymbols([&](Symbol symbol) {
+        ontology->iterateSymbols([&](Symbol symbol) {
             triple.pos[0] = symbol;
             callback(triple.normalized(subIndex));
+            ++count;
         });
-    return superPage->bitVectorCount;
+    return count;
 }
 
-NativeNaturalType searchVVI(NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
+NativeNaturalType searchVVI(OntologyStruct* ontology, NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
     NativeNaturalType count = 0;
-    superPage->ontology.iterateSymbols([&](Symbol symbol) {
+    ontology->iterateSymbols([&](Symbol symbol) {
         triple.pos[0] = symbol;
         SymbolStruct alpha(triple.pos[0]);
         auto beta = alpha.getSubIndex(subIndex);
@@ -269,9 +271,9 @@ NativeNaturalType searchVVI(NativeNaturalType subIndex, Triple triple, Closure<v
     return count;
 }
 
-NativeNaturalType searchVVV(NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
+NativeNaturalType searchVVV(OntologyStruct* ontology, NativeNaturalType subIndex, Triple triple, Closure<void(Triple)> callback) {
     NativeNaturalType count = 0;
-    superPage->ontology.iterateSymbols([&](Symbol symbol) {
+    ontology->iterateSymbols([&](Symbol symbol) {
         triple.pos[0] = symbol;
         SymbolStruct alpha(triple.pos[0]);
         auto beta = alpha.getSubIndex(subIndex);
@@ -290,7 +292,7 @@ NativeNaturalType searchVVV(NativeNaturalType subIndex, Triple triple, Closure<v
 NativeNaturalType query(QueryMask mask, Triple triple = {VoidSymbol, VoidSymbol, VoidSymbol}, Closure<void(Triple)> callback = nullptr) {
     struct QueryMethod {
         NativeNaturalType subIndex;
-        NativeNaturalType(*function)(NativeNaturalType, Triple, Closure<void(Triple)>);
+        NativeNaturalType(*function)(OntologyStruct*, NativeNaturalType, Triple, Closure<void(Triple)>);
     };
     const QueryMethod lookup[] = {
         {EAV, &searchMMM},
@@ -342,7 +344,7 @@ NativeNaturalType query(QueryMask mask, Triple triple = {VoidSymbol, VoidSymbol,
             if(method.subIndex != EAV) {
                 method.subIndex = EAV;
                 method.function = &searchVVV;
-                (*method.function)(method.subIndex, triple, monoIndexLambda);
+                (*method.function)(&superPage->ontology, method.subIndex, triple, monoIndexLambda);
                 return resultSet.getElementCount();
             }
         case TriIndex:
@@ -351,7 +353,7 @@ NativeNaturalType query(QueryMask mask, Triple triple = {VoidSymbol, VoidSymbol,
                 method.function = &searchMIV;
             }
         case HexaIndex:
-            return (*method.function)(method.subIndex, triple.reordered(method.subIndex), callback);
+            return (*method.function)(&superPage->ontology, method.subIndex, triple.reordered(method.subIndex), callback);
     }
 }
 

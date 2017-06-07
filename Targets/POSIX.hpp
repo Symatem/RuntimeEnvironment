@@ -99,8 +99,8 @@ void printStats() {
     printStatsPartial(fragmented);
     printf("  Symbols           %10" PrintFormatNatural "\n", superPage->ontology.symbolsEnd);
     printf("    Recyclable      %10" PrintFormatNatural "\n", recyclableSymbolCount);
-    printf("    Empty           %10" PrintFormatNatural "\n", superPage->ontology.symbolsEnd-recyclableSymbolCount-superPage->bitVectorCount);
-    printf("    BitVectors      %10" PrintFormatNatural "\n", superPage->bitVectorCount);
+    printf("    Empty           %10" PrintFormatNatural "\n", superPage->ontology.symbolsEnd-recyclableSymbolCount-superPage->ontology.bitVectorCount);
+    printf("    BitVectors      %10" PrintFormatNatural "\n", superPage->ontology.bitVectorCount);
     for(NativeNaturalType i = 0; i < bitVectorBucketTypeCount; ++i)
         printf("      %10" PrintFormatNatural "    %10" PrintFormatNatural "\n", bitVectorBucketType[i], bitVectorInBucketTypes[i]);
     printf("      Fragmented    %10" PrintFormatNatural "\n", bitVectorInBucketTypes[bitVectorBucketTypeCount]);

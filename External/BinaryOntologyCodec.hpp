@@ -132,7 +132,7 @@ struct BinaryOntologyEncoder : public BinaryOntologyCodec {
 
     void encode() {
         symbolOffset = 0;
-        symbolsInChunk = superPage->bitVectorCount;
+        symbolsInChunk = superPage->ontology.bitVectorCount;
         encodeChunk();
 
         Natural8 padding = 8-offset%8;
@@ -203,7 +203,7 @@ struct BinaryOntologyDecoder : public BinaryOntologyCodec {
             bitMap.setKeyAt(sliceIndex, decodeNatural());
             NativeNaturalType sliceOffset = bitMap.getChildOffset(sliceIndex),
                               sliceLength = decodeNatural();
-            bitMap.increaseChildLength(sliceIndex, sliceOffset, sliceLength);
+            bitMap.increaseSize(sliceOffset, sliceLength, sliceIndex);
             switch(bitMapOption) {
                 case BitMapOptionRaw:
                     bitMap.getBitVector().interoperation(bitVector, sliceOffset, offset, sliceLength);

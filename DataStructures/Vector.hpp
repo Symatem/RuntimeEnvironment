@@ -51,11 +51,11 @@ struct Vector {
     }
 
     void insertRange(NativeNaturalType at, NativeNaturalType elementCount) {
-        parent.increaseChildLength(childIndex, getOffsetOfElement(at), elementCount*sizeOfInBits<ElementType>::value);
+        parent.increaseSize(getOffsetOfElement(at), elementCount*sizeOfInBits<ElementType>::value, childIndex);
     }
 
     void eraseRange(NativeNaturalType at, NativeNaturalType elementCount) {
-        parent.decreaseChildLength(childIndex, getOffsetOfElement(at), elementCount*sizeOfInBits<ElementType>::value);
+        parent.decreaseSize(getOffsetOfElement(at), elementCount*sizeOfInBits<ElementType>::value, childIndex);
     }
 
     void insertElementAt(NativeNaturalType at, ElementType element) {

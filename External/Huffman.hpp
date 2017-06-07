@@ -10,7 +10,7 @@ struct StaticHuffmanCodec {
 
 struct StaticHuffmanEncoder : public StaticHuffmanCodec {
     BitVectorGuard<DataStructure<Set<Symbol, NativeNaturalType>>> symbolMap;
-    BitVector huffmanCodes;
+    BitVectorGuard<BitVector> huffmanCodes;
 
     void countSymbol(Symbol symbol) {
         NativeNaturalType index;
@@ -123,13 +123,7 @@ struct StaticHuffmanEncoder : public StaticHuffmanCodec {
         huffmanChildren.setElementCount(0);
     }
 
-    StaticHuffmanEncoder(BitVector& _bitVector, NativeNaturalType& _offset) :StaticHuffmanCodec(_bitVector, _offset) {
-        huffmanCodes = BitVector(superPage->ontology.createSymbol());
-    }
-
-    ~StaticHuffmanEncoder() {
-        superPage->ontology.releaseSymbol(huffmanCodes.symbol);
-    }
+    StaticHuffmanEncoder(BitVector& _bitVector, NativeNaturalType& _offset) :StaticHuffmanCodec(_bitVector, _offset) {}
 };
 
 struct StaticHuffmanDecoder : public StaticHuffmanCodec {
@@ -191,9 +185,4 @@ struct StaticHuffmanDecoder : public StaticHuffmanCodec {
     }
 
     StaticHuffmanDecoder(BitVector& _bitVector, NativeNaturalType& _offset) :StaticHuffmanCodec(_bitVector, _offset) {}
-
-    ~StaticHuffmanDecoder() {
-        symbolVector.setElementCount(0);
-        huffmanChildren.setElementCount(0);
-    }
 };
