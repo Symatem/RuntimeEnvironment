@@ -63,12 +63,12 @@ void printStats() {
     metaStructs.totalMetaData += bitsPerPage;
     metaStructs.inhabitedMetaData += sizeOfInBits<SuperPage>::value;
     NativeNaturalType totalBits = superPage->pagesEnd*bitsPerPage,
-                      recyclableBits = countFreePages()*bitsPerPage;
+                      recyclableBits = countRecyclablePages()*bitsPerPage;
     NativeNaturalType recyclableSymbolCount = 0, bitVectorInBucketTypes[bitVectorBucketTypeCount+1];
     for(NativeNaturalType i = 0; i < bitVectorBucketTypeCount+1; ++i)
         bitVectorInBucketTypes[i] = 0;
 
-    superPage->ontology.freeSymbols.generateStats(metaStructs, [&](BpTreeSet<Symbol>::Iterator<false>& iter) {
+    superPage->heap.recyclableSymbols.generateStats(metaStructs, [&](BpTreeSet<Symbol>::Iterator<false>& iter) {
         ++recyclableSymbolCount;
     });
     superPage->fullBitVectorBuckets.generateStats(metaStructs, [&](BpTreeSet<PageRefType>::Iterator<false>& iter) {
@@ -78,8 +78,8 @@ void printStats() {
         superPage->freeBitVectorBuckets[i].generateStats(metaStructs, [&](BpTreeSet<PageRefType>::Iterator<false>& iter) {
             dereferencePage<BitVectorBucket>(iter.getKey())->generateStats(freeBuckets);
         });
-    superPage->ontology.bitVectors.generateStats(bitVectorIndex, [&](BpTreeMap<Symbol, NativeNaturalType>::Iterator<false> iter) {
-        BitVector bitVector(iter.getKey());
+    superPage->heap.bitVectors.generateStats(bitVectorIndex, [&](BpTreeMap<Symbol, NativeNaturalType>::Iterator<false> iter) {
+        BitVector bitVector(&superPage->heap, iter.getKey());
         ++bitVectorInBucketTypes[BitVectorBucket::getType(bitVector.getSize())];
         if(bitVector.state == BitVector::Fragmented)
             bitVector.bpTree.generateStats(fragmented);
@@ -97,16 +97,18 @@ void printStats() {
     printStatsPartial(freeBuckets);
     printf("    Fragmented      ");
     printStatsPartial(fragmented);
-    printf("  Symbols           %10" PrintFormatNatural "\n", superPage->ontology.symbolsEnd);
+    // TODO: For each SymbolSpace
+    printf("  Symbols           %10" PrintFormatNatural "\n", superPage->heap.symbolsEnd);
     printf("    Recyclable      %10" PrintFormatNatural "\n", recyclableSymbolCount);
-    printf("    Empty           %10" PrintFormatNatural "\n", superPage->ontology.symbolsEnd-recyclableSymbolCount-superPage->ontology.bitVectorCount);
-    printf("    BitVectors      %10" PrintFormatNatural "\n", superPage->ontology.bitVectorCount);
+    printf("    Empty           %10" PrintFormatNatural "\n", superPage->heap.symbolsEnd-superPage->heap.bitVectorCount-recyclableSymbolCount);
+    printf("    BitVectors      %10" PrintFormatNatural "\n", superPage->heap.bitVectorCount);
     for(NativeNaturalType i = 0; i < bitVectorBucketTypeCount; ++i)
         printf("      %10" PrintFormatNatural "    %10" PrintFormatNatural "\n", bitVectorBucketType[i], bitVectorInBucketTypes[i]);
     printf("      Fragmented    %10" PrintFormatNatural "\n", bitVectorInBucketTypes[bitVectorBucketTypeCount]);
-    printf("  Triples:          %10" PrintFormatNatural "\n", query(VVV));
+    // printf("  Triples:          %10" PrintFormatNatural "\n", query(VVV));
     printf("\n");
 
+    assert(superPage->heap.symbolsEnd-superPage->heap.bitVectorCount == recyclableSymbolCount);
     assert(recyclableBits+metaStructs.total+bitVectorIndex.total+fullBuckets.total+freeBuckets.total+fragmented.total == totalBits);
 }
 
@@ -115,7 +117,7 @@ void printStats() {
 Integer32 file = -1, sockfd = -1;
 struct stat fileStat;
 
-void exportOntology(const char* path) {
+/* TODO void exportOntology(const char* path) {
     BinaryOntologyEncoder encoder;
     encoder.encode();
     int fd = open(path, O_WRONLY|O_CREAT, 0666);
@@ -145,7 +147,7 @@ void importOntology(const char* path) {
     }
     close(fd);
     decoder.decode();
-}
+}*/
 
 NativeNaturalType bytesForPages(NativeNaturalType pagesEnd) {
     const NativeNaturalType mmapChunkSize = 1<<28;

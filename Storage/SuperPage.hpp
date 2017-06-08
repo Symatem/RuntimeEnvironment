@@ -1,6 +1,6 @@
 #include <Storage/BpContainers.hpp>
 
-struct FreePage : public BasePage {
+struct RecyclablePage : public BasePage {
     PageRefType next;
 };
 
@@ -9,10 +9,10 @@ const NativeNaturalType bitVectorBucketType[] = {8, 16, 32, 64, 128, 320, 576, 1
                         bitVectorBucketTypeCount = sizeof(bitVectorBucketType)/sizeof(NativeNaturalType);
 const char* gitRef = "git:" macroToString(GIT_REF);
 
-struct OntologyStruct {
+struct SymbolSpace {
     Symbol symbolsEnd;
     NativeNaturalType bitVectorCount;
-    BpTreeSet<Symbol> freeSymbols;
+    BpTreeSet<Symbol> recyclableSymbols;
     BpTreeMap<Symbol, NativeNaturalType> bitVectors;
 
     void init() {
@@ -25,9 +25,9 @@ struct OntologyStruct {
     }
 
     Symbol createSymbol() {
-        return freeSymbols.isEmpty()
+        return recyclableSymbols.isEmpty()
             ? symbolsEnd++
-            : freeSymbols.getOne<First, true>();
+            : recyclableSymbols.getOne<First, true>();
     }
 
     void releaseSymbol(Symbol symbol);
@@ -36,16 +36,16 @@ struct OntologyStruct {
 struct SuperPage : public BasePage {
     Natural64 version;
     Natural8 gitRef[44], architectureSizeLog2;
-    PageRefType pagesEnd, freePage;
+    PageRefType pagesEnd, recyclablePage;
     BpTreeSet<PageRefType> fullBitVectorBuckets, freeBitVectorBuckets[bitVectorBucketTypeCount];
-    // BpTreeMap<Symbol, OntologyStruct> ontologies;
-    OntologyStruct ontology;
+    // BpTreeMap<Symbol, SymbolSpace> ontologies;
+    SymbolSpace heap;
 
     void init() {
         version = 0;
         memcpy(gitRef, ::gitRef, sizeof(gitRef));
         architectureSizeLog2 = BitMask<NativeNaturalType>::ceilLog2(architectureSize);
-        ontology.init();
+        heap.init();
     }
 } *superPage;
 
@@ -63,10 +63,10 @@ PageRefType referenceOfPage(void* page) {
 
 PageRefType acquirePage() {
     assert(superPage);
-    if(superPage->freePage) {
-        PageRefType pageRef = superPage->freePage;
-        auto freePage = dereferencePage<FreePage>(pageRef);
-        superPage->freePage = freePage->next;
+    if(superPage->recyclablePage) {
+        PageRefType pageRef = superPage->recyclablePage;
+        auto recyclablePage = dereferencePage<RecyclablePage>(pageRef);
+        superPage->recyclablePage = recyclablePage->next;
         return pageRef;
     } else {
         resizeMemory(superPage->pagesEnd+1);
@@ -80,20 +80,20 @@ void releasePage(PageRefType pageRef) {
         resizeMemory(superPage->pagesEnd-1);
     else {
         auto superPage = dereferencePage<SuperPage>(0);
-        auto freePage = dereferencePage<FreePage>(pageRef);
-        freePage->next = superPage->freePage;
-        superPage->freePage = pageRef;
+        auto recyclablePage = dereferencePage<RecyclablePage>(pageRef);
+        recyclablePage->next = superPage->recyclablePage;
+        superPage->recyclablePage = pageRef;
     }
 }
 
-NativeNaturalType countFreePages() {
+NativeNaturalType countRecyclablePages() {
     auto superPage = dereferencePage<SuperPage>(0);
-    if(!superPage->freePage)
+    if(!superPage->recyclablePage)
         return 0;
     NativeNaturalType count = 1;
-    auto freePage = dereferencePage<FreePage>(superPage->freePage);
-    while(freePage->next) {
-        freePage = dereferencePage<FreePage>(freePage->next);
+    auto recyclablePage = dereferencePage<RecyclablePage>(superPage->recyclablePage);
+    while(recyclablePage->next) {
+        recyclablePage = dereferencePage<RecyclablePage>(recyclablePage->next);
         ++count;
     }
     return count;

@@ -1,7 +1,7 @@
 #include <Storage/BitVectorBucket.hpp>
 
 struct BitVector {
-    OntologyStruct* ontology;
+    SymbolSpace* symbolSpace;
     Symbol symbol;
     PageRefType pageRef;
     NativeNaturalType address, offsetInPage, indexInBucket;
@@ -14,14 +14,10 @@ struct BitVector {
         Fragmented
     } state;
 
-    BitVector() {
-        ontology = &superPage->ontology;
-    }
-
-    BitVector(Symbol _symbol) :BitVector() {
-        symbol = _symbol;
+    BitVector() {}
+    BitVector(SymbolSpace* _symbolSpace, Symbol _symbol) :symbolSpace(_symbolSpace), symbol(_symbol) {
         BpTreeMap<Symbol, NativeNaturalType>::Iterator<true> iter;
-        if(!ontology->bitVectors.find<Key>(iter, symbol)) {
+        if(!symbolSpace->bitVectors.find<Key>(iter, symbol)) {
             state = Empty;
             return;
         }
@@ -40,7 +36,7 @@ struct BitVector {
 
     void updateAddress(NativeNaturalType address) {
         BpTreeMap<Symbol, NativeNaturalType>::Iterator<true> iter;
-        ontology->bitVectors.find<Key>(iter, symbol);
+        symbolSpace->bitVectors.find<Key>(iter, symbol);
         iter.setValue(address);
     }
 
@@ -208,8 +204,8 @@ struct BitVector {
         BitVector srcBitVector = *this;
         if(size == 0) {
             state = Empty;
-            ontology->bitVectors.erase<Key>(symbol);
-            --ontology->bitVectorCount;
+            symbolSpace->bitVectors.erase<Key>(symbol);
+            --symbolSpace->bitVectorCount;
         } else if(BitVectorBucket::isBucketAllocatable(size)) {
             type = BitVectorBucket::getType(size);
             srcBitVector.type = BitVectorBucket::getType(size+length);
@@ -270,8 +266,8 @@ struct BitVector {
         }
         switch(srcBitVector.state) {
             case Empty:
-                ontology->bitVectors.insert(symbol, address);
-                ++ontology->bitVectorCount;
+                symbolSpace->bitVectors.insert(symbol, address);
+                ++symbolSpace->bitVectorCount;
                 break;
             case InBucket:
                 if(state != InBucket || type != srcBitVector.type) {
@@ -340,10 +336,10 @@ struct BitVector {
 
 
 
-void OntologyStruct::releaseSymbol(Symbol symbol) {
-    BitVector(symbol).setSize(0);
+void SymbolSpace::releaseSymbol(Symbol symbol) {
+    BitVector(this, symbol).setSize(0);
     if(symbol == symbolsEnd-1)
         --symbolsEnd;
     else
-        freeSymbols.insert(symbol);
+        recyclableSymbols.insert(symbol);
 }

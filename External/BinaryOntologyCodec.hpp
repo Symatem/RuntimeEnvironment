@@ -24,17 +24,17 @@ struct BinaryOntologyCodec {
         BitMapOptionArithmetic
     } bitMapOption = BitMapOptionRaw;
 
-    BinaryOntologyCodec() {
-        bitVector = BitVector(BinaryOntologyCodecSymbol);
-    }
+    BinaryOntologyCodec(BitVector _bitVector) :bitVector(_bitVector) {}
 };
 
 struct BinaryOntologyEncoder : public BinaryOntologyCodec {
+    Ontology* srcOntology;
     StaticHuffmanEncoder symbolHuffmanEncoder;
     Symbol symbolOffset;
     NativeNaturalType emptySymbolsInChunk;
 
-    BinaryOntologyEncoder() :BinaryOntologyCodec(), symbolHuffmanEncoder(bitVector, offset) {
+    BinaryOntologyEncoder(Ontology* _srcOntology, Symbol dstSymbol)
+        :BinaryOntologyCodec(BitVector(&superPage->heap, dstSymbol)), srcOntology(_srcOntology), symbolHuffmanEncoder(bitVector, offset) {
         bitVector.setSize(0);
     }
 
@@ -78,7 +78,7 @@ struct BinaryOntologyEncoder : public BinaryOntologyCodec {
     }
 
     void encodeEntity(bool doWrite, Symbol entity) {
-        SymbolStruct alpha(entity);
+        SymbolStruct alpha(srcOntology, entity);
         auto beta = alpha.getSubIndex(EAV);
         auto bitMap = alpha.getBitMap();
         if(beta.isEmpty() && bitMap.isEmpty()) {
@@ -132,7 +132,7 @@ struct BinaryOntologyEncoder : public BinaryOntologyCodec {
 
     void encode() {
         symbolOffset = 0;
-        symbolsInChunk = superPage->ontology.bitVectorCount;
+        symbolsInChunk = srcOntology->bitVectorCount;
         encodeChunk();
 
         Natural8 padding = 8-offset%8;
@@ -148,9 +148,11 @@ struct BinaryOntologyEncoder : public BinaryOntologyCodec {
 };
 
 struct BinaryOntologyDecoder : public BinaryOntologyCodec {
+    Ontology* dstOntology;
     StaticHuffmanDecoder symbolHuffmanDecoder;
 
-    BinaryOntologyDecoder() :BinaryOntologyCodec(), symbolHuffmanDecoder(bitVector, offset) {}
+    BinaryOntologyDecoder(Ontology* _dstOntology, Symbol srcSymbol)
+        :BinaryOntologyCodec(BitVector(&superPage->heap, srcSymbol)), dstOntology(_dstOntology), symbolHuffmanDecoder(bitVector, offset) {}
 
     NativeNaturalType decodeNatural() {
         NativeNaturalType value;
@@ -188,14 +190,14 @@ struct BinaryOntologyDecoder : public BinaryOntologyCodec {
         NativeNaturalType valueCount = decodeNatural()+1;
         for(NativeNaturalType i = 0; i < valueCount; ++i) {
             Symbol value = decodeSymbol();
-            link({entity, attribute, value});
+            dstOntology->link({entity, attribute, value});
         }
     }
 
     void decodeEntity() {
         Symbol entity = decodeSymbol();
         NativeNaturalType sliceCount = decodeNatural();
-        SymbolStruct alpha(entity);
+        SymbolStruct alpha(dstOntology, entity);
         alpha.init();
         auto bitMap = alpha.getBitMap();
         bitMap.setElementCount(sliceCount);
@@ -231,7 +233,7 @@ struct BinaryOntologyDecoder : public BinaryOntologyCodec {
             for(NativeNaturalType i = 0; i < symbolHuffmanDecoder.symbolCount; ++i) { // TODO
                 Symbol symbol = symbolHuffmanDecoder.symbolVector.getElementAt(i);
                 if(symbol >= preDefinedSymbolsCount)
-                    symbolHuffmanDecoder.symbolVector.setElementAt(i, superPage->ontology.createSymbol());
+                    symbolHuffmanDecoder.symbolVector.setElementAt(i, dstOntology->createSymbol());
             }
         }
         symbolsInChunk = decodeNatural();

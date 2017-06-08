@@ -47,7 +47,7 @@ Integer32 main(Integer32 argc, Integer8** argv) {
             container.getBitVector().setSize(32);
             assert(container.getBitVector().getSize() == 32);
         }
-        assert(BitVector(symbol).getSize() == 0);
+        assert(BitVector(&superPage->heap, symbol).getSize() == 0);
     }
 
     test("Vector") {
@@ -364,18 +364,17 @@ Integer32 main(Integer32 argc, Integer8** argv) {
     }
 
     test("Triple") {
-        Triple triple = {superPage->ontology.createSymbol(),
-                         superPage->ontology.createSymbol(),
-                         superPage->ontology.createSymbol()};
-        assert(query(QueryMask::MMM, triple) == 0);
-        assert(link(triple) == true);
-        assert(query(QueryMask::MMM, triple) == 1);
-        assert(unlink(triple) == true);
-        assert(query(QueryMask::MMM, triple) == 0);
+        Ontology* ontology = reinterpret_cast<Ontology*>(&superPage->heap); // TODO
+        Triple triple = {ontology->createSymbol(), ontology->createSymbol(), ontology->createSymbol()};
+        assert(ontology->query(QueryMask::MMM, triple) == 0);
+        assert(ontology->link(triple) == true);
+        assert(ontology->query(QueryMask::MMM, triple) == 1);
+        assert(ontology->unlink(triple) == true);
+        assert(ontology->query(QueryMask::MMM, triple) == 0);
     }
 
     test("unloadStorage") {
-        assert(superPage->ontology.bitVectorCount == 0);
+        assert(superPage->heap.bitVectorCount == 0);
         unloadStorage();
     }
 

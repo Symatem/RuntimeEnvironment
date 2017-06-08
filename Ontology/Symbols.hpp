@@ -22,4 +22,3 @@ Wrapper(Float),
 Wrapper(UTF8),
 
 Wrapper(TripleIndex),
-Wrapper(BinaryOntologyCodec),
