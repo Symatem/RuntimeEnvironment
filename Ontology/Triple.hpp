@@ -16,42 +16,12 @@ const Symbol preDefinedSymbolsCount = sizeof(PreDefinedSymbols)/sizeof(void*);
 
 
 
-struct SymbolStruct : public DataStructure<MetaVector<VoidType>> {
-    typedef DataStructure<MetaVector<VoidType>> Super;
-
-    SymbolStruct(SymbolSpace* symbolSpace, Symbol symbol) :Super(symbolSpace, symbol) {}
-
-    void init() {
-        if(Super::isEmpty())
-            Super::insertRange(0, 7);
-    }
-
-    auto getSubIndex(NativeNaturalType subIndex) {
-        return Super::template getValueAt<PairSet<Symbol, Symbol, SymbolStruct>>(subIndex);
-    }
-
-    auto getBitMap() {
-        return Super::template getValueAt<BitMap<SymbolStruct>>(6);
-    }
-};
-
 struct Triple {
     Symbol pos[3];
 
     Triple() {};
     Triple(Symbol _entity, Symbol _attribute, Symbol _value)
         :pos{_entity, _attribute, _value} {}
-
-    template<bool forward, bool link>
-    bool subIndexOperate(SymbolStruct& alpha, NativeNaturalType subIndex) {
-        auto pair = forward
-            ? Pair<Symbol, Symbol>{pos[(subIndex+1)%3], pos[(subIndex+2)%3]}
-            : Pair<Symbol, Symbol>{pos[(subIndex+2)%3], pos[(subIndex+1)%3]};
-        auto beta = alpha.getSubIndex(subIndex+(forward ? 0 : 3));
-        return link
-            ? beta.insertElement(pair)
-            : beta.eraseElement(pair);
-    }
 
     Triple reordered(NativeNaturalType subIndex) {
         static constexpr NativeNaturalType
@@ -67,6 +37,14 @@ struct Triple {
              beta[] = {1, 0, 2, 2, 0, 1},
             gamma[] = {2, 1, 0, 1, 2, 0};
         return {pos[alpha[subIndex]], pos[beta[subIndex]], pos[gamma[subIndex]]};
+    }
+
+    Pair<Symbol, Symbol> forwardPair(NativeNaturalType subIndex) {
+        return Pair<Symbol, Symbol>{pos[(subIndex+1)%3], pos[(subIndex+2)%3]};
+    }
+
+    Pair<Symbol, Symbol> backwardPair(NativeNaturalType subIndex) {
+        return Pair<Symbol, Symbol>{pos[(subIndex+2)%3], pos[(subIndex+1)%3]};
     }
 
     bool operator==(Triple const& other) {
@@ -98,6 +76,32 @@ struct Triple {
     }
 };
 
+struct SymbolStruct : public DataStructure<MetaVector<VoidType>> {
+    typedef DataStructure<MetaVector<VoidType>> Super;
+
+    SymbolStruct(SymbolSpace* symbolSpace, Symbol symbol) :Super(symbolSpace, symbol) {}
+
+    void init() {
+        if(Super::isEmpty())
+            Super::insertRange(0, 7);
+    }
+
+    auto getSubIndex(NativeNaturalType subIndex) {
+        return Super::template getValueAt<PairSet<Symbol, Symbol, SymbolStruct>>(subIndex);
+    }
+
+    auto getBitMap() {
+        return Super::template getValueAt<BitMap<SymbolStruct>>(6);
+    }
+
+    template<bool forward, bool link>
+    bool subIndexOperate(NativeNaturalType subIndex, Triple triple) {
+        auto pair = (forward) ? triple.forwardPair(subIndex) : triple.backwardPair(subIndex);
+        auto beta = getSubIndex(subIndex+(forward ? 0 : 3));
+        return link ? beta.insertElement(pair) : beta.eraseElement(pair);
+    }
+};
+
 #define forEachSubIndex() \
     NativeNaturalType indexCount = (indexMode == MonoIndex) ? 1 : 3; \
     for(NativeNaturalType subIndex = 0; subIndex < indexCount; ++subIndex)
@@ -126,14 +130,13 @@ enum QueryMask {
 };
 
 struct Ontology : public SymbolSpace {
-
     bool linkInSubIndex(Triple triple, NativeNaturalType subIndex) {
         SymbolStruct alpha(this, triple.pos[subIndex]);
         alpha.init();
-        if(!triple.subIndexOperate<true, true>(alpha, subIndex))
+        if(!alpha.subIndexOperate<true, true>(subIndex, triple))
             return false;
         if(indexMode == HexaIndex)
-            assert((triple.subIndexOperate<false, true>(alpha, subIndex)));
+            assert((alpha.subIndexOperate<false, true>(subIndex, triple)));
         return true;
     }
 
@@ -374,10 +377,10 @@ struct Ontology : public SymbolSpace {
             SymbolStruct alpha(this, triple.pos[subIndex]);
             if(alpha.isEmpty())
                 return false;
-            if(!triple.subIndexOperate<true, false>(alpha, subIndex))
+            if(!alpha.subIndexOperate<true, false>(subIndex, triple))
                 return false;
             if(indexMode == HexaIndex)
-                assert((triple.subIndexOperate<false, false>(alpha, subIndex)));
+                assert((alpha.subIndexOperate<false, false>(subIndex, triple)));
         }
         return true;
     }

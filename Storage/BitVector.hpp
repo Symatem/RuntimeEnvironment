@@ -1,11 +1,44 @@
 #include <Storage/BitVectorBucket.hpp>
 
 struct BitVector {
-    SymbolSpace* symbolSpace;
-    Symbol symbol;
+    struct Location {
+        SymbolSpace* symbolSpace;
+        Symbol symbol;
+
+        Location(SymbolSpace* _symbolSpace, Symbol _symbol) :symbolSpace(_symbolSpace), symbol(_symbol) {}
+
+        bool operator==(const Location& other) const {
+            return symbolSpace == other.symbolSpace && symbol == other.symbol;
+        }
+
+        bool getAddress(NativeNaturalType& address) {
+            BpTreeMap<Symbol, NativeNaturalType>::Iterator<true> iter;
+            if(!symbolSpace->bitVectors.find<Key>(iter, symbol))
+                return false;
+            address = iter.getValue();
+            return true;
+        }
+
+        void setAddress(NativeNaturalType address) {
+            BpTreeMap<Symbol, NativeNaturalType>::Iterator<true> iter;
+            symbolSpace->bitVectors.find<Key>(iter, symbol);
+            iter.setValue(address);
+        }
+
+        void insertAddress(NativeNaturalType address) {
+            symbolSpace->bitVectors.insert(symbol, address);
+            ++symbolSpace->bitVectorCount;
+        }
+
+        void eraseAddress() {
+            symbolSpace->bitVectors.erase<Key>(symbol);
+            --symbolSpace->bitVectorCount;
+        }
+    } location;
+
     PageRefType pageRef;
     NativeNaturalType address, offsetInPage, indexInBucket;
-    Natural16 type;
+    Natural16 bucketType;
     BpTreeBitVector bpTree;
     BitVectorBucket* bucket;
     enum State {
@@ -14,14 +47,11 @@ struct BitVector {
         Fragmented
     } state;
 
-    BitVector() {}
-    BitVector(SymbolSpace* _symbolSpace, Symbol _symbol) :symbolSpace(_symbolSpace), symbol(_symbol) {
-        BpTreeMap<Symbol, NativeNaturalType>::Iterator<true> iter;
-        if(!symbolSpace->bitVectors.find<Key>(iter, symbol)) {
+    BitVector(SymbolSpace* symbolSpace, Symbol symbol) :location(symbolSpace, symbol) {
+        if(!location.getAddress(address)) {
             state = Empty;
             return;
         }
-        address = iter.getValue();
         pageRef = address/bitsPerPage;
         offsetInPage = address-pageRef*bitsPerPage;
         if(offsetInPage > 0) {
@@ -34,28 +64,22 @@ struct BitVector {
         }
     }
 
-    void updateAddress(NativeNaturalType address) {
-        BpTreeMap<Symbol, NativeNaturalType>::Iterator<true> iter;
-        symbolSpace->bitVectors.find<Key>(iter, symbol);
-        iter.setValue(address);
-    }
-
     BitVector& getBitVector() {
         return *this;
     }
 
     void allocateInBucket(NativeNaturalType size) {
         assert(size > 0);
-        if(superPage->freeBitVectorBuckets[type].isEmpty()) {
+        if(superPage->freeBitVectorBuckets[bucketType].isEmpty()) {
             pageRef = acquirePage();
             bucket = dereferencePage<BitVectorBucket>(pageRef);
-            bucket->init(type);
-            assert(superPage->freeBitVectorBuckets[type].insert(pageRef));
+            bucket->init(bucketType);
+            assert(superPage->freeBitVectorBuckets[bucketType].insert(pageRef));
         } else {
-            pageRef = superPage->freeBitVectorBuckets[type].getOne<First, false>();
+            pageRef = superPage->freeBitVectorBuckets[bucketType].template getOne<First, false>();
             bucket = dereferencePage<BitVectorBucket>(pageRef);
         }
-        indexInBucket = bucket->allocateIndex(size, symbol, pageRef);
+        indexInBucket = bucket->allocateIndex(size, location.symbol, pageRef);
         offsetInPage = bucket->getDataOffset(indexInBucket);
         address = pageRef*bitsPerPage+offsetInPage;
     }
@@ -153,7 +177,7 @@ struct BitVector {
     }
 
     NativeIntegerType compare(BitVector other) {
-        if(symbol == other.symbol)
+        if(location == other.location)
             return 0;
         NativeNaturalType size = getSize(), otherSize = other.getSize();
         if(size < otherSize)
@@ -164,7 +188,7 @@ struct BitVector {
     }
 
     bool slice(BitVector src, NativeNaturalType dstOffset, NativeNaturalType srcOffset, NativeNaturalType length) {
-        if(symbol == src.symbol && dstOffset == srcOffset)
+        if(location == src.location && dstOffset == srcOffset)
             return false;
         if(dstOffset <= srcOffset) {
             if(!interoperation<-1>(src, dstOffset, srcOffset, length))
@@ -204,17 +228,16 @@ struct BitVector {
         BitVector srcBitVector = *this;
         if(size == 0) {
             state = Empty;
-            symbolSpace->bitVectors.erase<Key>(symbol);
-            --symbolSpace->bitVectorCount;
+            location.eraseAddress();
         } else if(BitVectorBucket::isBucketAllocatable(size)) {
-            type = BitVectorBucket::getType(size);
-            srcBitVector.type = BitVectorBucket::getType(size+length);
-            if(srcBitVector.state == Fragmented || type != srcBitVector.type) {
+            bucketType = BitVectorBucket::getType(size);
+            srcBitVector.bucketType = BitVectorBucket::getType(size+length);
+            if(srcBitVector.state == Fragmented || bucketType != srcBitVector.bucketType) {
                 state = InBucket;
                 allocateInBucket(size);
                 interoperation(srcBitVector, 0, 0, offset);
                 interoperation(srcBitVector, offset, end, size-offset);
-                updateAddress(address);
+                location.setAddress(address);
             } else {
                 interoperation<-1>(*this, offset, end, size-offset);
                 bucket->setSize(indexInBucket, size);
@@ -225,9 +248,9 @@ struct BitVector {
             bpTree.find<Rank>(to, offset+length-1);
             bpTree.erase(from, to);
             address = bpTree.rootPageRef*bitsPerPage;
-            updateAddress(address);
+            location.setAddress(address);
         }
-        if(srcBitVector.state == InBucket && !(state == InBucket && type == srcBitVector.type))
+        if(srcBitVector.state == InBucket && !(state == InBucket && bucketType == srcBitVector.bucketType))
             srcBitVector.freeFromBucket();
         if(srcBitVector.state == Fragmented && state != Fragmented)
             bpTree.erase();
@@ -243,9 +266,9 @@ struct BitVector {
         size += length;
         if(BitVectorBucket::isBucketAllocatable(size)) {
             state = InBucket;
-            type = BitVectorBucket::getType(size);
-            srcBitVector.type = BitVectorBucket::getType(size-length);
-            if(srcBitVector.state == Empty || type != srcBitVector.type)
+            bucketType = BitVectorBucket::getType(size);
+            srcBitVector.bucketType = BitVectorBucket::getType(size-length);
+            if(srcBitVector.state == Empty || bucketType != srcBitVector.bucketType)
                 allocateInBucket(size);
             else {
                 bucket->setSize(indexInBucket, size);
@@ -266,18 +289,17 @@ struct BitVector {
         }
         switch(srcBitVector.state) {
             case Empty:
-                symbolSpace->bitVectors.insert(symbol, address);
-                ++symbolSpace->bitVectorCount;
+                location.insertAddress(address);
                 break;
             case InBucket:
-                if(state != InBucket || type != srcBitVector.type) {
+                if(state != InBucket || bucketType != srcBitVector.bucketType) {
                     interoperation(srcBitVector, 0, 0, offset);
                     interoperation(srcBitVector, offset+length, offset, size-length-offset);
                     srcBitVector.freeFromBucket();
                 } else
                     break;
             case Fragmented:
-                updateAddress(address);
+                location.setAddress(address);
                 break;
         }
         assert(size == getSize());
@@ -285,7 +307,7 @@ struct BitVector {
     }
 
     void deepCopy(BitVector src) {
-        if(symbol == src.symbol)
+        if(location == src.location)
             return;
         NativeNaturalType srcSize = src.getSize();
         setSize(srcSize);

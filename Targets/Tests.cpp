@@ -43,7 +43,7 @@ Integer32 main(Integer32 argc, Integer8** argv) {
         Symbol symbol;
         {
             BitVectorGuard<DataStructure<Vector<VoidType>>> container;
-            symbol = container.getBitVector().symbol;
+            symbol = container.getBitVector().location.symbol;
             container.getBitVector().setSize(32);
             assert(container.getBitVector().getSize() == 32);
         }

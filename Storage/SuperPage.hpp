@@ -38,7 +38,6 @@ struct SuperPage : public BasePage {
     Natural8 gitRef[44], architectureSizeLog2;
     PageRefType pagesEnd, recyclablePage;
     BpTreeSet<PageRefType> fullBitVectorBuckets, freeBitVectorBuckets[bitVectorBucketTypeCount];
-    // BpTreeMap<Symbol, SymbolSpace> ontologies;
     SymbolSpace heap;
 
     void init() {

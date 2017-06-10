@@ -13,7 +13,7 @@ struct ContentIndex : public Set<Symbol, VoidType, _ParentType> {
     bool findKey(Symbol key, NativeNaturalType& at) {
         SymbolSpace* symbolSpace = Super::parent.getBitVector().symbolSpace;
         at = binarySearch<NativeNaturalType>(0, Super::getElementCount(), [&](NativeNaturalType at) {
-            return BitVector(symbolSpace, key).compare(BitVector(Super::getElementAt(at))) < 0;
+            return BitVector(symbolSpace, key).compare(BitVector(symbolSpace, Super::getElementAt(at))) < 0;
         });
         return (at < Super::getElementCount() && Super::getKeyAt(at) == key);
     }

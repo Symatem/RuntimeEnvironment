@@ -42,7 +42,7 @@ struct BitVectorGuard : public _Super {
     BitVectorGuard() :BitVectorGuard(&superPage->heap) {}
 
     ~BitVectorGuard() {
-        Super::getBitVector().symbolSpace->releaseSymbol(Super::getBitVector().symbol);
+        superPage->heap.releaseSymbol(Super::getBitVector().location.symbol);
     }
 };
 

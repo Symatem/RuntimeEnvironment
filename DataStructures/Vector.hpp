@@ -25,7 +25,7 @@ struct Vector {
     }
 
     bool operator==(Vector<ElementType, ParentType>& other) {
-        return childIndex == other.childIndex && getBitVector().symbol == other.getBitVector().symbol;
+        return childIndex == other.childIndex && getBitVector().location == other.getBitVector().location;
     }
 
     NativeNaturalType getElementCount() {
