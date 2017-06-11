@@ -44,33 +44,52 @@ void printStatsPartial(struct Stats& stats) {
     stats.total = stats.uninhabitable+stats.totalMetaData+stats.totalPayload;
     assert(stats.total%bitsPerPage == 0);
     printStatsLine("", stats.total, superPage->pagesEnd*bitsPerPage);
-    printStatsLine("      Uninhabitable ", stats.uninhabitable, stats.total);
-    printStatsLine("      Meta Data     ", stats.totalMetaData, stats.total);
-    printStatsLine("        Inhabited   ", stats.inhabitedMetaData, stats.totalMetaData);
-    printStatsLine("      Payload       ", stats.totalPayload, stats.total);
-    printStatsLine("        Inhabited   ", stats.inhabitedPayload, stats.totalPayload);
+    printStatsLine("    Uninhabitable ", stats.uninhabitable, stats.total);
+    printStatsLine("    Meta Data     ", stats.totalMetaData, stats.total);
+    printStatsLine("      Inhabited   ", stats.inhabitedMetaData, stats.totalMetaData);
+    printStatsLine("    Payload       ", stats.totalPayload, stats.total);
+    printStatsLine("      Inhabited   ", stats.inhabitedPayload, stats.totalPayload);
 }
 
 void printStats() {
-    printf("Stats:\n");
-
+    NativeNaturalType bitVectorInBucketTypes[bitVectorBucketTypeCount+1];
+    for(NativeNaturalType i = 0; i < bitVectorBucketTypeCount+1; ++i)
+        bitVectorInBucketTypes[i] = 0;
     struct Stats metaStructs, bitVectorIndex, fullBuckets, freeBuckets, fragmented;
     resetStats(metaStructs);
     resetStats(bitVectorIndex);
     resetStats(fullBuckets);
     resetStats(freeBuckets);
     resetStats(fragmented);
-    metaStructs.totalMetaData += bitsPerPage;
-    metaStructs.inhabitedMetaData += sizeOfInBits<SuperPage>::value;
+    printf("Stats:\n");
+    superPage->symbolSpaces.generateStats(metaStructs, [&](BpTreeMap<Symbol, SymbolSpaceState>::Iterator<false> iter) {
+        SymbolSpace symbolSpace(iter.getKey());
+        NativeNaturalType recyclableSymbolCount = 0;
+        symbolSpace.state.recyclableSymbols.generateStats(metaStructs, [&](BpTreeSet<Symbol>::Iterator<false>& iter) {
+            ++recyclableSymbolCount;
+        });
+        symbolSpace.state.bitVectors.generateStats(bitVectorIndex, [&](BpTreeMap<Symbol, NativeNaturalType>::Iterator<false> iter) {
+            BitVector bitVector(BitVectorLocation(&symbolSpace, iter.getKey()));
+            ++bitVectorInBucketTypes[BitVectorBucket::getType(bitVector.getSize())];
+            if(bitVector.state == BitVector::Fragmented)
+                bitVector.bpTree.generateStats(fragmented);
+        });
+        printf("SymbolSpace       %10" PrintFormatNatural "\n", symbolSpace.spaceSymbol);
+        if(symbolSpace.spaceSymbol > 0)
+            printf("  Triples:          %10" PrintFormatNatural "\n", reinterpret_cast<Ontology&>(symbolSpace).query(VVV));
+        printf("  Symbols         %10" PrintFormatNatural "\n", symbolSpace.state.symbolsEnd);
+        printf("  Recyclable      %10" PrintFormatNatural "\n", recyclableSymbolCount);
+        printf("  Empty           %10" PrintFormatNatural "\n", symbolSpace.state.symbolsEnd-symbolSpace.state.bitVectorCount-recyclableSymbolCount);
+        printf("  BitVectors      %10" PrintFormatNatural "\n", symbolSpace.state.bitVectorCount);
+        for(NativeNaturalType i = 0; i < bitVectorBucketTypeCount; ++i)
+            printf("    %10" PrintFormatNatural "    %10" PrintFormatNatural "\n", bitVectorBucketType[i], bitVectorInBucketTypes[i]);
+        printf("    Fragmented    %10" PrintFormatNatural "\n", bitVectorInBucketTypes[bitVectorBucketTypeCount]);
+        assert(symbolSpace.state.symbolsEnd-symbolSpace.state.bitVectorCount == recyclableSymbolCount);
+    });
     NativeNaturalType totalBits = superPage->pagesEnd*bitsPerPage,
                       recyclableBits = countRecyclablePages()*bitsPerPage;
-    NativeNaturalType recyclableSymbolCount = 0, bitVectorInBucketTypes[bitVectorBucketTypeCount+1];
-    for(NativeNaturalType i = 0; i < bitVectorBucketTypeCount+1; ++i)
-        bitVectorInBucketTypes[i] = 0;
-
-    superPage->heap.recyclableSymbols.generateStats(metaStructs, [&](BpTreeSet<Symbol>::Iterator<false>& iter) {
-        ++recyclableSymbolCount;
-    });
+    metaStructs.totalMetaData += bitsPerPage;
+    metaStructs.inhabitedMetaData += sizeOfInBits<SuperPage>::value;
     superPage->fullBitVectorBuckets.generateStats(metaStructs, [&](BpTreeSet<PageRefType>::Iterator<false>& iter) {
         dereferencePage<BitVectorBucket>(iter.getKey())->generateStats(fullBuckets);
     });
@@ -78,37 +97,18 @@ void printStats() {
         superPage->freeBitVectorBuckets[i].generateStats(metaStructs, [&](BpTreeSet<PageRefType>::Iterator<false>& iter) {
             dereferencePage<BitVectorBucket>(iter.getKey())->generateStats(freeBuckets);
         });
-    superPage->heap.bitVectors.generateStats(bitVectorIndex, [&](BpTreeMap<Symbol, NativeNaturalType>::Iterator<false> iter) {
-        BitVector bitVector(&superPage->heap, iter.getKey());
-        ++bitVectorInBucketTypes[BitVectorBucket::getType(bitVector.getSize())];
-        if(bitVector.state == BitVector::Fragmented)
-            bitVector.bpTree.generateStats(fragmented);
-    });
-
-    printf("  Global            %10" PrintFormatNatural " bits %" PrintFormatNatural " pages\n", totalBits, superPage->pagesEnd);
-    printStatsLine("    Recyclable      ", recyclableBits, totalBits);
-    printf("    Meta Structures ");
+    printf("Global            %10" PrintFormatNatural " bits %" PrintFormatNatural " pages\n", totalBits, superPage->pagesEnd);
+    printStatsLine("  Recyclable      ", recyclableBits, totalBits);
+    printf("  Meta Structures ");
     printStatsPartial(metaStructs);
-    printf("    BitVector Index ");
+    printf("  BitVector Index ");
     printStatsPartial(bitVectorIndex);
-    printf("    Full Buckets    ");
+    printf("  Full Buckets    ");
     printStatsPartial(fullBuckets);
-    printf("    Free Buckets    ");
+    printf("  Free Buckets    ");
     printStatsPartial(freeBuckets);
-    printf("    Fragmented      ");
+    printf("  Fragmented      ");
     printStatsPartial(fragmented);
-    // TODO: For each SymbolSpace
-    printf("  Symbols           %10" PrintFormatNatural "\n", superPage->heap.symbolsEnd);
-    printf("    Recyclable      %10" PrintFormatNatural "\n", recyclableSymbolCount);
-    printf("    Empty           %10" PrintFormatNatural "\n", superPage->heap.symbolsEnd-superPage->heap.bitVectorCount-recyclableSymbolCount);
-    printf("    BitVectors      %10" PrintFormatNatural "\n", superPage->heap.bitVectorCount);
-    for(NativeNaturalType i = 0; i < bitVectorBucketTypeCount; ++i)
-        printf("      %10" PrintFormatNatural "    %10" PrintFormatNatural "\n", bitVectorBucketType[i], bitVectorInBucketTypes[i]);
-    printf("      Fragmented    %10" PrintFormatNatural "\n", bitVectorInBucketTypes[bitVectorBucketTypeCount]);
-    // printf("  Triples:          %10" PrintFormatNatural "\n", query(VVV));
-    printf("\n");
-
-    assert(superPage->heap.symbolsEnd-superPage->heap.bitVectorCount == recyclableSymbolCount);
     assert(recyclableBits+metaStructs.total+bitVectorIndex.total+fullBuckets.total+freeBuckets.total+fragmented.total == totalBits);
 }
 
@@ -211,11 +211,12 @@ void loadStorage(const char* path) {
     }
     assert(superPage != MAP_FAILED);
 
-    superPage->init();
     if(file < 0 || fileStat.st_size == 0)
-        superPage->pagesEnd = minPageCount;
-    else if(S_ISREG(fileStat.st_mode))
+        superPage->init(true);
+    else if(S_ISREG(fileStat.st_mode)) {
+        superPage->init(false);
         assert(superPage->pagesEnd*bitsPerPage/8 == static_cast<NativeNaturalType>(fileStat.st_size));
+    }
 }
 
 }

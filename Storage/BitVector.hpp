@@ -1,41 +1,44 @@
 #include <Storage/BitVectorBucket.hpp>
 
+struct BitVectorLocation {
+    SymbolSpace* symbolSpace;
+    Symbol symbol;
+
+    BitVectorLocation(SymbolSpace* _symbolSpace, Symbol _symbol) :symbolSpace(_symbolSpace), symbol(_symbol) {}
+
+    bool operator==(const BitVectorLocation& other) const {
+        return symbolSpace->spaceSymbol == other.symbolSpace->spaceSymbol && symbol == other.symbol;
+    }
+
+    bool getAddress(NativeNaturalType& address) {
+        BpTreeMap<Symbol, NativeNaturalType>::Iterator<true> iter;
+        if(!symbolSpace->state.bitVectors.find<Key>(iter, symbol))
+            return false;
+        address = iter.getValue();
+        return true;
+    }
+
+    void setAddress(NativeNaturalType address) {
+        BpTreeMap<Symbol, NativeNaturalType>::Iterator<true> iter;
+        symbolSpace->state.bitVectors.find<Key>(iter, symbol);
+        iter.setValue(address);
+    }
+
+    void insertAddress(NativeNaturalType address) {
+        symbolSpace->state.bitVectors.insert(symbol, address);
+        ++symbolSpace->state.bitVectorCount;
+        symbolSpace->updateState();
+    }
+
+    void eraseAddress() {
+        symbolSpace->state.bitVectors.erase<Key>(symbol);
+        --symbolSpace->state.bitVectorCount;
+        symbolSpace->updateState();
+    }
+};
+
 struct BitVector {
-    struct Location {
-        SymbolSpace* symbolSpace;
-        Symbol symbol;
-
-        Location(SymbolSpace* _symbolSpace, Symbol _symbol) :symbolSpace(_symbolSpace), symbol(_symbol) {}
-
-        bool operator==(const Location& other) const {
-            return symbolSpace == other.symbolSpace && symbol == other.symbol;
-        }
-
-        bool getAddress(NativeNaturalType& address) {
-            BpTreeMap<Symbol, NativeNaturalType>::Iterator<true> iter;
-            if(!symbolSpace->bitVectors.find<Key>(iter, symbol))
-                return false;
-            address = iter.getValue();
-            return true;
-        }
-
-        void setAddress(NativeNaturalType address) {
-            BpTreeMap<Symbol, NativeNaturalType>::Iterator<true> iter;
-            symbolSpace->bitVectors.find<Key>(iter, symbol);
-            iter.setValue(address);
-        }
-
-        void insertAddress(NativeNaturalType address) {
-            symbolSpace->bitVectors.insert(symbol, address);
-            ++symbolSpace->bitVectorCount;
-        }
-
-        void eraseAddress() {
-            symbolSpace->bitVectors.erase<Key>(symbol);
-            --symbolSpace->bitVectorCount;
-        }
-    } location;
-
+    BitVectorLocation location;
     PageRefType pageRef;
     NativeNaturalType address, offsetInPage, indexInBucket;
     Natural16 bucketType;
@@ -47,7 +50,7 @@ struct BitVector {
         Fragmented
     } state;
 
-    BitVector(SymbolSpace* symbolSpace, Symbol symbol) :location(symbolSpace, symbol) {
+    BitVector(BitVectorLocation _location) :location(_location) {
         if(!location.getAddress(address)) {
             state = Empty;
             return;
@@ -358,10 +361,29 @@ struct BitVector {
 
 
 
+SymbolSpace::SymbolSpace(Symbol _spaceSymbol) :spaceSymbol(_spaceSymbol) {
+    BpTreeMap<Symbol, SymbolSpaceState>::Iterator<true> iter;
+    if(!superPage->symbolSpaces.find<Key>(iter, spaceSymbol)) {
+        state.symbolsEnd = 0;
+        state.bitVectorCount = 0;
+        state.recyclableSymbols.init();
+        state.bitVectors.init();
+        superPage->symbolSpaces.insert(spaceSymbol, state);
+    } else
+        state = iter.getValue();
+}
+
+void SymbolSpace::updateState() {
+    BpTreeMap<Symbol, SymbolSpaceState>::Iterator<true> iter;
+    assert(superPage->symbolSpaces.find<Key>(iter, spaceSymbol));
+    iter.setValue(state);
+}
+
 void SymbolSpace::releaseSymbol(Symbol symbol) {
-    BitVector(this, symbol).setSize(0);
-    if(symbol == symbolsEnd-1)
-        --symbolsEnd;
+    if(symbol == state.symbolsEnd-1)
+        --state.symbolsEnd;
     else
-        recyclableSymbols.insert(symbol);
+        state.recyclableSymbols.insert(symbol);
+    updateState();
+    BitVector(BitVectorLocation(this, symbol)).setSize(0);
 }

@@ -9,42 +9,51 @@ const NativeNaturalType bitVectorBucketType[] = {8, 16, 32, 64, 128, 320, 576, 1
                         bitVectorBucketTypeCount = sizeof(bitVectorBucketType)/sizeof(NativeNaturalType);
 const char* gitRef = "git:" macroToString(GIT_REF);
 
-struct SymbolSpace {
+struct SymbolSpaceState {
     Symbol symbolsEnd;
     NativeNaturalType bitVectorCount;
     BpTreeSet<Symbol> recyclableSymbols;
     BpTreeMap<Symbol, NativeNaturalType> bitVectors;
+};
 
-    void init() {
-        symbolsEnd = 0;
-        bitVectorCount = 0;
-    }
+struct SymbolSpace {
+    Symbol spaceSymbol;
+    SymbolSpaceState state;
+
+    SymbolSpace() {}
+    SymbolSpace(Symbol _spaceSymbol);
+
+    void updateState();
 
     void iterateSymbols(Closure<void(Symbol)> callback) {
-        bitVectors.iterateKeys(callback);
+        state.bitVectors.iterateKeys(callback);
     }
 
     Symbol createSymbol() {
-        return recyclableSymbols.isEmpty()
-            ? symbolsEnd++
-            : recyclableSymbols.getOne<First, true>();
+        Symbol symbol = state.recyclableSymbols.isEmpty()
+            ? state.symbolsEnd++
+            : state.recyclableSymbols.getOne<First, true>();
+        updateState();
+        return symbol;
     }
 
     void releaseSymbol(Symbol symbol);
-};
+} heapSymbolSpace;
 
 struct SuperPage : public BasePage {
     Natural64 version;
     Natural8 gitRef[44], architectureSizeLog2;
     PageRefType pagesEnd, recyclablePage;
     BpTreeSet<PageRefType> fullBitVectorBuckets, freeBitVectorBuckets[bitVectorBucketTypeCount];
-    SymbolSpace heap;
+    BpTreeMap<Symbol, SymbolSpaceState> symbolSpaces;
 
-    void init() {
+    void init(bool resetPagesEnd) {
         version = 0;
         memcpy(gitRef, ::gitRef, sizeof(gitRef));
         architectureSizeLog2 = BitMask<NativeNaturalType>::ceilLog2(architectureSize);
-        heap.init();
+        if(resetPagesEnd)
+            pagesEnd = minPageCount;
+        heapSymbolSpace = SymbolSpace(0);
     }
 } *superPage;
 

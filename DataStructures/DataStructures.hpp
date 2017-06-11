@@ -3,7 +3,7 @@
 struct BitVectorContainer : public BitVector {
     typedef BitVector Super;
 
-    BitVectorContainer(SymbolSpace* symbolSpace, Symbol symbol) :Super(symbolSpace, symbol) {}
+    BitVectorContainer(BitVectorLocation location) :Super(location) {}
 
     void increaseSize(NativeNaturalType offset, NativeNaturalType length, NativeNaturalType at) {
         assert(at == 0);
@@ -31,18 +31,19 @@ struct DataStructure : public _Super {
     typedef typename Super::ElementType ElementType;
     BitVectorContainer parent;
 
-    DataStructure(SymbolSpace* symbolSpace, Symbol symbol) :Super(parent), parent(symbolSpace, symbol) {}
+    DataStructure(BitVectorLocation location) :Super(parent), parent(location) {}
 };
 
 template<typename _Super>
 struct BitVectorGuard : public _Super {
     typedef _Super Super;
 
-    BitVectorGuard(SymbolSpace* symbolSpace) :Super(symbolSpace, symbolSpace->createSymbol()) {}
-    BitVectorGuard() :BitVectorGuard(&superPage->heap) {}
+    BitVectorGuard(SymbolSpace* symbolSpace) :Super(BitVectorLocation(symbolSpace, symbolSpace->createSymbol())) {}
+    BitVectorGuard() :BitVectorGuard(&heapSymbolSpace) {}
 
     ~BitVectorGuard() {
-        superPage->heap.releaseSymbol(Super::getBitVector().location.symbol);
+        auto bitVector = Super::getBitVector();
+        bitVector.location.symbolSpace->releaseSymbol(bitVector.location.symbol);
     }
 };
 

@@ -34,7 +34,7 @@ struct BinaryOntologyEncoder : public BinaryOntologyCodec {
     NativeNaturalType emptySymbolsInChunk;
 
     BinaryOntologyEncoder(Ontology* _srcOntology, Symbol dstSymbol)
-        :BinaryOntologyCodec(BitVector(&superPage->heap, dstSymbol)), srcOntology(_srcOntology), symbolHuffmanEncoder(bitVector, offset) {
+        :BinaryOntologyCodec(BitVector(BitVectorLocation(&heapSymbolSpace, dstSymbol))), srcOntology(_srcOntology), symbolHuffmanEncoder(bitVector, offset) {
         bitVector.setSize(0);
     }
 
@@ -78,7 +78,7 @@ struct BinaryOntologyEncoder : public BinaryOntologyCodec {
     }
 
     void encodeEntity(bool doWrite, Symbol entity) {
-        SymbolStruct alpha(srcOntology, entity);
+        auto alpha = srcOntology->getSymbolStruct(entity);
         auto beta = alpha.getSubIndex(EAV);
         auto bitMap = alpha.getBitMap();
         if(beta.isEmpty() && bitMap.isEmpty()) {
@@ -132,7 +132,7 @@ struct BinaryOntologyEncoder : public BinaryOntologyCodec {
 
     void encode() {
         symbolOffset = 0;
-        symbolsInChunk = srcOntology->bitVectorCount;
+        symbolsInChunk = srcOntology->state.bitVectorCount;
         encodeChunk();
 
         Natural8 padding = 8-offset%8;
@@ -152,7 +152,7 @@ struct BinaryOntologyDecoder : public BinaryOntologyCodec {
     StaticHuffmanDecoder symbolHuffmanDecoder;
 
     BinaryOntologyDecoder(Ontology* _dstOntology, Symbol srcSymbol)
-        :BinaryOntologyCodec(BitVector(&superPage->heap, srcSymbol)), dstOntology(_dstOntology), symbolHuffmanDecoder(bitVector, offset) {}
+        :BinaryOntologyCodec(BitVector(BitVectorLocation(&heapSymbolSpace, srcSymbol))), dstOntology(_dstOntology), symbolHuffmanDecoder(bitVector, offset) {}
 
     NativeNaturalType decodeNatural() {
         NativeNaturalType value;
@@ -197,7 +197,7 @@ struct BinaryOntologyDecoder : public BinaryOntologyCodec {
     void decodeEntity() {
         Symbol entity = decodeSymbol();
         NativeNaturalType sliceCount = decodeNatural();
-        SymbolStruct alpha(dstOntology, entity);
+        auto alpha = dstOntology->getSymbolStruct(entity);
         alpha.init();
         auto bitMap = alpha.getBitMap();
         bitMap.setElementCount(sliceCount);

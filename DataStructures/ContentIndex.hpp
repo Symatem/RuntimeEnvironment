@@ -11,9 +11,9 @@ struct ContentIndex : public Set<Symbol, VoidType, _ParentType> {
     ContentIndex(ParentType& _parent, NativeNaturalType _childIndex = 0) :Super(_parent, _childIndex) { }
 
     bool findKey(Symbol key, NativeNaturalType& at) {
-        SymbolSpace* symbolSpace = Super::parent.getBitVector().symbolSpace;
+        auto symbolSpace = Super::parent.getBitVector().location.symbolSpace;
         at = binarySearch<NativeNaturalType>(0, Super::getElementCount(), [&](NativeNaturalType at) {
-            return BitVector(symbolSpace, key).compare(BitVector(symbolSpace, Super::getElementAt(at))) < 0;
+            return BitVector(BitVectorLocation(symbolSpace, key)).compare(BitVector(BitVectorLocation(symbolSpace, Super::getElementAt(at)))) < 0;
         });
         return (at < Super::getElementCount() && Super::getKeyAt(at) == key);
     }
