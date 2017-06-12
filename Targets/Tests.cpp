@@ -2,26 +2,125 @@
 
 extern "C" {
 
+#define CURSOR_TO_LEFT_LIMIT "\n\e[A"
+#define CLEAR_LINE "\e[K"
+#define TEXT_BOLD "\e[1m"
+#define TEXT_NORMAL "\e[0m"
+#define TEXT_RED "\e[0;31m"
+#define TEXT_GREEN "\e[0;32m"
 #define test(name) beginTest(__COUNTER__, name);
 static const char* currentTest = nullptr;
 static NativeNaturalType testIndex = 0;
 extern NativeNaturalType testCount;
 
-void beginTest(NativeNaturalType index, const char* name) {
-    if(currentTest)
-        printf("\e[1m[ OK ]\e[0m %s\n", currentTest);
-    testIndex = index;
-    currentTest = name;
-}
-
 void assertFailed(const char* message) {
-    printf("\e[1m[FAIL]\e[0m %s: %s\n", currentTest, message);
-    printf("\e[0;31m\u2716 Test %" PrintFormatNatural "/%" PrintFormatNatural " failed\e[0m\n", testIndex, testCount);
+    printf(TEXT_BOLD "[FAIL]" TEXT_NORMAL " %s: %s\n", currentTest, message);
+    printf(TEXT_RED "\u2716 Test %" PrintFormatNatural "/%" PrintFormatNatural " failed\n" TEXT_NORMAL, testIndex, testCount);
     abort();
     // signal(SIGTRAP);
 }
 
-void printBitVector(BitVector& bitVector) {
+void beginTest(NativeNaturalType index, const char* name) {
+    if(currentTest)
+        printf(TEXT_BOLD "[ OK ]" TEXT_NORMAL " %s\n", currentTest);
+    testIndex = index;
+    currentTest = name;
+}
+
+void endTests() {
+    beginTest(testCount, nullptr);
+    printf(TEXT_GREEN "\u2714 All %" PrintFormatNatural " tests succeeded\n" TEXT_NORMAL, testCount);
+}
+
+}
+
+
+
+#ifdef BP_TREE_TEST
+struct TestBpTree : public BpTree<NativeNaturalType, NativeNaturalType, architectureSize> {
+    typedef BpTree<NativeNaturalType, NativeNaturalType, architectureSize> Super;
+    typedef typename Super::template Iterator<true> SuperIterator;
+
+    template<bool enableModification>
+    struct Iterator : public Super::template Iterator<enableModification, Super::IteratorFrame> {
+        typedef typename Super::template Iterator<enableModification, Super::IteratorFrame> SuperIterator;
+
+        NativeNaturalType getValue() {
+            Super::IteratorFrame* frame = (*this)[0];
+            return Super::getPage(frame->pageRef)->template get<NativeNaturalType, Super::Page::valueOffset>(frame->index);
+        }
+
+        void setValue(NativeNaturalType value) {
+            static_assert(enableModification);
+            Super::IteratorFrame* frame = (*this)[0];
+            Super::getPage(frame->pageRef)->template set<NativeNaturalType, Super::Page::valueOffset>(frame->index, value);
+        }
+    };
+
+    void insert(Iterator<true>& origIter, NativeNaturalType n, typename Super::AcquireData acquireData) {
+        Super::insert(origIter, n, acquireData);
+    }
+};
+
+template<bool insert>
+void testBpTreeUsingPermutation(TestBpTree& tree, NativeNaturalType elementCount, NativeNaturalType sectionCount, const NativeNaturalType* permutation) {
+    assert(sectionCount <= elementCount);
+    TestBpTree::Iterator<true> iterA, iterB;
+
+    Natural8* flagField = reinterpret_cast<Natural8*>(alloca(sectionCount));
+    for(NativeNaturalType sectionIndex = 0; sectionIndex < sectionCount; ++sectionIndex)
+        flagField[sectionIndex] = !insert;
+
+    NativeNaturalType sectionElementCount, permutationIndex, elementKey,
+                      sectionElementCountMin = elementCount/sectionCount,
+                      sectionElementCountMax = elementCount-(sectionCount-1)*sectionElementCountMin;
+    for(NativeNaturalType sectionIndex = 0; sectionIndex < sectionCount; ++sectionIndex) {
+        permutationIndex = permutation[sectionIndex];
+        elementKey = sectionElementCountMin*permutationIndex;
+        sectionElementCount = (permutationIndex < sectionCount-1) ? sectionElementCountMin : sectionElementCountMax;
+        tree.find<Key>(iterA, elementKey);
+        flagField[permutationIndex] = insert;
+
+        printf(CURSOR_TO_LEFT_LIMIT CLEAR_LINE "[%010llu, %010llu] %04llu %3.2f%% %hhd", elementKey, elementKey+sectionElementCount, permutationIndex, 100.0*sectionIndex/sectionCount, tree.getLayerCount());
+
+        if(insert) {
+            tree.insert(iterA, sectionElementCount, [&](TestBpTree::Page* page, TestBpTree::OffsetType index, TestBpTree::OffsetType endIndex) {
+                for(; index < endIndex; ++index) {
+                    page->template setKey<true>(index, elementKey);
+                    page->template set<NativeNaturalType, TestBpTree::Page::valueOffset>(index, elementKey);
+                    ++elementKey;
+                }
+            });
+        } else {
+            tree.find<Key>(iterB, elementKey+sectionElementCount-1);
+            tree.erase(iterA, iterB);
+        }
+
+        NativeNaturalType elementRank = 0;
+        for(NativeNaturalType sectionToCheck = 0; sectionToCheck < sectionCount; ++sectionToCheck) {
+            elementKey = sectionElementCountMin*sectionToCheck;
+            sectionElementCount = (sectionToCheck < sectionCount-1) ? sectionElementCountMin : sectionElementCountMax;
+            tree.find<Key>(iterA, elementKey);
+            if(!flagField[sectionToCheck])
+                continue;
+            printf(CURSOR_TO_LEFT_LIMIT "[%010llu, %010llu]", elementKey, elementKey+sectionElementCount);
+            for(NativeNaturalType endKey = elementKey+sectionElementCount; elementKey < endKey; ++elementKey) {
+                if(elementKey != iterA.getKey() || elementKey != iterA.getValue() || elementRank != iterA.getRank()) {
+                    printf("ERROR: %lld:%lld:%lld %lld:%lld\n", elementKey, iterA.getKey(), iterA.getValue(), elementRank, iterA.getRank());
+                    exit(2);
+                }
+                iterA.advance();
+                ++elementRank;
+            }
+        }
+        assert(tree.getElementCount() == elementRank);
+    }
+}
+#endif
+
+extern "C" {
+
+/*void printBitVector(BitVector& bitVector) {
     NativeNaturalType length = bitVector.getSize(), offset = 0;
     while(offset < length) {
         NativeNaturalType buffer, sliceLength = min(static_cast<NativeNaturalType>(architectureSize), length-offset);
@@ -31,13 +130,37 @@ void printBitVector(BitVector& bitVector) {
             printf("%" PrintFormatNatural, (buffer>>i)&1);
     }
     printf("\n");
-}
+}*/
 
 Integer32 main(Integer32 argc, Integer8** argv) {
     test("loadStorage") {
         assert(argc == 2);
         loadStorage(argv[1]);
     }
+
+#ifdef BP_TREE_TEST
+    test("B+ Tree") {
+        NativeNaturalType elementCount = 1024*1024*128;
+        TestBpTree tree;
+        tree.init();
+        // printf("  Capacity %hhd %d %d\n", TestBpTree::maxLayerCount, TestBpTree::Page::capacity<true>(), TestBpTree::Page::capacity<false>());
+        // printf("  Bits %llu %llu %llu %hhu\n", TestBpTree::keyBits, TestBpTree::rankBits, TestBpTree::pageRefBits, architectureSize);
+        // printf("  Offset %llu %llu %llu %llu\n", TestBpTree::Page::keyOffset, TestBpTree::Page::rankOffset, TestBpTree::Page::pageRefOffset, TestBpTree::Page::valueOffset);
+
+        const NativeNaturalType insertPermutation[] = {
+            5, 13, 113, 67, 112, 12, 15, 78, 1, 7, 38, 71, 84, 121, 93, 33, 36, 0, 47, 73, 72, 106, 22, 120, 18, 30, 20, 127, 27, 60, 101, 90, 69, 105, 87, 126, 124, 51, 59, 56, 44, 123, 68, 35, 65, 14, 82, 17, 118, 111, 11, 76, 53, 86, 92, 4, 108, 37, 114, 19, 46, 116, 104, 98, 110, 77, 64, 66, 58, 97, 62, 28, 2, 25, 83, 29, 85, 100, 54, 94, 43, 48, 107, 81, 79, 31, 23, 32, 57, 115, 119, 99, 91, 50, 117, 41, 21, 89, 75, 52, 24, 8, 16, 34, 9, 74, 102, 6, 39, 10, 80, 42, 96, 55, 61, 122, 40, 3, 95, 26, 88, 49, 45, 125, 63, 109, 103, 70
+        };
+        testBpTreeUsingPermutation<true>(tree, elementCount, sizeof(insertPermutation)/sizeof(NativeNaturalType), insertPermutation);
+
+        const NativeNaturalType erasePermutation[] = {
+            65, 9, 95, 91, 124, 101, 110, 123, 13, 18, 0, 126, 88, 82, 64, 32, 45, 86, 46, 51, 42, 104, 76, 90, 4, 5, 35, 53, 56, 7, 11, 100, 99, 62, 39, 50, 12, 1, 40, 108, 6, 83, 106, 112, 113, 114, 55, 37, 57, 75, 103, 105, 49, 17, 94, 2, 72, 36, 30, 97, 98, 119, 125, 33, 22, 23, 26, 109, 81, 77, 60, 111, 122, 67, 8, 70, 59, 41, 120, 73, 68, 3, 87, 19, 25, 15, 118, 89, 27, 116, 34, 71, 127, 10, 74, 66, 85, 31, 92, 84, 78, 107, 29, 44, 69, 38, 21, 102, 63, 24, 28, 14, 61, 54, 79, 20, 121, 117, 96, 48, 58, 47, 43, 93, 115, 16, 52, 80
+        };
+        testBpTreeUsingPermutation<false>(tree, elementCount, sizeof(erasePermutation)/sizeof(NativeNaturalType), erasePermutation);
+
+        printf(CURSOR_TO_LEFT_LIMIT CLEAR_LINE);
+        assert(tree.isEmpty() && superPage->pagesEnd == countRecyclablePages()+2);
+    }
+#endif
 
     test("BitVectorGuard<DataStructure>") {
         Symbol symbol;
@@ -378,8 +501,7 @@ Integer32 main(Integer32 argc, Integer8** argv) {
         unloadStorage();
     }
 
-    beginTest(testCount, nullptr);
-    printf("\e[0;32m\u2714 All %" PrintFormatNatural " tests succeeded\e[0m\n", testCount);
+    endTests();
     return 0;
 }
 
