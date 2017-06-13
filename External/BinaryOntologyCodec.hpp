@@ -1,7 +1,7 @@
 #include <External/Arithmetic.hpp>
 
 struct BinaryOntologyCodec {
-    BitVector bitVector;
+    BitVector& bitVector;
     NativeNaturalType offset = 0, naturalLength = architectureSize, symbolsInChunk;
     const static NativeNaturalType headerLength = 64+8*45;
 
@@ -24,7 +24,7 @@ struct BinaryOntologyCodec {
         BitMapOptionArithmetic
     } bitMapOption = BitMapOptionRaw;
 
-    BinaryOntologyCodec(BitVector _bitVector) :bitVector(_bitVector) {}
+    BinaryOntologyCodec(BitVector& _bitVector) :bitVector(_bitVector) {}
 };
 
 struct BinaryOntologyEncoder : public BinaryOntologyCodec {
@@ -33,8 +33,8 @@ struct BinaryOntologyEncoder : public BinaryOntologyCodec {
     Symbol symbolOffset;
     NativeNaturalType emptySymbolsInChunk;
 
-    BinaryOntologyEncoder(Ontology* _srcOntology, Symbol dstSymbol)
-        :BinaryOntologyCodec(BitVector(BitVectorLocation(&heapSymbolSpace, dstSymbol))), srcOntology(_srcOntology), symbolHuffmanEncoder(bitVector, offset) {
+    BinaryOntologyEncoder(BitVector& dstBitVector, Ontology* _srcOntology)
+        :BinaryOntologyCodec(dstBitVector), srcOntology(_srcOntology), symbolHuffmanEncoder(dstBitVector, offset) {
         bitVector.setSize(0);
     }
 
@@ -151,8 +151,8 @@ struct BinaryOntologyDecoder : public BinaryOntologyCodec {
     Ontology* dstOntology;
     StaticHuffmanDecoder symbolHuffmanDecoder;
 
-    BinaryOntologyDecoder(Ontology* _dstOntology, Symbol srcSymbol)
-        :BinaryOntologyCodec(BitVector(BitVectorLocation(&heapSymbolSpace, srcSymbol))), dstOntology(_dstOntology), symbolHuffmanDecoder(bitVector, offset) {}
+    BinaryOntologyDecoder(Ontology* _dstOntology, BitVector& srcBitVector)
+        :BinaryOntologyCodec(srcBitVector), dstOntology(_dstOntology), symbolHuffmanDecoder(srcBitVector, offset) {}
 
     NativeNaturalType decodeNatural() {
         NativeNaturalType value;

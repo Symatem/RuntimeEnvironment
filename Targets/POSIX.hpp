@@ -117,22 +117,24 @@ void printStats() {
 Integer32 file = -1, sockfd = -1;
 struct stat fileStat;
 
-/* TODO void exportOntology(const char* path) {
-    BinaryOntologyEncoder encoder;
+void exportOntology(const char* path, Ontology* srcOntology) {
+    BitVectorGuard<BitVector> bitVector;
+    BinaryOntologyEncoder encoder(bitVector, srcOntology);
     encoder.encode();
     int fd = open(path, O_WRONLY|O_CREAT, 0666);
     Natural8 buffer[512];
     for(NativeNaturalType offset = 0, size = encoder.bitVector.getSize(); offset < size; ) {
         NativeNaturalType sliceLength = min(size-offset, static_cast<NativeNaturalType>(sizeof(buffer)*8));
-        encoder.bitVector.externalOperate<false>(buffer, offset, sliceLength);
+        bitVector.externalOperate<false>(buffer, offset, sliceLength);
         assert(write(fd, buffer, sliceLength/8) > 0);
         offset += sliceLength;
     }
     close(fd);
 }
 
-void importOntology(const char* path) {
-    BinaryOntologyDecoder decoder;
+void importOntology(const char* path, Ontology* dstOntology) {
+    BitVectorGuard<BitVector> bitVector;
+    BinaryOntologyDecoder decoder(dstOntology, bitVector);
     int fd = open(path, O_RDONLY, 0666);
     Natural8 buffer[512];
     struct stat fdStat;
@@ -142,12 +144,12 @@ void importOntology(const char* path) {
     for(NativeNaturalType offset = 0; offset < size; ) {
         NativeNaturalType sliceLength = min(size-offset, static_cast<NativeNaturalType>(sizeof(buffer)*8));
         assert(read(fd, buffer, sliceLength/8) > 0);
-        decoder.bitVector.externalOperate<true>(buffer, offset, sliceLength);
+        bitVector.externalOperate<true>(buffer, offset, sliceLength);
         offset += sliceLength;
     }
     close(fd);
     decoder.decode();
-}*/
+}
 
 NativeNaturalType bytesForPages(NativeNaturalType pagesEnd) {
     const NativeNaturalType mmapChunkSize = 1<<28;
