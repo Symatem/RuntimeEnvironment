@@ -487,14 +487,24 @@ Integer32 main(Integer32 argc, Integer8** argv) {
     }
 
     test("Triple") {
-        Ontology& ontology = reinterpret_cast<Ontology&>(heapSymbolSpace);
-        Triple triple = {ontology.createSymbol(), ontology.createSymbol(), ontology.createSymbol()};
-        assert(ontology.query(QueryMask::MMM, triple) == 0);
-        assert(ontology.link(triple) == true);
-        assert(ontology.query(QueryMask::MMM, triple) == 1);
-        assert(ontology.unlink(triple) == true);
-        assert(ontology.query(QueryMask::MMM, triple) == 0);
-        assert(ontology.state.bitVectorCount == 0);
+        Ontology ontologyA(1), ontologyB(2);
+        Triple triple = {ontologyA.createSymbol(), ontologyA.createSymbol(), ontologyA.createSymbol()};
+        assert(ontologyA.query(QueryMask::MMM, triple) == 0);
+        assert(ontologyB.query(QueryMask::MMM, triple) == 0);
+        assert(ontologyA.link(triple) == true);
+        assert(ontologyA.query(QueryMask::MMM, triple) == 1);
+        assert(ontologyB.query(QueryMask::MMM, triple) == 0);
+        triple = {ontologyB.createSymbol(), ontologyB.createSymbol(), ontologyB.createSymbol()};
+        assert(ontologyB.link(triple) == true);
+        assert(ontologyA.query(QueryMask::MMM, triple) == 1);
+        assert(ontologyB.query(QueryMask::MMM, triple) == 1);
+        assert(ontologyA.unlink(triple) == true);
+        assert(ontologyA.query(QueryMask::MMM, triple) == 0);
+        assert(ontologyB.query(QueryMask::MMM, triple) == 1);
+        assert(ontologyB.unlink(triple) == true);
+        assert(ontologyA.query(QueryMask::MMM, triple) == 0);
+        assert(ontologyB.query(QueryMask::MMM, triple) == 0);
+        assert(ontologyA.state.bitVectorCount == 0);
     }
 
     test("unloadStorage") {

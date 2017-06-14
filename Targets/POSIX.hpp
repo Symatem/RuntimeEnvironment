@@ -76,7 +76,7 @@ void printStats() {
         });
         printf("SymbolSpace       %10" PrintFormatNatural "\n", symbolSpace.spaceSymbol);
         if(symbolSpace.spaceSymbol > 0)
-            printf("  Triples:          %10" PrintFormatNatural "\n", reinterpret_cast<Ontology&>(symbolSpace).query(VVV));
+            printf("  Triples:        %10" PrintFormatNatural "\n", reinterpret_cast<Ontology&>(symbolSpace).query(VVV));
         printf("  Symbols         %10" PrintFormatNatural "\n", symbolSpace.state.symbolsEnd);
         printf("  Recyclable      %10" PrintFormatNatural "\n", recyclableSymbolCount);
         printf("  Empty           %10" PrintFormatNatural "\n", symbolSpace.state.symbolsEnd-symbolSpace.state.bitVectorCount-recyclableSymbolCount);
