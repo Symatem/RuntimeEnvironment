@@ -81,9 +81,12 @@ struct SymbolStruct : public DataStructure<MetaVector<VoidType>> {
 
     SymbolStruct(BitVectorLocation location) :Super(location) {}
 
-    void init() {
-        if(Super::isEmpty())
+    bool init() {
+        if(Super::isEmpty()) {
             Super::insertRange(0, 7);
+            return true;
+        }
+        return false;
     }
 
     auto getSubIndex(NativeNaturalType subIndex) {

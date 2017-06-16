@@ -182,6 +182,7 @@ struct BinaryOntologyDecoder : public BinaryOntologyCodec {
             default:
                 assert(false);
         }
+        dstOntology->activateSymbol(symbol);
         return symbol;
     }
 

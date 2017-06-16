@@ -37,6 +37,14 @@ struct SymbolSpace {
         return symbol;
     }
 
+    void activateSymbol(Symbol symbol) {
+        if(symbol >= state.symbolsEnd)
+            state.symbolsEnd = symbol+1;
+        else
+            state.recyclableSymbols.erase<Key>(symbol);
+        updateState();
+    }
+
     void releaseSymbol(Symbol symbol);
 } heapSymbolSpace;
 

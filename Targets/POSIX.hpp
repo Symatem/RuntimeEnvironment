@@ -121,7 +121,7 @@ void exportOntology(const char* path, Ontology* srcOntology) {
     BitVectorGuard<BitVector> bitVector;
     BinaryOntologyEncoder encoder(bitVector, srcOntology);
     encoder.encode();
-    int fd = open(path, O_WRONLY|O_CREAT, 0666);
+    int fd = open(path, O_WRONLY|O_CREAT, 0660);
     Natural8 buffer[512];
     for(NativeNaturalType offset = 0, size = encoder.bitVector.getSize(); offset < size; ) {
         NativeNaturalType sliceLength = min(size-offset, static_cast<NativeNaturalType>(sizeof(buffer)*8));
@@ -135,7 +135,7 @@ void exportOntology(const char* path, Ontology* srcOntology) {
 void importOntology(const char* path, Ontology* dstOntology) {
     BitVectorGuard<BitVector> bitVector;
     BinaryOntologyDecoder decoder(dstOntology, bitVector);
-    int fd = open(path, O_RDONLY, 0666);
+    int fd = open(path, O_RDONLY, 0660);
     Natural8 buffer[512];
     struct stat fdStat;
     assert(fstat(fd, &fdStat) == 0);
