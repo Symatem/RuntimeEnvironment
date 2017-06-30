@@ -229,14 +229,8 @@ struct BinaryOntologyDecoder : public BinaryOntologyCodec {
         numberOption = static_cast<NumberOption>(decodeNatural());
         symbolOption = static_cast<SymbolOption>(decodeNatural());
         bitMapOption = static_cast<BitMapOption>(decodeNatural());
-        if(symbolOption == SymbolOptionStaticHuffman) {
+        if(symbolOption == SymbolOptionStaticHuffman)
             symbolHuffmanDecoder.decodeTree();
-            for(NativeNaturalType i = 0; i < symbolHuffmanDecoder.symbolCount; ++i) { // TODO
-                Symbol symbol = symbolHuffmanDecoder.symbolVector.getElementAt(i);
-                if(symbol >= preDefinedSymbolsCount)
-                    symbolHuffmanDecoder.symbolVector.setElementAt(i, dstOntology->createSymbol());
-            }
-        }
         symbolsInChunk = decodeNatural();
         for(NativeNaturalType i = 0; i < symbolsInChunk; ++i)
             decodeEntity();
@@ -249,8 +243,8 @@ struct BinaryOntologyDecoder : public BinaryOntologyCodec {
         offset = headerLength;
         Natural8 padding;
         bitVector.externalOperate<false>(&padding, offset, 8);
-        NativeNaturalType bitVectorLength = bitVector.getSize()-padding;
         offset += 8;
+        NativeNaturalType bitVectorLength = bitVector.getSize()-padding;
         while(offset < bitVectorLength)
             decodeChunk();
     }
