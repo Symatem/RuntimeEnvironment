@@ -24,7 +24,7 @@ struct BitVectorBucket {
     }
 
     NativeNaturalType getElementLength() const {
-        return getMaxDataBits()+getSizeBits()+architectureSize;
+        return getMaxDataBits()+getSizeBits()+architectureSize*2;
     }
 
     NativeNaturalType getIndexOfOffset(NativeNaturalType offset) const {
@@ -39,7 +39,7 @@ struct BitVectorBucket {
         return getDataOffset(index)+getMaxDataBits();
     }
 
-    NativeNaturalType getSymbolOffset(NativeNaturalType index) const {
+    NativeNaturalType getLocationOffset(NativeNaturalType index) const {
         return getSizeOffset(index)+getSizeBits();
     }
 
@@ -67,17 +67,17 @@ struct BitVectorBucket {
         return size+getMinDataBits()+1;
     }
 
-    void setSymbol(NativeNaturalType index, NativeNaturalType symbol) {
+    void setLocation(NativeNaturalType index, Pair<NativeNaturalType, NativeNaturalType> location) {
         bitwiseCopy<-1>(reinterpret_cast<NativeNaturalType*>(this),
-                        reinterpret_cast<const NativeNaturalType*>(&symbol),
-                        getSymbolOffset(index), 0, architectureSize);
+                        reinterpret_cast<const NativeNaturalType*>(&location),
+                        getLocationOffset(index), 0, architectureSize*2);
     }
 
     NativeNaturalType getSymbol(NativeNaturalType index) const {
         Symbol symbol;
         bitwiseCopy<-1>(reinterpret_cast<NativeNaturalType*>(&symbol),
                         reinterpret_cast<const NativeNaturalType*>(this),
-                        0, getSymbolOffset(index), architectureSize);
+                        0, getLocationOffset(index)+architectureSize, architectureSize);
         return symbol;
     }
 
@@ -94,7 +94,7 @@ struct BitVectorBucket {
         header.count = 0;
         header.freeIndex = 0;
         for(NativeNaturalType index = 0; index < getMaxElementCount(); ++index)
-            setSymbol(index, index+1);
+            setLocation(index, {0, index+1});
     }
 
     void freeIndex(NativeNaturalType index, PageRefType pageRef) {
@@ -108,18 +108,18 @@ struct BitVectorBucket {
             assert(superPage->freeBitVectorBuckets[header.type].erase<Key>(pageRef));
             releasePage(pageRef);
         } else {
-            setSymbol(index, header.freeIndex);
+            setLocation(index, {0, header.freeIndex});
             header.freeIndex = index;
         }
     }
 
-    NativeNaturalType allocateIndex(NativeNaturalType size, Symbol symbol, PageRefType pageRef) {
+    NativeNaturalType allocateIndex(NativeNaturalType size, Symbol spaceSymbol, Symbol symbol, PageRefType pageRef) {
         assert(size > 0 && header.count < getMaxElementCount());
         ++header.count;
         NativeNaturalType index = header.freeIndex;
         header.freeIndex = getSymbol(header.freeIndex);
         setSize(index, size);
-        setSymbol(index, symbol);
+        setLocation(index, {spaceSymbol, symbol});
         if(isFull()) {
             assert(superPage->fullBitVectorBuckets.insert(pageRef));
             assert(superPage->freeBitVectorBuckets[header.type].erase<Key>(pageRef));

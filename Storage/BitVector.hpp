@@ -82,7 +82,7 @@ struct BitVector {
             pageRef = superPage->freeBitVectorBuckets[bucketType].template getOne<First, false>();
             bucket = dereferencePage<BitVectorBucket>(pageRef);
         }
-        indexInBucket = bucket->allocateIndex(size, location.symbol, pageRef);
+        indexInBucket = bucket->allocateIndex(size, location.symbolSpace->spaceSymbol, location.symbol, pageRef);
         offsetInPage = bucket->getDataOffset(indexInBucket);
         address = pageRef*bitsPerPage+offsetInPage;
     }
