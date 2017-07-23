@@ -440,11 +440,11 @@ Integer32 main(Integer32 argc, Integer8** argv) {
             && bitMap.moveSlice(32, 24, 8) == true);
         assert(bitMap.getElementCount() == 2
             && bitMap.getSliceBeginAddress(0) == 16 && bitMap.getChildLength(0) == 8
-            && bitMap.getSliceBeginAddress(1) == 32 && bitMap.getChildLength(1) == 8);
-        bitMap.moveSlice(24, 16, 8);
+            && bitMap.getSliceBeginAddress(1) == 32 && bitMap.getChildLength(1) == 8
+            && bitMap.moveSlice(24, 16, 8) == true);
         assert(bitMap.getElementCount() == 1
-            && bitMap.getSliceBeginAddress(0) == 24 && bitMap.getChildLength(0) == 16);
-        bitMap.moveSlice(32, 24, 8);
+            && bitMap.getSliceBeginAddress(0) == 24 && bitMap.getChildLength(0) == 16
+            && bitMap.moveSlice(32, 24, 8) == true);
         assert(bitMap.getElementCount() == 1
             && bitMap.getSliceBeginAddress(0) == 32 && bitMap.getChildLength(0) == 8);
         assert(bitMap.fillSlice(24, 8, dstOffset) == 0
@@ -452,13 +452,24 @@ Integer32 main(Integer32 argc, Integer8** argv) {
             && bitMap.moveSlice(16, 24, 8) == true);
         assert(bitMap.getElementCount() == 2
             && bitMap.getSliceBeginAddress(0) == 16 && bitMap.getChildLength(0) == 8
-            && bitMap.getSliceBeginAddress(1) == 32 && bitMap.getChildLength(1) == 8);
-        bitMap.moveSlice(24, 32, 8);
+            && bitMap.getSliceBeginAddress(1) == 32 && bitMap.getChildLength(1) == 8
+            && bitMap.moveSlice(24, 32, 8)== true);
         assert(bitMap.getElementCount() == 1
-            && bitMap.getSliceBeginAddress(0) == 16 && bitMap.getChildLength(0) == 16);
-        bitMap.moveSlice(16, 24, 8);
+            && bitMap.getSliceBeginAddress(0) == 16 && bitMap.getChildLength(0) == 16
+            && bitMap.moveSlice(16, 24, 8) == true);
         assert(bitMap.getElementCount() == 1
-            && bitMap.getSliceBeginAddress(0) == 16 && bitMap.getChildLength(0) == 8);
+            && bitMap.getSliceBeginAddress(0) == 16 && bitMap.getChildLength(0) == 8
+            && bitMap.fillSlice(32, 8, dstOffset) == 1);
+        bitMap.moveSlice(bitMap, 48, 16, 8);
+        assert(bitMap.getElementCount() == 2
+            && bitMap.getSliceBeginAddress(0) == 32 && bitMap.getChildLength(0) == 8
+            && bitMap.getSliceBeginAddress(1) == 48 && bitMap.getChildLength(1) == 8);
+        bitMap.moveSlice(bitMap, 28, 48, 8);
+        assert(bitMap.getElementCount() == 1
+            && bitMap.getSliceBeginAddress(0) == 28 && bitMap.getChildLength(0) == 12);
+        bitMap.moveSlice(bitMap, 32, 28, 8);
+        assert(bitMap.getElementCount() == 1
+            && bitMap.getSliceBeginAddress(0) == 32 && bitMap.getChildLength(0) == 8);
     }
 
     test("ArithmeticCodec Symbol") {

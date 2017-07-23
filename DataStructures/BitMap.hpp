@@ -225,4 +225,21 @@ struct BitMap : public MetaSet<NativeNaturalType, _ParentType> {
         }
         return true;
     }
+
+    void moveSlice(BitMap& src, NativeNaturalType dstAddress, NativeNaturalType srcAddress, NativeNaturalType length) {
+        if(src == *this && moveSlice(dstAddress, srcAddress, length))
+            return;
+        copySlice(src, dstAddress, srcAddress, length);
+        NativeNaturalType eraseLength = length, eraseAddress = srcAddress;
+        if(src == *this) {
+            bool downward = (dstAddress < srcAddress);
+            NativeNaturalType addressDiff = downward ? srcAddress-dstAddress : dstAddress-srcAddress;
+            if(length > addressDiff) {
+                eraseLength = addressDiff;
+                if(downward)
+                    eraseAddress = srcAddress+addressDiff;
+            }
+        }
+        clearSlice(eraseAddress, eraseLength);
+    }
 };
