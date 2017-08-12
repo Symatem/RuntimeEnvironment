@@ -242,4 +242,16 @@ struct BitMap : public MetaSet<NativeNaturalType, _ParentType> {
         }
         clearSlice(eraseAddress, eraseLength);
     }
+
+    void insertSlice(NativeNaturalType address, NativeNaturalType length) {
+        if(Super::isEmpty())
+            return;
+        moveSlice(address+length, address, getSliceEndAddress(Super::getElementCount()-1)-address);
+    }
+
+    void eraseSlice(NativeNaturalType address, NativeNaturalType length) {
+        if(Super::isEmpty())
+            return;
+        moveSlice(address, address+length, getSliceEndAddress(Super::getElementCount()-1)-address-length);
+    }
 };

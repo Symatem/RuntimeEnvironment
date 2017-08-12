@@ -472,6 +472,23 @@ Integer32 main(Integer32 argc, Integer8** argv) {
             && bitMap.getSliceBeginAddress(0) == 32 && bitMap.getChildLength(0) == 8);
     }
 
+    test("BitMap insertSlice and eraseSlice") {
+        BitVectorGuard<DataStructure<BitMap<>>> bitMap;
+        NativeNaturalType dstOffset;
+        bitMap.insertSlice(24, 8);
+        assert(bitMap.getElementCount() == 0);
+        bitMap.eraseSlice(24, 8);
+        assert(bitMap.getElementCount() == 0
+            && bitMap.fillSlice(16, 16, dstOffset) == 1);
+        bitMap.insertSlice(24, 8);
+        assert(bitMap.getElementCount() == 2
+            && bitMap.getSliceBeginAddress(0) == 16 && bitMap.getChildLength(0) == 8
+            && bitMap.getSliceBeginAddress(1) == 32 && bitMap.getChildLength(1) == 8);
+        bitMap.eraseSlice(24, 8);
+        assert(bitMap.getElementCount() == 1
+            && bitMap.getSliceBeginAddress(0) == 16 && bitMap.getChildLength(0) == 16);
+    }
+
     test("ArithmeticCodec Symbol") {
         BitVectorGuard<BitVector> bitVector;
         NativeNaturalType offset = 0;
