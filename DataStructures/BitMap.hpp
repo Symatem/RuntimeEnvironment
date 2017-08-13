@@ -243,15 +243,15 @@ struct BitMap : public MetaSet<NativeNaturalType, _ParentType> {
         clearSlice(eraseAddress, eraseLength);
     }
 
-    void insertSlice(NativeNaturalType address, NativeNaturalType length) {
-        if(Super::isEmpty())
-            return;
-        moveSlice(address+length, address, getSliceEndAddress(Super::getElementCount()-1)-address);
+    void insertSlice(NativeNaturalType address, NativeNaturalType length, NativeNaturalType& sliceOffset) {
+        if(!Super::isEmpty())
+            moveSlice(address+length, address, getSliceEndAddress(Super::getElementCount()-1)-address);
+        fillSlice(address, length, sliceOffset);
     }
 
     void eraseSlice(NativeNaturalType address, NativeNaturalType length) {
         if(Super::isEmpty())
             return;
-        moveSlice(address, address+length, getSliceEndAddress(Super::getElementCount()-1)-address-length);
+        moveSlice(address, address+length, getSliceEndAddress(Super::getElementCount()-1)-address);
     }
 };
