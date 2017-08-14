@@ -35,7 +35,7 @@ struct BitMap : public MetaSet<NativeNaturalType, _ParentType> {
     bool getSliceContaining(NativeNaturalType address, NativeNaturalType length, NativeNaturalType& sliceIndex) {
         if(!getSliceContaining<true, false>(address, sliceIndex))
             return false;
-        return getSliceEndAddress(sliceIndex) <= address+length;
+        return address+length <= getSliceEndAddress(sliceIndex);
     }
 
     NativeIntegerType fillSlice(NativeNaturalType address, NativeNaturalType length, NativeNaturalType& sliceOffset) {
@@ -196,7 +196,7 @@ struct BitMap : public MetaSet<NativeNaturalType, _ParentType> {
         clearSlice(eraseAddress, eraseLength);
         if(downward) {
             Super::findKey(srcAddress, sliceIndex);
-            if(getSliceEndAddress(sliceIndex) > srcAddress+length) {
+            if(sliceIndex < Super::getElementCount() && getSliceEndAddress(sliceIndex) > srcAddress+length) {
                 NativeNaturalType spareLength = getSliceEndAddress(sliceIndex)-(srcAddress+length);
                 Super::insertElementAt(sliceIndex+1, getSliceBeginAddress(sliceIndex)+spareLength);
                 Super::setValueAt(sliceIndex+1, Super::getChildBegin(sliceIndex)+spareLength);
