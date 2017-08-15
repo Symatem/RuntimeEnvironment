@@ -244,14 +244,34 @@ struct BitMap : public MetaSet<NativeNaturalType, _ParentType> {
     }
 
     void insertSlice(NativeNaturalType address, NativeNaturalType length, NativeNaturalType& sliceOffset) {
-        if(!Super::isEmpty())
-            moveSlice(address+length, address, getSliceEndAddress(Super::getElementCount()-1)-address);
+        if(!Super::isEmpty()) {
+            NativeNaturalType sliceIndex;
+            if(getSliceContaining<false, false>(address, sliceIndex)) {
+                sliceOffset = Super::getChildBegin(sliceIndex)+address-getSliceBeginAddress(sliceIndex);
+                Super::increaseSize(sliceOffset, length, sliceIndex);
+                while(++sliceIndex < Super::getElementCount()) {
+                    Super::setKeyAt(sliceIndex, getSliceBeginAddress(sliceIndex)+length);
+                    Super::setValueAt(sliceIndex+1, Super::getChildBegin(sliceIndex+1)+length);
+                }
+                return;
+            } else
+                moveSlice(address+length, address, getSliceEndAddress(Super::getElementCount()-1)-address);
+        }
         fillSlice(address, length, sliceOffset);
     }
 
     void eraseSlice(NativeNaturalType address, NativeNaturalType length) {
         if(Super::isEmpty())
             return;
-        moveSlice(address, address+length, getSliceEndAddress(Super::getElementCount()-1)-address);
+        NativeNaturalType sliceIndex;
+        if(getSliceContaining(address, length, sliceIndex)
+            && (address > getSliceBeginAddress(sliceIndex) || address+length < getSliceEndAddress(sliceIndex))) {
+            Super::decreaseSize(Super::getChildBegin(sliceIndex)+address-getSliceBeginAddress(sliceIndex), length, sliceIndex);
+            while(++sliceIndex < Super::getElementCount()) {
+                Super::setKeyAt(sliceIndex, getSliceBeginAddress(sliceIndex)-length);
+                Super::setValueAt(sliceIndex+1, Super::getChildBegin(sliceIndex+1)-length);
+            }
+        } else
+            moveSlice(address, address+length, getSliceEndAddress(Super::getElementCount()-1)-address);
     }
 };
