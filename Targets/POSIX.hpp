@@ -114,7 +114,7 @@ void printStats() {
 
 
 
-Integer32 file = -1, sockfd = -1;
+Integer32 mmapFlags = 0, file = -1, sockfd = -1;
 struct stat fileStat;
 
 void exportOntology(const char* path, Ontology* srcOntology) {
@@ -163,7 +163,8 @@ void unloadStorage() {
     }
     printStats();
     NativeNaturalType size = superPage->pagesEnd*bitsPerPage/8;
-    munmap(superPage, bytesForPages(maxPageCount));
+    assert(munmap(superPage, bytesForPages(superPage->pagesEnd)) == 0);
+    mmapFlags = 0;
     if(file < 0)
         return;
     if(S_ISREG(fileStat.st_mode))
@@ -181,7 +182,6 @@ void loadStorage(const char* path) {
     assert(signal(SIGINT, onExit) != SIG_ERR);
 
     assert(file < 0);
-    Integer32 mmapFlags = 0;
     if(substrEqual(path, "/dev/zero")) {
         mmapFlags |= MAP_PRIVATE|MAP_ANON;
         file = -1;
@@ -205,13 +205,9 @@ void loadStorage(const char* path) {
         }
     }
 
-    while(maxPageCount > 0x10) {
-        superPage = reinterpret_cast<SuperPage*>(MMAP_FUNC(0, bytesForPages(maxPageCount), PROT_READ|PROT_WRITE, mmapFlags, file, 0));
-        if(superPage != MAP_FAILED)
-            break;
-        maxPageCount >>= 1;
-    }
-    assert(superPage != MAP_FAILED);
+    NativeNaturalType size = bytesForPages(max(static_cast<NativeNaturalType>(1), fileStat.st_size*8/bitsPerPage));
+    superPage = reinterpret_cast<SuperPage*>(MMAP_FUNC(0, size, PROT_READ|PROT_WRITE, mmapFlags, file, 0));
+    mmapFlags |= MAP_FIXED;
 
     if(file < 0 || fileStat.st_size == 0)
         superPage->init(true);
@@ -223,11 +219,20 @@ void loadStorage(const char* path) {
 
 }
 
-void resizeMemory(NativeNaturalType _pagesEnd) {
-    assert(_pagesEnd < maxPageCount);
-    if(file >= 0 && S_ISREG(fileStat.st_mode) && bytesForPages(_pagesEnd) > static_cast<NativeNaturalType>(fileStat.st_size)) {
-        assert(ftruncate(file, bytesForPages(_pagesEnd)) == 0);
+void resizeMemory(NativeNaturalType pagesEnd) {
+    assert(pagesEnd < maxPageCount);
+    if(file >= 0 && S_ISREG(fileStat.st_mode) && bytesForPages(pagesEnd) > static_cast<NativeNaturalType>(fileStat.st_size)) {
+        assert(ftruncate(file, bytesForPages(pagesEnd)) == 0);
         assert(fstat(file, &fileStat) == 0);
     }
-    superPage->pagesEnd = _pagesEnd;
+    NativeNaturalType prevPagesEnd = superPage->pagesEnd;
+    superPage->pagesEnd = pagesEnd;
+    if(bytesForPages(pagesEnd) == bytesForPages(prevPagesEnd))
+        return;
+
+    Natural8* offset = reinterpret_cast<Natural8*>(superPage)+bytesForPages(min(pagesEnd, prevPagesEnd));
+    if(pagesEnd > prevPagesEnd)
+        assert(MMAP_FUNC(offset, bytesForPages(pagesEnd-prevPagesEnd), PROT_READ|PROT_WRITE, mmapFlags, file, 0) != MAP_FAILED)
+    else
+        assert(munmap(offset, bytesForPages(prevPagesEnd-pagesEnd)) == 0)
 }
