@@ -179,6 +179,33 @@ struct BitVector {
         return (dir == 0) ? result : 1;
     }
 
+    template<bool overwrite>
+    bool externalOperate(typename conditional<overwrite, const void*, void*>::type data, NativeNaturalType offset, NativeNaturalType length) {
+        typedef typename conditional<overwrite, const NativeNaturalType*, NativeNaturalType*>::type CopyType0;
+        typedef typename conditional<overwrite, NativeNaturalType*, const NativeNaturalType*>::type CopyType1;
+        if(length == 0 || offset+length > getSize())
+            return false;
+        if(state == InBucket) {
+            bitwiseCopySwap<overwrite>(reinterpret_cast<CopyType0>(data), reinterpret_cast<CopyType1>(superPage),
+                                       0, address+offset, length);
+        } else {
+            BpTreeBitVector::Iterator<false> iter;
+            bpTree.find<Rank>(iter, offset);
+            offset = 0;
+            while(true) {
+                NativeNaturalType segment = min(length, static_cast<NativeNaturalType>(iter[0]->endIndex-iter[0]->index));
+                bitwiseCopySwap<overwrite>(reinterpret_cast<CopyType0>(data), reinterpret_cast<CopyType1>(superPage),
+                                           offset, addressOfInteroperation(iter, 0), segment);
+                length -= segment;
+                if(length == 0)
+                    break;
+                iter.template advance<1>(0, segment);
+                offset += segment;
+            }
+        }
+        return true;
+    }
+
     NativeIntegerType compare(BitVector other) {
         if(location == other.location)
             return 0;
@@ -188,19 +215,6 @@ struct BitVector {
         if(size > otherSize)
             return 1;
         return interoperation<0>(other, 0, 0, size);
-    }
-
-    bool slice(BitVector src, NativeNaturalType dstOffset, NativeNaturalType srcOffset, NativeNaturalType length) {
-        if(location == src.location && dstOffset == srcOffset)
-            return false;
-        if(dstOffset <= srcOffset) {
-            if(!interoperation<-1>(src, dstOffset, srcOffset, length))
-                return false;
-        } else {
-            if(!interoperation<+1>(src, dstOffset, srcOffset, length))
-                return false;
-        }
-        return true;
     }
 
     NativeNaturalType getSize() {
@@ -317,30 +331,47 @@ struct BitVector {
         interoperation(src, 0, 0, srcSize);
     }
 
-    template<bool overwrite>
-    bool externalOperate(typename conditional<overwrite, const void*, void*>::type data, NativeNaturalType offset, NativeNaturalType length) {
-        typedef typename conditional<overwrite, const NativeNaturalType*, NativeNaturalType*>::type CopyType0;
-        typedef typename conditional<overwrite, NativeNaturalType*, const NativeNaturalType*>::type CopyType1;
-        if(length == 0 || offset+length > getSize())
+    bool replaceSlice(BitVector src, NativeNaturalType dstOffset, NativeNaturalType srcOffset, NativeNaturalType length) {
+        if(location == src.location && dstOffset == srcOffset)
             return false;
-        if(state == InBucket) {
-            bitwiseCopySwap<overwrite>(reinterpret_cast<CopyType0>(data), reinterpret_cast<CopyType1>(superPage),
-                                       0, address+offset, length);
+        if(dstOffset <= srcOffset) {
+            if(!interoperation<-1>(src, dstOffset, srcOffset, length))
+                return false;
         } else {
-            BpTreeBitVector::Iterator<false> iter;
-            bpTree.find<Rank>(iter, offset);
-            offset = 0;
-            while(true) {
-                NativeNaturalType segment = min(length, static_cast<NativeNaturalType>(iter[0]->endIndex-iter[0]->index));
-                bitwiseCopySwap<overwrite>(reinterpret_cast<CopyType0>(data), reinterpret_cast<CopyType1>(superPage),
-                                           offset, addressOfInteroperation(iter, 0), segment);
-                length -= segment;
-                if(length == 0)
-                    break;
-                iter.template advance<1>(0, segment);
-                offset += segment;
+            if(!interoperation<+1>(src, dstOffset, srcOffset, length))
+                return false;
+        }
+        return true;
+    }
+
+    bool moveSlice(NativeNaturalType dstOffset, NativeNaturalType srcOffset, NativeNaturalType length) {
+        if(dstOffset == srcOffset || length == 0 || max(dstOffset, srcOffset)+length > getSize())
+            return false;
+        bool upward = dstOffset > srcOffset;
+        if(upward) {
+            NativeNaturalType offsetDiff = dstOffset-srcOffset;
+            if(offsetDiff < length) {
+                dstOffset = srcOffset;
+                srcOffset += length;
+                length = offsetDiff;
+                upward = false;
+            }
+        } else {
+            NativeNaturalType offsetDiff = srcOffset-dstOffset;
+            if(offsetDiff < length) {
+                srcOffset = dstOffset;
+                dstOffset += length;
+                length = offsetDiff;
+                upward = true;
             }
         }
+        if(upward)
+            dstOffset += length;
+        increaseSize(dstOffset, length);
+        if(!upward)
+            srcOffset += length;
+        interoperation(*this, dstOffset, srcOffset, length);
+        decreaseSize(srcOffset, length);
         return true;
     }
 
