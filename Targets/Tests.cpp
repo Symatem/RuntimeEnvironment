@@ -162,6 +162,35 @@ Integer32 main(Integer32 argc, Integer8** argv) {
     }
 #endif
 
+    test("BitVector") {
+        BitVectorGuard<BitVector> bitVector, bitVectorB;
+        assert(bitVector.getSize() == 0);
+        bitVector.setSize(64);
+        assert(bitVector.getSize() == 64
+            && !bitVector.increaseSize(128, 32)
+            && bitVector.increaseSize(64, 32)
+            && bitVector.getSize() == 96
+            && !bitVector.decreaseSize(128, 32)
+            && bitVector.decreaseSize(64, 32)
+            && bitVector.getSize() == 64);
+        NativeNaturalType data = 0x0011223344556677;
+        assert(bitVector.template externalOperate<true>(&data, 0, 64)
+            && bitVector.template externalOperate<false>(&data, 32, 32)
+            && data == 0x0011223300112233);
+        bitVectorB.deepCopy(bitVector);
+        assert(bitVectorB.getSize() == 64
+            && bitVectorB.template externalOperate<false>(&data, 0, 64)
+            && data == 0x0011223344556677
+            && bitVector.compare(bitVectorB) == 0
+            && bitVectorB.compare(bitVector) == 0);
+        assert(bitVectorB.moveSlice(32, 0, 32)
+            && bitVectorB.template externalOperate<false>(&data, 0, 64)
+            && data == 0x4455667700112233
+            && bitVectorB.replaceSlice(bitVectorB, 32, 0, 32)
+            && bitVectorB.template externalOperate<false>(&data, 0, 64)
+            && data == 0x0011223300112233);
+    }
+
     test("BitVectorGuard<DataStructure>") {
         Symbol symbol;
         {
