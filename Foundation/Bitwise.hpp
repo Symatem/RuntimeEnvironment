@@ -1,4 +1,4 @@
-#include <Foundation/Lambda.hpp>
+#include <Foundation/StdLib.hpp>
 
 template<typename DataType>
 struct BitMask {
@@ -174,4 +174,20 @@ template<>
 void bitwiseCopySwap<true>(const NativeNaturalType* aPtr, NativeNaturalType* bPtr,
                            NativeNaturalType aOffset, NativeNaturalType bOffset, NativeNaturalType length) {
     bitwiseCopy<-1>(bPtr, aPtr, bOffset, aOffset, length);
+}
+
+template<bool atEnd = false>
+bool substrEqual(const char* a, const char* b) {
+    NativeNaturalType aOffset, aLen = strlen(a), bLen = strlen(b);
+    if(atEnd) {
+        if(aLen < bLen)
+            return false;
+        aOffset = (aLen-bLen)*8;
+    } else if(aLen != bLen)
+        return false;
+    else
+        aOffset = 0;
+    return bitwiseCompare(reinterpret_cast<const NativeNaturalType*>(a),
+                          reinterpret_cast<const NativeNaturalType*>(b),
+                          aOffset, 0, bLen*8) == 0;
 }

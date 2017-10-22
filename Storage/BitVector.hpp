@@ -374,20 +374,6 @@ struct BitVector {
         decreaseSize(srcOffset, length);
         return true;
     }
-
-    void chaCha20(ChaCha20& context) {
-        ChaCha20 buffer, mask;
-        NativeNaturalType endOffset = getSize(), offset = 0;
-        while(offset < endOffset) {
-            NativeNaturalType sliceLength = min(endOffset-offset, sizeOfInBits<ChaCha20>::value);
-            mask.generate(context);
-            externalOperate<false>(&buffer, offset, sliceLength);
-            for(Natural8 i = 0; i < 8; ++i)
-                buffer.block64[i] ^= mask.block64[i];
-            externalOperate<true>(&buffer, offset, sliceLength);
-            offset += sliceLength;
-        }
-    }
 };
 
 

@@ -1,32 +1,4 @@
-#include <Foundation/Bitwise.hpp>
-
-template<bool atEnd = false>
-bool substrEqual(const char* a, const char* b) {
-    NativeNaturalType aOffset, aLen = strlen(a), bLen = strlen(b);
-    if(atEnd) {
-        if(aLen < bLen)
-            return false;
-        aOffset = (aLen-bLen)*8;
-    } else if(aLen != bLen)
-        return false;
-    else
-        aOffset = 0;
-    return bitwiseCompare(reinterpret_cast<const NativeNaturalType*>(a),
-                          reinterpret_cast<const NativeNaturalType*>(b),
-                          aOffset, 0, bLen*8) == 0;
-}
-
-template<typename IndexType>
-IndexType binarySearch(IndexType begin, IndexType end, Closure<bool(IndexType)> compare) {
-    while(begin < end) {
-        IndexType mid = (begin+end)/2;
-        if(compare(mid))
-            begin = mid+1;
-        else
-            end = mid;
-    }
-    return begin;
-}
+#include <External/Arithmetic.hpp>
 
 struct ChaCha20 {
     union {
@@ -65,6 +37,20 @@ struct ChaCha20 {
         for(Natural8 j = 0; j < 8; ++j)
             block64[j] += context.block64[j];
         ++context.counter;
+    }
+
+    void applyOnBitVector(BitVector& bitVector) {
+        ChaCha20 buffer, mask;
+        NativeNaturalType endOffset = bitVector.getSize(), offset = 0;
+        while(offset < endOffset) {
+            NativeNaturalType sliceLength = min(endOffset-offset, sizeOfInBits<ChaCha20>::value);
+            mask.generate(*this);
+            bitVector.externalOperate<false>(&buffer, offset, sliceLength);
+            for(Natural8 i = 0; i < 8; ++i)
+                buffer.block64[i] ^= mask.block64[i];
+            bitVector.externalOperate<true>(&buffer, offset, sliceLength);
+            offset += sliceLength;
+        }
     }
 };
 

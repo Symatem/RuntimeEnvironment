@@ -2,16 +2,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <signal.h>
-#include <dirent.h>
+#include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <netdb.h>
-#include <fcntl.h>
 
 extern "C" {
 

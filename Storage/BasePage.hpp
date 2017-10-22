@@ -1,4 +1,4 @@
-#include <Foundation/Algorithms.hpp>
+#include <Foundation/Bitwise.hpp>
 
 const NativeNaturalType bitsPerPage = 1<<15, minPageCount = 1;
 
